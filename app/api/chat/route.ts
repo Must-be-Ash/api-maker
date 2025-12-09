@@ -111,25 +111,45 @@ Today's date is: ${new Date().toISOString().split('T')[0]}`
       }
       responseText += `\n\n`;
 
+      // Extract flight details from the agent's message
+      if (skillResult.data?.message) {
+        responseText += `📝 ${skillResult.data.message}\n\n`;
+      }
+
+      // Try to extract price from various possible locations
+      let price = null;
+      if (skillResult.data?.flights?.[0]?.price) {
+        price = skillResult.data.flights[0].price;
+      } else if (skillResult.data?.extraction?.price) {
+        price = skillResult.data.extraction.price;
+      } else if (skillResult.data?.extraction) {
+        price = skillResult.data.extraction;
+      }
+
+      if (price) {
+        responseText += `💰 **Price**: ${price}\n\n`;
+      }
+
+      // Add flight details if available
+      if (skillResult.data?.flights && skillResult.data.flights.length > 0) {
+        responseText += `✈️ **Flight Details**:\n`;
+        skillResult.data.flights.forEach((flight: any, idx: number) => {
+          responseText += `\nFlight ${idx + 1}:\n`;
+          if (flight.airline) responseText += `  • Airline: ${flight.airline}\n`;
+          if (flight.flightNumber) responseText += `  • Flight: ${flight.flightNumber}\n`;
+          if (flight.departure) responseText += `  • Departure: ${flight.departure}\n`;
+          if (flight.arrival) responseText += `  • Arrival: ${flight.arrival}\n`;
+          if (flight.price) responseText += `  • Price: ${flight.price}\n`;
+        });
+        responseText += `\n`;
+      }
+
       // Add execution details
       responseText += `⚡ Strategy used: ${skillResult.strategy}\n`;
       responseText += `⏱️ Execution time: ${(skillResult.executionTime / 1000).toFixed(1)}s\n`;
 
-      if (skillResult.data?.message) {
-        responseText += `\n📝 ${skillResult.data.message}\n`;
-      }
-
-      if (skillResult.data?.extraction) {
-        responseText += `\n💰 Price: ${skillResult.data.extraction}\n`;
-      }
-
       if (skillResult.sessionUrl) {
         responseText += `\n🔗 [View session recording](${skillResult.sessionUrl})`;
-      }
-
-      // Add raw data for debugging
-      if (skillResult.data && Object.keys(skillResult.data).length > 0) {
-        responseText += `\n\n---\n**Raw data:**\n\`\`\`json\n${JSON.stringify(skillResult.data, null, 2)}\n\`\`\``;
       }
     } else {
       responseText = `❌ Flight search failed.\n\n`;

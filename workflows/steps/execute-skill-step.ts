@@ -244,13 +244,26 @@ async function executeAIRelearn(
       waitUntil: 'domcontentloaded',
       timeoutMs: 10000,
     });
+    console.log('[executeAIRelearn] Navigated to start URL:', startUrl);
   }
 
-  // Create agent
+  // Create agent with explicit instructions to stay on the current site
+  const currentSite = startUrl ? new URL(startUrl).hostname : 'the current website';
   const agent = stagehand.agent({
     systemPrompt: `You are a web automation expert. Your goal: ${goalWithVars}.
-    Perform the task step by step using act, observe, and extract methods.
-    Be precise and thorough.`,
+
+IMPORTANT RULES:
+1. You are already on ${currentSite} - DO NOT navigate to any other website
+2. Complete the entire task on this website only
+3. When extracting flight information, extract ALL details including:
+   - Total price (with currency symbol)
+   - Airline names for each flight segment
+   - Flight numbers
+   - Departure and arrival times
+   - Departure and arrival airports
+
+Perform the task step by step using act, observe, and extract methods on ${currentSite}.
+Be precise and thorough in your extraction.`,
   });
 
   console.log('[executeAIRelearn] Agent created, executing task');
