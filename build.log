@@ -1,0 +1,1006 @@
+
+> next-boilerplate@0.1.0 build /Users/ashnouruzi/api-maker
+> next build
+
+Discovering workflow directives 1546ms
+Created steps bundle 40ms
+✘ [ERROR] Could not resolve "stream"
+
+    node_modules/.pnpm/mongodb@6.21.0_socks@2.8.7/node_modules/mongodb/lib/gridfs/upload.js:6:25:
+      6 │ const stream_1 = require("stream");
+        ╵                          ~~~~~~~~
+
+  The package "stream" wasn't found on the file system but is built into node. Are you trying to bundle for node? You can use "platform: 'node'" to do that, which will remove this error.
+
+✘ [ERROR] Could not resolve "fs"
+
+    node_modules/.pnpm/mongodb@6.21.0_socks@2.8.7/node_modules/mongodb/lib/mongo_client.js:6:21:
+      6 │ const fs_1 = require("fs");
+        ╵                      ~~~~
+
+  The package "fs" wasn't found on the file system but is built into node. Are you trying to bundle for node? You can use "platform: 'node'" to do that, which will remove this error.
+
+✘ [ERROR] Could not resolve "stream"
+
+    node_modules/.pnpm/mongodb@6.21.0_socks@2.8.7/node_modules/mongodb/lib/cursor/abstract_cursor.js:6:25:
+      6 │ const stream_1 = require("stream");
+        ╵                          ~~~~~~~~
+
+  The package "stream" wasn't found on the file system but is built into node. Are you trying to bundle for node? You can use "platform: 'node'" to do that, which will remove this error.
+
+✘ [ERROR] Could not resolve "net"
+
+    node_modules/.pnpm/mongodb@6.21.0_socks@2.8.7/node_modules/mongodb/lib/client-side-encryption/auto_encrypter.js:7:20:
+      7 │ const net = require("net");
+        ╵                     ~~~~~
+
+  The package "net" wasn't found on the file system but is built into node. Are you trying to bundle for node? You can use "platform: 'node'" to do that, which will remove this error.
+
+✘ [ERROR] Could not resolve "stream"
+
+    node_modules/.pnpm/mongodb@6.21.0_socks@2.8.7/node_modules/mongodb/lib/gridfs/download.js:6:25:
+      6 │ const stream_1 = require("stream");
+        ╵                          ~~~~~~~~
+
+  The package "stream" wasn't found on the file system but is built into node. Are you trying to bundle for node? You can use "platform: 'node'" to do that, which will remove this error.
+
+✘ [ERROR] Could not resolve "dns"
+
+    node_modules/.pnpm/mongodb@6.21.0_socks@2.8.7/node_modules/mongodb/lib/cmap/auth/gssapi.js:8:20:
+      8 │ const dns = require("dns");
+        ╵                     ~~~~~
+
+  The package "dns" wasn't found on the file system but is built into node. Are you trying to bundle for node? You can use "platform: 'node'" to do that, which will remove this error.
+
+✘ [ERROR] Could not resolve "zlib"
+
+    node_modules/.pnpm/mongodb@6.21.0_socks@2.8.7/node_modules/mongodb/lib/cmap/wire_protocol/compression.js:11:21:
+      11 │ const zlib = require("zlib");
+         ╵                      ~~~~~~
+
+  The package "zlib" wasn't found on the file system but is built into node. Are you trying to bundle for node? You can use "platform: 'node'" to do that, which will remove this error.
+
+✘ [ERROR] Could not resolve "dns"
+
+    node_modules/.pnpm/mongodb@6.21.0_socks@2.8.7/node_modules/mongodb/lib/sdam/srv_polling.js:6:20:
+      6 │ const dns = require("dns");
+        ╵                     ~~~~~
+
+  The package "dns" wasn't found on the file system but is built into node. Are you trying to bundle for node? You can use "platform: 'node'" to do that, which will remove this error.
+
+✘ [ERROR] Could not resolve "timers"
+
+    node_modules/.pnpm/mongodb@6.21.0_socks@2.8.7/node_modules/mongodb/lib/sdam/srv_polling.js:7:25:
+      7 │ const timers_1 = require("timers");
+        ╵                          ~~~~~~~~
+
+  The package "timers" wasn't found on the file system but is built into node. Are you trying to bundle for node? You can use "platform: 'node'" to do that, which will remove this error.
+
+✘ [ERROR] Could not resolve "timers"
+
+    node_modules/.pnpm/mongodb@6.21.0_socks@2.8.7/node_modules/mongodb/lib/timeout.js:6:25:
+      6 │ const timers_1 = require("timers");
+        ╵                          ~~~~~~~~
+
+  The package "timers" wasn't found on the file system but is built into node. Are you trying to bundle for node? You can use "platform: 'node'" to do that, which will remove this error.
+
+✘ [ERROR] Could not resolve "crypto"
+
+    node_modules/.pnpm/mongodb@6.21.0_socks@2.8.7/node_modules/mongodb/lib/utils.js:56:23:
+      56 │ const crypto = require("crypto");
+         ╵                        ~~~~~~~~
+
+  The package "crypto" wasn't found on the file system but is built into node. Are you trying to bundle for node? You can use "platform: 'node'" to do that, which will remove this error.
+
+✘ [ERROR] Could not resolve "fs"
+
+    node_modules/.pnpm/mongodb@6.21.0_socks@2.8.7/node_modules/mongodb/lib/utils.js:57:21:
+      57 │ const fs_1 = require("fs");
+         ╵                      ~~~~
+
+  The package "fs" wasn't found on the file system but is built into node. Are you trying to bundle for node? You can use "platform: 'node'" to do that, which will remove this error.
+
+✘ [ERROR] Could not resolve "http"
+
+    node_modules/.pnpm/mongodb@6.21.0_socks@2.8.7/node_modules/mongodb/lib/utils.js:58:21:
+      58 │ const http = require("http");
+         ╵                      ~~~~~~
+
+  The package "http" wasn't found on the file system but is built into node. Are you trying to bundle for node? You can use "platform: 'node'" to do that, which will remove this error.
+
+✘ [ERROR] Could not resolve "timers"
+
+    node_modules/.pnpm/mongodb@6.21.0_socks@2.8.7/node_modules/mongodb/lib/utils.js:59:25:
+      59 │ const timers_1 = require("timers");
+         ╵                          ~~~~~~~~
+
+  The package "timers" wasn't found on the file system but is built into node. Are you trying to bundle for node? You can use "platform: 'node'" to do that, which will remove this error.
+
+✘ [ERROR] Could not resolve "url"
+
+    node_modules/.pnpm/mongodb@6.21.0_socks@2.8.7/node_modules/mongodb/lib/utils.js:60:20:
+      60 │ const url = require("url");
+         ╵                     ~~~~~
+
+  The package "url" wasn't found on the file system but is built into node. Are you trying to bundle for node? You can use "platform: 'node'" to do that, which will remove this error.
+
+✘ [ERROR] Could not resolve "os"
+
+    node_modules/.pnpm/mongodb@6.21.0_socks@2.8.7/node_modules/mongodb/lib/cmap/handshake/client_metadata.js:10:19:
+      10 │ const os = require("os");
+         ╵                    ~~~~
+
+  The package "os" wasn't found on the file system but is built into node. Are you trying to bundle for node? You can use "platform: 'node'" to do that, which will remove this error.
+
+✘ [ERROR] Could not resolve "process"
+
+    node_modules/.pnpm/mongodb@6.21.0_socks@2.8.7/node_modules/mongodb/lib/cmap/handshake/client_metadata.js:11:24:
+      11 │ const process = require("process");
+         ╵                         ~~~~~~~~~
+
+  The package "process" wasn't found on the file system but is built into node. Are you trying to bundle for node? You can use "platform: 'node'" to do that, which will remove this error.
+
+✘ [ERROR] Could not resolve "dns"
+
+    node_modules/.pnpm/mongodb@6.21.0_socks@2.8.7/node_modules/mongodb/lib/connection_string.js:8:20:
+      8 │ const dns = require("dns");
+        ╵                     ~~~~~
+
+  The package "dns" wasn't found on the file system but is built into node. Are you trying to bundle for node? You can use "platform: 'node'" to do that, which will remove this error.
+
+✘ [ERROR] Could not resolve "url"
+
+    node_modules/.pnpm/mongodb@6.21.0_socks@2.8.7/node_modules/mongodb/lib/connection_string.js:10:22:
+      10 │ const url_1 = require("url");
+         ╵                       ~~~~~
+
+  The package "url" wasn't found on the file system but is built into node. Are you trying to bundle for node? You can use "platform: 'node'" to do that, which will remove this error.
+
+✘ [ERROR] Could not resolve "crypto"
+
+    node_modules/.pnpm/mongodb@6.21.0_socks@2.8.7/node_modules/mongodb/lib/client-side-encryption/crypto_callbacks.js:11:23:
+      11 │ const crypto = require("crypto");
+         ╵                        ~~~~~~~~
+
+  The package "crypto" wasn't found on the file system but is built into node. Are you trying to bundle for node? You can use "platform: 'node'" to do that, which will remove this error.
+
+✘ [ERROR] Could not resolve "fs/promises"
+
+    node_modules/.pnpm/mongodb@6.21.0_socks@2.8.7/node_modules/mongodb/lib/client-side-encryption/state_machine.js:6:19:
+      6 │ const fs = require("fs/promises");
+        ╵                    ~~~~~~~~~~~~~
+
+  The package "fs/promises" wasn't found on the file system but is built into node. Are you trying to bundle for node? You can use "platform: 'node'" to do that, which will remove this error.
+
+✘ [ERROR] Could not resolve "net"
+
+    node_modules/.pnpm/mongodb@6.21.0_socks@2.8.7/node_modules/mongodb/lib/client-side-encryption/state_machine.js:7:20:
+      7 │ const net = require("net");
+        ╵                     ~~~~~
+
+  The package "net" wasn't found on the file system but is built into node. Are you trying to bundle for node? You can use "platform: 'node'" to do that, which will remove this error.
+
+✘ [ERROR] Could not resolve "child_process"
+
+    node_modules/.pnpm/mongodb@6.21.0_socks@2.8.7/node_modules/mongodb/lib/client-side-encryption/mongocryptd_manager.js:32:34:
+      32 │         const { spawn } = require('child_process');
+         ╵                                   ~~~~~~~~~~~~~~~
+
+  The package "child_process" wasn't found on the file system but is built into node. Are you trying to bundle for node? You can use "platform: 'node'" to do that, which will remove this error.
+
+✘ [ERROR] Could not resolve "tls"
+
+    node_modules/.pnpm/mongodb@6.21.0_socks@2.8.7/node_modules/mongodb/lib/client-side-encryption/state_machine.js:8:20:
+      8 │ const tls = require("tls");
+        ╵                     ~~~~~
+
+  The package "tls" wasn't found on the file system but is built into node. Are you trying to bundle for node? You can use "platform: 'node'" to do that, which will remove this error.
+
+✘ [ERROR] Could not resolve "crypto"
+
+    node_modules/.pnpm/mongodb@6.21.0_socks@2.8.7/node_modules/mongodb/lib/cmap/auth/scram.js:7:23:
+      7 │ const crypto = require("crypto");
+        ╵                        ~~~~~~~~
+
+  The package "crypto" wasn't found on the file system but is built into node. Are you trying to bundle for node? You can use "platform: 'node'" to do that, which will remove this error.
+
+✘ [ERROR] Could not resolve "timers"
+
+    node_modules/.pnpm/mongodb@6.21.0_socks@2.8.7/node_modules/mongodb/lib/sdam/monitor.js:6:25:
+      6 │ const timers_1 = require("timers");
+        ╵                          ~~~~~~~~
+
+  The package "timers" wasn't found on the file system but is built into node. Are you trying to bundle for node? You can use "platform: 'node'" to do that, which will remove this error.
+
+✘ [ERROR] Could not resolve "timers/promises"
+
+    node_modules/.pnpm/mongodb@6.21.0_socks@2.8.7/node_modules/mongodb/lib/cmap/auth/mongodb_oidc/callback_workflow.js:6:27:
+      6 │ const promises_1 = require("timers/promises");
+        ╵                            ~~~~~~~~~~~~~~~~~
+
+  The package "timers/promises" wasn't found on the file system but is built into node. Are you trying to bundle for node? You can use "platform: 'node'" to do that, which will remove this error.
+
+✘ [ERROR] Could not resolve "fs"
+
+    node_modules/.pnpm/mongodb@6.21.0_socks@2.8.7/node_modules/mongodb/lib/cmap/auth/mongodb_oidc/token_machine_workflow.js:6:19:
+      6 │ const fs = require("fs");
+        ╵                    ~~~~
+
+  The package "fs" wasn't found on the file system but is built into node. Are you trying to bundle for node? You can use "platform: 'node'" to do that, which will remove this error.
+
+✘ [ERROR] Could not resolve "fs/promises"
+
+    node_modules/.pnpm/mongodb@6.21.0_socks@2.8.7/node_modules/mongodb/lib/cmap/auth/mongodb_oidc/k8s_machine_workflow.js:6:27:
+      6 │ const promises_1 = require("fs/promises");
+        ╵                            ~~~~~~~~~~~~~
+
+  The package "fs/promises" wasn't found on the file system but is built into node. Are you trying to bundle for node? You can use "platform: 'node'" to do that, which will remove this error.
+
+✘ [ERROR] Could not resolve "zlib"
+
+    node_modules/.pnpm/@mongodb-js+saslprep@1.3.2/node_modules/@mongodb-js/saslprep/dist/code-points-data.js:5:23:
+      5 │ const zlib_1 = require("zlib");
+        ╵                        ~~~~~~
+
+  The package "zlib" wasn't found on the file system but is built into node. Are you trying to bundle for node? You can use "platform: 'node'" to do that, which will remove this error.
+
+✘ [ERROR] Could not resolve "net"
+
+    node_modules/.pnpm/mongodb@6.21.0_socks@2.8.7/node_modules/mongodb/lib/cmap/connect.js:11:20:
+      11 │ const net = require("net");
+         ╵                     ~~~~~
+
+  The package "net" wasn't found on the file system but is built into node. Are you trying to bundle for node? You can use "platform: 'node'" to do that, which will remove this error.
+
+✘ [ERROR] Could not resolve "net"
+
+    node_modules/.pnpm/socks@2.8.7/node_modules/socks/build/client/socksclient.js:34:20:
+      34 │ const net = require("net");
+         ╵                     ~~~~~
+
+  The package "net" wasn't found on the file system but is built into node. Are you trying to bundle for node? You can use "platform: 'node'" to do that, which will remove this error.
+
+✘ [ERROR] Could not resolve "tls"
+
+    node_modules/.pnpm/mongodb@6.21.0_socks@2.8.7/node_modules/mongodb/lib/cmap/connect.js:12:20:
+      12 │ const tls = require("tls");
+         ╵                     ~~~~~
+
+  The package "tls" wasn't found on the file system but is built into node. Are you trying to bundle for node? You can use "platform: 'node'" to do that, which will remove this error.
+
+✘ [ERROR] Could not resolve "fs"
+
+    node_modules/.pnpm/gcp-metadata@8.1.2/node_modules/gcp-metadata/build/src/gcp-residency.js:25:21:
+      25 │ const fs_1 = require("fs");
+         ╵                      ~~~~
+
+  The package "fs" wasn't found on the file system but is built into node. Are you trying to bundle for node? You can use "platform: 'node'" to do that, which will remove this error.
+
+✘ [ERROR] Could not resolve "os"
+
+    node_modules/.pnpm/gcp-metadata@8.1.2/node_modules/gcp-metadata/build/src/gcp-residency.js:26:21:
+      26 │ const os_1 = require("os");
+         ╵                      ~~~~
+
+  The package "os" wasn't found on the file system but is built into node. Are you trying to bundle for node? You can use "platform: 'node'" to do that, which will remove this error.
+
+✘ [ERROR] Could not resolve "stream"
+
+    node_modules/.pnpm/mongodb@6.21.0_socks@2.8.7/node_modules/mongodb/lib/cmap/connection.js:7:25:
+      7 │ const stream_1 = require("stream");
+        ╵                          ~~~~~~~~
+
+  The package "stream" wasn't found on the file system but is built into node. Are you trying to bundle for node? You can use "platform: 'node'" to do that, which will remove this error.
+
+✘ [ERROR] Could not resolve "timers"
+
+    node_modules/.pnpm/mongodb@6.21.0_socks@2.8.7/node_modules/mongodb/lib/cmap/connection.js:8:25:
+      8 │ const timers_1 = require("timers");
+        ╵                          ~~~~~~~~
+
+  The package "timers" wasn't found on the file system but is built into node. Are you trying to bundle for node? You can use "platform: 'node'" to do that, which will remove this error.
+
+✘ [ERROR] Could not resolve "process"
+
+    node_modules/.pnpm/google-logging-utils@1.1.3/node_modules/google-logging-utils/build/src/logging-utils.js:68:37:
+      68 │ const process = __importStar(require("process"));
+         ╵                                      ~~~~~~~~~
+
+  The package "process" wasn't found on the file system but is built into node. Are you trying to bundle for node? You can use "platform: 'node'" to do that, which will remove this error.
+
+✘ [ERROR] Could not resolve "timers"
+
+    node_modules/.pnpm/mongodb@6.21.0_socks@2.8.7/node_modules/mongodb/lib/cmap/connection_pool.js:6:25:
+      6 │ const timers_1 = require("timers");
+        ╵                          ~~~~~~~~
+
+  The package "timers" wasn't found on the file system but is built into node. Are you trying to bundle for node? You can use "platform: 'node'" to do that, which will remove this error.
+
+✘ [ERROR] Could not resolve "https"
+
+    node_modules/.pnpm/gaxios@7.1.3/node_modules/gaxios/build/cjs/src/gaxios.js:25:24:
+      25 │ const https_1 = require("https");
+         ╵                         ~~~~~~~
+
+  The package "https" wasn't found on the file system but is built into node. Are you trying to bundle for node? You can use "platform: 'node'" to do that, which will remove this error.
+
+✘ [ERROR] Could not resolve "stream"
+
+    node_modules/.pnpm/socks@2.8.7/node_modules/socks/build/common/helpers.js:8:23:
+      8 │ const stream = require("stream");
+        ╵                        ~~~~~~~~
+
+  The package "stream" wasn't found on the file system but is built into node. Are you trying to bundle for node? You can use "platform: 'node'" to do that, which will remove this error.
+
+✘ [ERROR] Could not resolve "stream"
+
+    node_modules/.pnpm/gaxios@7.1.3/node_modules/gaxios/build/cjs/src/gaxios.js:28:25:
+      28 │ const stream_1 = require("stream");
+         ╵                          ~~~~~~~~
+
+  The package "stream" wasn't found on the file system but is built into node. Are you trying to bundle for node? You can use "platform: 'node'" to do that, which will remove this error.
+
+✘ [ERROR] Could not resolve "net"
+
+    node_modules/.pnpm/socks@2.8.7/node_modules/socks/build/common/helpers.js:10:20:
+      10 │ const net = require("net");
+         ╵                     ~~~~~
+
+  The package "net" wasn't found on the file system but is built into node. Are you trying to bundle for node? You can use "platform: 'node'" to do that, which will remove this error.
+
+✘ [ERROR] Could not resolve "crypto"
+
+    node_modules/.pnpm/gaxios@7.1.3/node_modules/gaxios/build/cjs/src/gaxios.js:30:78:
+      30 │ ...his.crypto?.randomUUID() || (await import("crypto")).randomUUID();
+         ╵                                              ~~~~~~~~
+
+  The package "crypto" wasn't found on the file system but is built into node. Are you trying to bundle for node? You can use "platform: 'node'" to do that, which will remove this error.
+
+✘ [ERROR] Could not resolve "node:http"
+
+    node_modules/.pnpm/node-fetch@3.3.2/node_modules/node-fetch/src/index.js:7:21:
+      7 │  */ import http from "node:http";
+        ╵                      ~~~~~~~~~~~
+
+  The package "node:http" wasn't found on the file system but is built into node. Are you trying to bundle for node? You can use "platform: 'node'" to do that, which will remove this error.
+
+✘ [ERROR] Could not resolve "net"
+
+    node_modules/.pnpm/https-proxy-agent@7.0.6/node_modules/https-proxy-agent/dist/index.js:44:33:
+      44 │ const net = __importStar(require("net"));
+         ╵                                  ~~~~~
+
+  The package "net" wasn't found on the file system but is built into node. Are you trying to bundle for node? You can use "platform: 'node'" to do that, which will remove this error.
+
+✘ [ERROR] Could not resolve "node:https"
+
+    node_modules/.pnpm/node-fetch@3.3.2/node_modules/node-fetch/src/index.js:8:18:
+      8 │ import https from "node:https";
+        ╵                   ~~~~~~~~~~~~
+
+  The package "node:https" wasn't found on the file system but is built into node. Are you trying to bundle for node? You can use "platform: 'node'" to do that, which will remove this error.
+
+✘ [ERROR] Could not resolve "tls"
+
+    node_modules/.pnpm/https-proxy-agent@7.0.6/node_modules/https-proxy-agent/dist/index.js:45:33:
+      45 │ const tls = __importStar(require("tls"));
+         ╵                                  ~~~~~
+
+  The package "tls" wasn't found on the file system but is built into node. Are you trying to bundle for node? You can use "platform: 'node'" to do that, which will remove this error.
+
+✘ [ERROR] Could not resolve "node:zlib"
+
+    node_modules/.pnpm/node-fetch@3.3.2/node_modules/node-fetch/src/index.js:9:17:
+      9 │ import zlib from "node:zlib";
+        ╵                  ~~~~~~~~~~~
+
+  The package "node:zlib" wasn't found on the file system but is built into node. Are you trying to bundle for node? You can use "platform: 'node'" to do that, which will remove this error.
+
+✘ [ERROR] Could not resolve "assert"
+
+    node_modules/.pnpm/https-proxy-agent@7.0.6/node_modules/https-proxy-agent/dist/index.js:46:41:
+      46 │ const assert_1 = __importDefault(require("assert"));
+         ╵                                          ~~~~~~~~
+
+  The package "assert" wasn't found on the file system but is built into node. Are you trying to bundle for node? You can use "platform: 'node'" to do that, which will remove this error.
+
+✘ [ERROR] Could not resolve "node:stream"
+
+    node_modules/.pnpm/node-fetch@3.3.2/node_modules/node-fetch/src/index.js:10:54:
+      10 │ import Stream, { PassThrough, pipeline as pump } from "node:stream";
+         ╵                                                       ~~~~~~~~~~~~~
+
+  The package "node:stream" wasn't found on the file system but is built into node. Are you trying to bundle for node? You can use "platform: 'node'" to do that, which will remove this error.
+
+✘ [ERROR] Could not resolve "node:buffer"
+
+    node_modules/.pnpm/node-fetch@3.3.2/node_modules/node-fetch/src/index.js:11:23:
+      11 │ import { Buffer } from "node:buffer";
+         ╵                        ~~~~~~~~~~~~~
+
+  The package "node:buffer" wasn't found on the file system but is built into node. Are you trying to bundle for node? You can use "platform: 'node'" to do that, which will remove this error.
+
+✘ [ERROR] Could not resolve "url"
+
+    node_modules/.pnpm/https-proxy-agent@7.0.6/node_modules/https-proxy-agent/dist/index.js:49:22:
+      49 │ const url_1 = require("url");
+         ╵                       ~~~~~
+
+  The package "url" wasn't found on the file system but is built into node. Are you trying to bundle for node? You can use "platform: 'node'" to do that, which will remove this error.
+
+✘ [ERROR] Could not resolve "net"
+
+    node_modules/.pnpm/agent-base@7.1.4/node_modules/agent-base/dist/index.js:42:33:
+      42 │ const net = __importStar(require("net"));
+         ╵                                  ~~~~~
+
+  The package "net" wasn't found on the file system but is built into node. Are you trying to bundle for node? You can use "platform: 'node'" to do that, which will remove this error.
+
+✘ [ERROR] Could not resolve "http"
+
+    node_modules/.pnpm/agent-base@7.1.4/node_modules/agent-base/dist/index.js:43:34:
+      43 │ const http = __importStar(require("http"));
+         ╵                                   ~~~~~~
+
+  The package "http" wasn't found on the file system but is built into node. Are you trying to bundle for node? You can use "platform: 'node'" to do that, which will remove this error.
+
+✘ [ERROR] Could not resolve "https"
+
+    node_modules/.pnpm/agent-base@7.1.4/node_modules/agent-base/dist/index.js:44:24:
+      44 │ const https_1 = require("https");
+         ╵                         ~~~~~~~
+
+  The package "https" wasn't found on the file system but is built into node. Are you trying to bundle for node? You can use "platform: 'node'" to do that, which will remove this error.
+
+✘ [ERROR] Could not resolve "tty"
+
+    node_modules/.pnpm/debug@4.4.3_supports-color@8.1.1/node_modules/debug/src/node.js:3:24:
+      3 │  */ const tty = require('tty');
+        ╵                         ~~~~~
+
+  The package "tty" wasn't found on the file system but is built into node. Are you trying to bundle for node? You can use "platform: 'node'" to do that, which will remove this error.
+
+✘ [ERROR] Could not resolve "node:fs"
+
+    node_modules/.pnpm/fetch-blob@3.2.0/node_modules/fetch-blob/from.js:1:59:
+      1 │ import { statSync, createReadStream, promises as fs } from "node:fs";
+        ╵                                                            ~~~~~~~~~
+
+  The package "node:fs" wasn't found on the file system but is built into node. Are you trying to bundle for node? You can use "platform: 'node'" to do that, which will remove this error.
+
+✘ [ERROR] Could not resolve "node:path"
+
+    node_modules/.pnpm/fetch-blob@3.2.0/node_modules/fetch-blob/from.js:2:25:
+      2 │ import { basename } from "node:path";
+        ╵                          ~~~~~~~~~~~
+
+  The package "node:path" wasn't found on the file system but is built into node. Are you trying to bundle for node? You can use "platform: 'node'" to do that, which will remove this error.
+
+✘ [ERROR] Could not resolve "node:stream"
+
+    node_modules/.pnpm/node-fetch@3.3.2/node_modules/node-fetch/src/body.js:5:40:
+      5 │  */ import Stream, { PassThrough } from "node:stream";
+        ╵                                         ~~~~~~~~~~~~~
+
+  The package "node:stream" wasn't found on the file system but is built into node. Are you trying to bundle for node? You can use "platform: 'node'" to do that, which will remove this error.
+
+✘ [ERROR] Could not resolve "node:util"
+
+    node_modules/.pnpm/node-fetch@3.3.2/node_modules/node-fetch/src/body.js:6:44:
+      6 │ import { types, deprecate, promisify } from "node:util";
+        ╵                                             ~~~~~~~~~~~
+
+  The package "node:util" wasn't found on the file system but is built into node. Are you trying to bundle for node? You can use "platform: 'node'" to do that, which will remove this error.
+
+✘ [ERROR] Could not resolve "node:buffer"
+
+    node_modules/.pnpm/node-fetch@3.3.2/node_modules/node-fetch/src/body.js:7:23:
+      7 │ import { Buffer } from "node:buffer";
+        ╵                        ~~~~~~~~~~~~~
+
+  The package "node:buffer" wasn't found on the file system but is built into node. Are you trying to bundle for node? You can use "platform: 'node'" to do that, which will remove this error.
+
+✘ [ERROR] Could not resolve "node:net"
+
+    node_modules/.pnpm/node-fetch@3.3.2/node_modules/node-fetch/src/utils/referrer.js:1:21:
+      1 │ import { isIP } from "node:net";
+        ╵                      ~~~~~~~~~~
+
+  The package "node:net" wasn't found on the file system but is built into node. Are you trying to bundle for node? You can use "platform: 'node'" to do that, which will remove this error.
+
+✘ [ERROR] Could not resolve "node:util"
+
+    node_modules/.pnpm/node-fetch@3.3.2/node_modules/node-fetch/src/headers.js:5:26:
+      5 │  */ import { types } from "node:util";
+        ╵                           ~~~~~~~~~~~
+
+  The package "node:util" wasn't found on the file system but is built into node. Are you trying to bundle for node? You can use "platform: 'node'" to do that, which will remove this error.
+
+✘ [ERROR] Could not resolve "node:http"
+
+    node_modules/.pnpm/node-fetch@3.3.2/node_modules/node-fetch/src/headers.js:6:17:
+      6 │ import http from "node:http";
+        ╵                  ~~~~~~~~~~~
+
+  The package "node:http" wasn't found on the file system but is built into node. Are you trying to bundle for node? You can use "platform: 'node'" to do that, which will remove this error.
+
+✘ [ERROR] Could not resolve "node:url"
+
+    node_modules/.pnpm/node-fetch@3.3.2/node_modules/node-fetch/src/request.js:7:40:
+      7 │  */ import { format as formatUrl } from "node:url";
+        ╵                                         ~~~~~~~~~~
+
+  The package "node:url" wasn't found on the file system but is built into node. Are you trying to bundle for node? You can use "platform: 'node'" to do that, which will remove this error.
+
+✘ [ERROR] Could not resolve "node:util"
+
+    node_modules/.pnpm/node-fetch@3.3.2/node_modules/node-fetch/src/request.js:8:26:
+      8 │ import { deprecate } from "node:util";
+        ╵                           ~~~~~~~~~~~
+
+  The package "node:util" wasn't found on the file system but is built into node. Are you trying to bundle for node? You can use "platform: 'node'" to do that, which will remove this error.
+
+✘ [ERROR] Could not resolve "http"
+
+    node_modules/.pnpm/agent-base@7.1.4/node_modules/agent-base/dist/helpers.js:39:34:
+      39 │ const http = __importStar(require("http"));
+         ╵                                   ~~~~~~
+
+  The package "http" wasn't found on the file system but is built into node. Are you trying to bundle for node? You can use "platform: 'node'" to do that, which will remove this error.
+
+✘ [ERROR] Could not resolve "https"
+
+    node_modules/.pnpm/agent-base@7.1.4/node_modules/agent-base/dist/helpers.js:40:35:
+      40 │ const https = __importStar(require("https"));
+         ╵                                    ~~~~~~~
+
+  The package "https" wasn't found on the file system but is built into node. Are you trying to bundle for node? You can use "platform: 'node'" to do that, which will remove this error.
+
+✘ [ERROR] Could not resolve "async_hooks"
+
+    node_modules/.pnpm/@browserbasehq+stagehand@3.0.5_@cfworker+json-schema@4.1.1_@opentelemetry+api@1.9.0_dee_da6b325c4aeb871fd215810ba9b007e7/node_modules/@browserbasehq/stagehand/dist/index.js:379:42:
+      379 │         import_node_async_hooks = require("async_hooks");
+          ╵                                           ~~~~~~~~~~~~~
+
+  The package "async_hooks" wasn't found on the file system but is built into node. Are you trying to bundle for node? You can use "platform: 'node'" to do that, which will remove this error.
+
+✘ [ERROR] Could not resolve "fs"
+
+    node_modules/.pnpm/@browserbasehq+stagehand@3.0.5_@cfworker+json-schema@4.1.1_@opentelemetry+api@1.9.0_dee_da6b325c4aeb871fd215810ba9b007e7/node_modules/@browserbasehq/stagehand/dist/index.js:2287:29:
+      2287 │         import_fs3 = require("fs");
+           ╵                              ~~~~
+
+  The package "fs" wasn't found on the file system but is built into node. Are you trying to bundle for node? You can use "platform: 'node'" to do that, which will remove this error.
+
+✘ [ERROR] Could not resolve "path"
+
+    node_modules/.pnpm/@browserbasehq+stagehand@3.0.5_@cfworker+json-schema@4.1.1_@opentelemetry+api@1.9.0_dee_da6b325c4aeb871fd215810ba9b007e7/node_modules/@browserbasehq/stagehand/dist/index.js:2288:39:
+      2288 │         import_path3 = __toESM(require("path"));
+           ╵                                        ~~~~~~
+
+  The package "path" wasn't found on the file system but is built into node. Are you trying to bundle for node? You can use "platform: 'node'" to do that, which will remove this error.
+
+✘ [ERROR] Could not resolve "os"
+
+    node_modules/.pnpm/@browserbasehq+stagehand@3.0.5_@cfworker+json-schema@4.1.1_@opentelemetry+api@1.9.0_dee_da6b325c4aeb871fd215810ba9b007e7/node_modules/@browserbasehq/stagehand/dist/index.js:2299:29:
+      2299 │         os = __toESM(require("os"));
+           ╵                              ~~~~
+
+  The package "os" wasn't found on the file system but is built into node. Are you trying to bundle for node? You can use "platform: 'node'" to do that, which will remove this error.
+
+✘ [ERROR] Could not resolve "tty"
+
+    node_modules/.pnpm/@browserbasehq+stagehand@3.0.5_@cfworker+json-schema@4.1.1_@opentelemetry+api@1.9.0_dee_da6b325c4aeb871fd215810ba9b007e7/node_modules/@browserbasehq/stagehand/dist/index.js:3983:26:
+      3983 │         var tty = require("tty");
+           ╵                           ~~~~~
+
+  The package "tty" wasn't found on the file system but is built into node. Are you trying to bundle for node? You can use "platform: 'node'" to do that, which will remove this error.
+
+✘ [ERROR] Could not resolve "process"
+
+    node_modules/.pnpm/@browserbasehq+stagehand@3.0.5_@cfworker+json-schema@4.1.1_@opentelemetry+api@1.9.0_dee_da6b325c4aeb871fd215810ba9b007e7/node_modules/@browserbasehq/stagehand/dist/index.js:7822:38:
+      7822 │ var import_process2 = __toESM(require("process"));
+           ╵                                       ~~~~~~~~~
+
+  The package "process" wasn't found on the file system but is built into node. Are you trying to bundle for node? You can use "platform: 'node'" to do that, which will remove this error.
+
+✘ [ERROR] Could not resolve "crypto"
+
+    node_modules/.pnpm/@browserbasehq+stagehand@3.0.5_@cfworker+json-schema@4.1.1_@opentelemetry+api@1.9.0_dee_da6b325c4aeb871fd215810ba9b007e7/node_modules/@browserbasehq/stagehand/dist/index.js:8763:28:
+      8763 │ var import_crypto = require("crypto");
+           ╵                             ~~~~~~~~
+
+  The package "crypto" wasn't found on the file system but is built into node. Are you trying to bundle for node? You can use "platform: 'node'" to do that, which will remove this error.
+
+✘ [ERROR] Could not resolve "net"
+
+    node_modules/.pnpm/@browserbasehq+stagehand@3.0.5_@cfworker+json-schema@4.1.1_@opentelemetry+api@1.9.0_dee_da6b325c4aeb871fd215810ba9b007e7/node_modules/@browserbasehq/stagehand/dist/index.js:14897:26:
+      14897 │ var net = __toESM(require("net"), 1);
+            ╵                           ~~~~~
+
+  The package "net" wasn't found on the file system but is built into node. Are you trying to bundle for node? You can use "platform: 'node'" to do that, which will remove this error.
+
+✘ [ERROR] Could not resolve "child_process"
+
+    node_modules/.pnpm/@browserbasehq+stagehand@3.0.5_@cfworker+json-schema@4.1.1_@opentelemetry+api@1.9.0_dee_da6b325c4aeb871fd215810ba9b007e7/node_modules/@browserbasehq/stagehand/dist/index.js:14910:36:
+      14910 │ var import_child_process2 = require("child_process");
+            ╵                                     ~~~~~~~~~~~~~~~
+
+  The package "child_process" wasn't found on the file system but is built into node. Are you trying to bundle for node? You can use "platform: 'node'" to do that, which will remove this error.
+
+✘ [ERROR] Could not resolve "http"
+
+    node_modules/.pnpm/@browserbasehq+stagehand@3.0.5_@cfworker+json-schema@4.1.1_@opentelemetry+api@1.9.0_dee_da6b325c4aeb871fd215810ba9b007e7/node_modules/@browserbasehq/stagehand/dist/index.js:15600:26:
+      15600 │ var import_http = require("http");
+            ╵                           ~~~~~~
+
+  The package "http" wasn't found on the file system but is built into node. Are you trying to bundle for node? You can use "platform: 'node'" to do that, which will remove this error.
+
+✘ [ERROR] Could not resolve "node:os"
+
+    node_modules/.pnpm/pino@9.14.0/node_modules/pino/pino.js:2:19:
+      2 │ const os = require('node:os');
+        ╵                    ~~~~~~~~~
+
+  The package "node:os" wasn't found on the file system but is built into node. Are you trying to bundle for node? You can use "platform: 'node'" to do that, which will remove this error.
+
+✘ [ERROR] Could not resolve "fs"
+
+    node_modules/.pnpm/dotenv@17.2.3/node_modules/dotenv/lib/main.js:1:19:
+      1 │ const fs = require('fs');
+        ╵                    ~~~~
+
+  The package "fs" wasn't found on the file system but is built into node. Are you trying to bundle for node? You can use "platform: 'node'" to do that, which will remove this error.
+
+✘ [ERROR] Could not resolve "path"
+
+    node_modules/.pnpm/dotenv@17.2.3/node_modules/dotenv/lib/main.js:2:21:
+      2 │ const path = require('path');
+        ╵                      ~~~~~~
+
+  The package "path" wasn't found on the file system but is built into node. Are you trying to bundle for node? You can use "platform: 'node'" to do that, which will remove this error.
+
+✘ [ERROR] Could not resolve "os"
+
+    node_modules/.pnpm/dotenv@17.2.3/node_modules/dotenv/lib/main.js:3:19:
+      3 │ const os = require('os');
+        ╵                    ~~~~
+
+  The package "os" wasn't found on the file system but is built into node. Are you trying to bundle for node? You can use "platform: 'node'" to do that, which will remove this error.
+
+✘ [ERROR] Could not resolve "crypto"
+
+    node_modules/.pnpm/dotenv@17.2.3/node_modules/dotenv/lib/main.js:4:23:
+      4 │ const crypto = require('crypto');
+        ╵                        ~~~~~~~~
+
+  The package "crypto" wasn't found on the file system but is built into node. Are you trying to bundle for node? You can use "platform: 'node'" to do that, which will remove this error.
+
+✘ [ERROR] Could not resolve "node:process"
+
+    node_modules/.pnpm/@modelcontextprotocol+sdk@1.24.3_@cfworker+json-schema@4.1.1_zod@4.1.12/node_modules/@modelcontextprotocol/sdk/dist/cjs/client/stdio.js:13:47:
+      13 │ const node_process_1 = __importDefault(require("node:process"));
+         ╵                                                ~~~~~~~~~~~~~~
+
+  The package "node:process" wasn't found on the file system but is built into node. Are you trying to bundle for node? You can use "platform: 'node'" to do that, which will remove this error.
+
+✘ [ERROR] Could not resolve "node:stream"
+
+    node_modules/.pnpm/@modelcontextprotocol+sdk@1.24.3_@cfworker+json-schema@4.1.1_zod@4.1.12/node_modules/@modelcontextprotocol/sdk/dist/cjs/client/stdio.js:14:30:
+      14 │ const node_stream_1 = require("node:stream");
+         ╵                               ~~~~~~~~~~~~~
+
+  The package "node:stream" wasn't found on the file system but is built into node. Are you trying to bundle for node? You can use "platform: 'node'" to do that, which will remove this error.
+
+✘ [ERROR] Could not resolve "node:events"
+
+    node_modules/.pnpm/pino@9.14.0/node_modules/pino/lib/proto.js:2:71:
+      2 │ ...ype-builtins: 0 */ const { EventEmitter } = require('node:events');
+        ╵                                                        ~~~~~~~~~~~~~
+
+  The package "node:events" wasn't found on the file system but is built into node. Are you trying to bundle for node? You can use "platform: 'node'" to do that, which will remove this error.
+
+✘ [ERROR] Could not resolve "module"
+
+    node_modules/.pnpm/pino@9.14.0/node_modules/pino/lib/transport.js:2:34:
+      2 │ const { createRequire } = require('module');
+        ╵                                   ~~~~~~~~
+
+  The package "module" wasn't found on the file system but is built into node. Are you trying to bundle for node? You can use "platform: 'node'" to do that, which will remove this error.
+
+✘ [ERROR] Could not resolve "node:path"
+
+    node_modules/.pnpm/pino@9.14.0/node_modules/pino/lib/transport.js:3:42:
+      3 │ const { join, isAbsolute, sep } = require('node:path');
+        ╵                                           ~~~~~~~~~~~
+
+  The package "node:path" wasn't found on the file system but is built into node. Are you trying to bundle for node? You can use "platform: 'node'" to do that, which will remove this error.
+
+✘ [ERROR] Could not resolve "node:diagnostics_channel"
+
+    node_modules/.pnpm/pino@9.14.0/node_modules/pino/lib/tools.js:2:63:
+      2 │ ...uiltins: 0 */ const diagChan = require('node:diagnostics_channel');
+        ╵                                           ~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+  The package "node:diagnostics_channel" wasn't found on the file system but is built into node. Are you trying to bundle for node? You can use "platform: 'node'" to do that, which will remove this error.
+
+✘ [ERROR] Could not resolve "worker_threads"
+
+    node_modules/.pnpm/pino@9.14.0/node_modules/pino/lib/tools.js:8:33:
+      8 │ const { isMainThread } = require('worker_threads');
+        ╵                                  ~~~~~~~~~~~~~~~~
+
+  The package "worker_threads" wasn't found on the file system but is built into node. Are you trying to bundle for node? You can use "platform: 'node'" to do that, which will remove this error.
+
+✘ [ERROR] Could not resolve "child_process"
+
+    node_modules/.pnpm/cross-spawn@7.0.6/node_modules/cross-spawn/index.js:2:19:
+      2 │ const cp = require('child_process');
+        ╵                    ~~~~~~~~~~~~~~~
+
+  The package "child_process" wasn't found on the file system but is built into node. Are you trying to bundle for node? You can use "platform: 'node'" to do that, which will remove this error.
+
+✘ [ERROR] Could not resolve "pkce-challenge"
+
+    node_modules/.pnpm/@modelcontextprotocol+sdk@1.24.3_@cfworker+json-schema@4.1.1_zod@4.1.12/node_modules/@modelcontextprotocol/sdk/dist/cjs/client/auth.js:28:49:
+      28 │ const pkce_challenge_1 = __importDefault(require("pkce-challenge"));
+         ╵                                                  ~~~~~~~~~~~~~~~~
+
+  The path "." is not currently exported by package "pkce-challenge":
+
+    node_modules/.pnpm/@modelcontextprotocol+sdk@1.24.3_@cfworker+json-schema@4.1.1_zod@4.1.12/node_modules/pkce-challenge/package.json:7:13:
+      7 │   "exports": {
+        ╵              ^
+
+  None of the conditions in the package definition ("types", "browser", "node") match any of the currently active conditions ("default", "require", "workflow"):
+
+    node_modules/.pnpm/@modelcontextprotocol+sdk@1.24.3_@cfworker+json-schema@4.1.1_zod@4.1.12/node_modules/pkce-challenge/package.json:8:9:
+      8 │     ".": {
+        ╵          ^
+
+  Consider enabling the "browser" condition if this package expects it to be enabled. You can use "conditions: ['browser']" to do that:
+
+    node_modules/.pnpm/@modelcontextprotocol+sdk@1.24.3_@cfworker+json-schema@4.1.1_zod@4.1.12/node_modules/pkce-challenge/package.json:13:6:
+      13 │       "browser": {
+         ╵       ~~~~~~~~~
+
+  You can mark the path "pkce-challenge" as external to exclude it from the bundle, which will remove this error and leave the unresolved path in the bundle. You can also surround this "require" call with a try/catch block to handle this failure at run-time instead of bundle-time.
+
+✘ [ERROR] Could not resolve "stream"
+
+    node_modules/.pnpm/ws@8.18.3_bufferutil@4.0.9_utf-8-validate@5.0.10/node_modules/ws/lib/receiver.js:2:29:
+      2 │ const { Writable } = require('stream');
+        ╵                              ~~~~~~~~
+
+  The package "stream" wasn't found on the file system but is built into node. Are you trying to bundle for node? You can use "platform: 'node'" to do that, which will remove this error.
+
+✘ [ERROR] Could not resolve "crypto"
+
+    node_modules/.pnpm/ws@8.18.3_bufferutil@4.0.9_utf-8-validate@5.0.10/node_modules/ws/lib/sender.js:2:35:
+      2 │ const { randomFillSync } = require('crypto');
+        ╵                                    ~~~~~~~~
+
+  The package "crypto" wasn't found on the file system but is built into node. Are you trying to bundle for node? You can use "platform: 'node'" to do that, which will remove this error.
+
+✘ [ERROR] Could not resolve "stream"
+
+    node_modules/.pnpm/ws@8.18.3_bufferutil@4.0.9_utf-8-validate@5.0.10/node_modules/ws/lib/stream.js:2:27:
+      2 │ const { Duplex } = require('stream');
+        ╵                            ~~~~~~~~
+
+  The package "stream" wasn't found on the file system but is built into node. Are you trying to bundle for node? You can use "platform: 'node'" to do that, which will remove this error.
+
+✘ [ERROR] Could not resolve "http"
+
+    node_modules/.pnpm/ws@8.18.3_bufferutil@4.0.9_utf-8-validate@5.0.10/node_modules/ws/lib/websocket-server.js:3:21:
+      3 │ const http = require('http');
+        ╵                      ~~~~~~
+
+  The package "http" wasn't found on the file system but is built into node. Are you trying to bundle for node? You can use "platform: 'node'" to do that, which will remove this error.
+
+✘ [ERROR] Could not resolve "https"
+
+    node_modules/.pnpm/ws@8.18.3_bufferutil@4.0.9_utf-8-validate@5.0.10/node_modules/ws/lib/websocket.js:3:22:
+      3 │ const https = require('https');
+        ╵                       ~~~~~~~
+
+  The package "https" wasn't found on the file system but is built into node. Are you trying to bundle for node? You can use "platform: 'node'" to do that, which will remove this error.
+
+✘ [ERROR] Could not resolve "crypto"
+
+    node_modules/.pnpm/ws@8.18.3_bufferutil@4.0.9_utf-8-validate@5.0.10/node_modules/ws/lib/websocket-server.js:4:31:
+      4 │ const { createHash } = require('crypto');
+        ╵                                ~~~~~~~~
+
+  The package "crypto" wasn't found on the file system but is built into node. Are you trying to bundle for node? You can use "platform: 'node'" to do that, which will remove this error.
+
+✘ [ERROR] Could not resolve "http"
+
+    node_modules/.pnpm/ws@8.18.3_bufferutil@4.0.9_utf-8-validate@5.0.10/node_modules/ws/lib/websocket.js:4:21:
+      4 │ const http = require('http');
+        ╵                      ~~~~~~
+
+  The package "http" wasn't found on the file system but is built into node. Are you trying to bundle for node? You can use "platform: 'node'" to do that, which will remove this error.
+
+✘ [ERROR] Could not resolve "net"
+
+    node_modules/.pnpm/ws@8.18.3_bufferutil@4.0.9_utf-8-validate@5.0.10/node_modules/ws/lib/websocket.js:5:20:
+      5 │ const net = require('net');
+        ╵                     ~~~~~
+
+  The package "net" wasn't found on the file system but is built into node. Are you trying to bundle for node? You can use "platform: 'node'" to do that, which will remove this error.
+
+✘ [ERROR] Could not resolve "tls"
+
+    node_modules/.pnpm/ws@8.18.3_bufferutil@4.0.9_utf-8-validate@5.0.10/node_modules/ws/lib/websocket.js:6:20:
+      6 │ const tls = require('tls');
+        ╵                     ~~~~~
+
+  The package "tls" wasn't found on the file system but is built into node. Are you trying to bundle for node? You can use "platform: 'node'" to do that, which will remove this error.
+
+✘ [ERROR] Could not resolve "crypto"
+
+    node_modules/.pnpm/ws@8.18.3_bufferutil@4.0.9_utf-8-validate@5.0.10/node_modules/ws/lib/websocket.js:7:44:
+      7 │ const { randomBytes, createHash } = require('crypto');
+        ╵                                             ~~~~~~~~
+
+  The package "crypto" wasn't found on the file system but is built into node. Are you trying to bundle for node? You can use "platform: 'node'" to do that, which will remove this error.
+
+✘ [ERROR] Could not resolve "url"
+
+    node_modules/.pnpm/ws@8.18.3_bufferutil@4.0.9_utf-8-validate@5.0.10/node_modules/ws/lib/websocket.js:8:24:
+      8 │ const { URL } = require('url');
+        ╵                         ~~~~~
+
+  The package "url" wasn't found on the file system but is built into node. Are you trying to bundle for node? You can use "platform: 'node'" to do that, which will remove this error.
+
+✘ [ERROR] Could not resolve "worker_threads"
+
+    node_modules/.pnpm/thread-stream@3.1.0/node_modules/thread-stream/index.js:4:27:
+      4 │ const { Worker } = require('worker_threads');
+        ╵                            ~~~~~~~~~~~~~~~~
+
+  The package "worker_threads" wasn't found on the file system but is built into node. Are you trying to bundle for node? You can use "platform: 'node'" to do that, which will remove this error.
+
+✘ [ERROR] Could not resolve "path"
+
+    node_modules/.pnpm/thread-stream@3.1.0/node_modules/thread-stream/index.js:5:25:
+      5 │ const { join } = require('path');
+        ╵                          ~~~~~~
+
+  The package "path" wasn't found on the file system but is built into node. Are you trying to bundle for node? You can use "platform: 'node'" to do that, which will remove this error.
+
+✘ [ERROR] Could not resolve "url"
+
+    node_modules/.pnpm/thread-stream@3.1.0/node_modules/thread-stream/index.js:6:34:
+      6 │ const { pathToFileURL } = require('url');
+        ╵                                   ~~~~~
+
+  The package "url" wasn't found on the file system but is built into node. Are you trying to bundle for node? You can use "platform: 'node'" to do that, which will remove this error.
+
+✘ [ERROR] Could not resolve "assert"
+
+    node_modules/.pnpm/thread-stream@3.1.0/node_modules/thread-stream/index.js:10:23:
+      10 │ const assert = require('assert');
+         ╵                        ~~~~~~~~
+
+  The package "assert" wasn't found on the file system but is built into node. Are you trying to bundle for node? You can use "platform: 'node'" to do that, which will remove this error.
+
+✘ [ERROR] Could not resolve "path"
+
+    node_modules/.pnpm/cross-spawn@7.0.6/node_modules/cross-spawn/lib/parse.js:2:21:
+      2 │ const path = require('path');
+        ╵                      ~~~~~~
+
+  The package "path" wasn't found on the file system but is built into node. Are you trying to bundle for node? You can use "platform: 'node'" to do that, which will remove this error.
+
+✘ [ERROR] Could not resolve "fs"
+
+    node_modules/.pnpm/sonic-boom@4.2.0/node_modules/sonic-boom/index.js:2:19:
+      2 │ const fs = require('fs');
+        ╵                    ~~~~
+
+  The package "fs" wasn't found on the file system but is built into node. Are you trying to bundle for node? You can use "platform: 'node'" to do that, which will remove this error.
+
+✘ [ERROR] Could not resolve "zlib"
+
+    node_modules/.pnpm/ws@8.18.3_bufferutil@4.0.9_utf-8-validate@5.0.10/node_modules/ws/lib/permessage-deflate.js:2:21:
+      2 │ const zlib = require('zlib');
+        ╵                      ~~~~~~
+
+  The package "zlib" wasn't found on the file system but is built into node. Are you trying to bundle for node? You can use "platform: 'node'" to do that, which will remove this error.
+
+✘ [ERROR] Could not resolve "path"
+
+    node_modules/.pnpm/sonic-boom@4.2.0/node_modules/sonic-boom/index.js:5:21:
+      5 │ const path = require('path');
+        ╵                      ~~~~~~
+
+  The package "path" wasn't found on the file system but is built into node. Are you trying to bundle for node? You can use "platform: 'node'" to do that, which will remove this error.
+
+✘ [ERROR] Could not resolve "assert"
+
+    node_modules/.pnpm/sonic-boom@4.2.0/node_modules/sonic-boom/index.js:7:23:
+      7 │ const assert = require('assert');
+        ╵                        ~~~~~~~~
+
+  The package "assert" wasn't found on the file system but is built into node. Are you trying to bundle for node? You can use "platform: 'node'" to do that, which will remove this error.
+
+✘ [ERROR] Could not resolve "path"
+
+    node_modules/.pnpm/cross-spawn@7.0.6/node_modules/cross-spawn/lib/util/resolveCommand.js:2:21:
+      2 │ const path = require('path');
+        ╵                      ~~~~~~
+
+  The package "path" wasn't found on the file system but is built into node. Are you trying to bundle for node? You can use "platform: 'node'" to do that, which will remove this error.
+
+✘ [ERROR] Could not resolve "fs"
+
+    node_modules/.pnpm/cross-spawn@7.0.6/node_modules/cross-spawn/lib/util/readShebang.js:2:19:
+      2 │ const fs = require('fs');
+        ╵                    ~~~~
+
+  The package "fs" wasn't found on the file system but is built into node. Are you trying to bundle for node? You can use "platform: 'node'" to do that, which will remove this error.
+
+✘ [ERROR] Could not resolve "path"
+
+    node_modules/.pnpm/which@2.0.2/node_modules/which/which.js:2:21:
+      2 │ const path = require('path');
+        ╵                      ~~~~~~
+
+  The package "path" wasn't found on the file system but is built into node. Are you trying to bundle for node? You can use "platform: 'node'" to do that, which will remove this error.
+
+✘ [ERROR] Could not resolve "fs"
+
+    node_modules/.pnpm/node-gyp-build@4.8.4/node_modules/node-gyp-build/node-gyp-build.js:1:17:
+      1 │ var fs = require('fs');
+        ╵                  ~~~~
+
+  The package "fs" wasn't found on the file system but is built into node. Are you trying to bundle for node? You can use "platform: 'node'" to do that, which will remove this error.
+
+✘ [ERROR] Could not resolve "path"
+
+    node_modules/.pnpm/node-gyp-build@4.8.4/node_modules/node-gyp-build/node-gyp-build.js:2:19:
+      2 │ var path = require('path');
+        ╵                    ~~~~~~
+
+  The package "path" wasn't found on the file system but is built into node. Are you trying to bundle for node? You can use "platform: 'node'" to do that, which will remove this error.
+
+✘ [ERROR] Could not resolve "os"
+
+    node_modules/.pnpm/node-gyp-build@4.8.4/node_modules/node-gyp-build/node-gyp-build.js:3:17:
+      3 │ var os = require('os');
+        ╵                  ~~~~
+
+  The package "os" wasn't found on the file system but is built into node. Are you trying to bundle for node? You can use "platform: 'node'" to do that, which will remove this error.
+
+✘ [ERROR] Could not resolve "fs"
+
+    node_modules/.pnpm/isexe@2.0.0/node_modules/isexe/mode.js:3:17:
+      3 │ var fs = require('fs');
+        ╵                  ~~~~
+
+  The package "fs" wasn't found on the file system but is built into node. Are you trying to bundle for node? You can use "platform: 'node'" to do that, which will remove this error.
+
+✘ [ERROR] Could not resolve "fs"
+
+    node_modules/.pnpm/isexe@2.0.0/node_modules/isexe/windows.js:3:17:
+      3 │ var fs = require('fs');
+        ╵                  ~~~~
+
+  The package "fs" wasn't found on the file system but is built into node. Are you trying to bundle for node? You can use "platform: 'node'" to do that, which will remove this error.
+
+
+> Build error occurred
+Error: Build failed with 121 errors:
+node_modules/.pnpm/@browserbasehq+stagehand@3.0.5_@cfworker+json-schema@4.1.1_@opentelemetry+api@1.9.0_dee_da6b325c4aeb871fd215810ba9b007e7/node_modules/@browserbasehq/stagehand/dist/index.js:379:42: ERROR: Could not resolve "async_hooks"
+node_modules/.pnpm/@browserbasehq+stagehand@3.0.5_@cfworker+json-schema@4.1.1_@opentelemetry+api@1.9.0_dee_da6b325c4aeb871fd215810ba9b007e7/node_modules/@browserbasehq/stagehand/dist/index.js:2287:29: ERROR: Could not resolve "fs"
+node_modules/.pnpm/@browserbasehq+stagehand@3.0.5_@cfworker+json-schema@4.1.1_@opentelemetry+api@1.9.0_dee_da6b325c4aeb871fd215810ba9b007e7/node_modules/@browserbasehq/stagehand/dist/index.js:2288:39: ERROR: Could not resolve "path"
+node_modules/.pnpm/@browserbasehq+stagehand@3.0.5_@cfworker+json-schema@4.1.1_@opentelemetry+api@1.9.0_dee_da6b325c4aeb871fd215810ba9b007e7/node_modules/@browserbasehq/stagehand/dist/index.js:2299:29: ERROR: Could not resolve "os"
+node_modules/.pnpm/@browserbasehq+stagehand@3.0.5_@cfworker+json-schema@4.1.1_@opentelemetry+api@1.9.0_dee_da6b325c4aeb871fd215810ba9b007e7/node_modules/@browserbasehq/stagehand/dist/index.js:3983:26: ERROR: Could not resolve "tty"
+...
+    at new Promise (<anonymous>) {
+  errors: [Array],
+  warnings: []
+}
+ ELIFECYCLE  Command failed with exit code 1.

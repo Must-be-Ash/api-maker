@@ -304,3 +304,6 @@ Before deploying to Vercel:
 - [ ] Error handling with `FatalError` for non-recoverable errors
 - [ ] Logging patterns consistent
 - [ ] Test retry behavior with simulated failures
+- here is my idea /Users/ashnouruzi/api-maker/skill-idea.md and here's my darft plan to build it which might have flause /Users/ashnouruzi/api-maker/SKILLS_IMPLEMENTATION_PLAN.md \
+you have access to context7 mcp, use it to learn all you need to for implementation of each step. do not make assumptions, refer the docs when you don't know something. in addition to context7 mcp that gives you access to browserbase, stagehand and other docs, you have access to some browserbase docs locally here in this folder /Users/ashnouruzi/api-maker/docs/browser-base and you have access to most of stagehand docs here in this folder /Users/ashnouruzi/api-maker/docs/stagehand you also have access to all the stagehand references such as observe(), extract(), act() ... here in this folder /Users/ashnouruzi/api-maker/docs/stagehand/references
+refer to the rules /Users/ashnouruzi/api-maker/docs/stagehand/rules.md to understand how to use stagehand properly and use context7 mcp when you're unsure
