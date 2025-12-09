@@ -10,6 +10,7 @@ export class ActionRecorder {
   private page: any; // Use any to support both Playwright and Stagehand Page types
   private recording: boolean = false;
   private recordingId: string;
+  private lastUrl: string = '';
 
   constructor(page: any, recordingId: string) {
     this.page = page;
@@ -17,15 +18,19 @@ export class ActionRecorder {
   }
 
   /**
-   * Start recording user actions by injecting monitoring script
+   * Inject monitoring script into the page to capture user actions
    */
-  async startRecording() {
-    this.recording = true;
+  private async injectMonitoringScript() {
+    await this.page.evaluate(() => {
+      // Initialize or reset the recorded actions array
+      (window as any)._recordedActions = (window as any)._recordedActions || [];
 
-    // Inject action capture script into the page
-    await this.page.addInitScript(() => {
-      // Store actions in window object for retrieval
-      (window as any)._recordedActions = [];
+      // Skip if already injected (check for marker)
+      if ((window as any)._actionRecorderInjected) {
+        console.log('[ActionRecorder] Script already injected, skipping');
+        return;
+      }
+      (window as any)._actionRecorderInjected = true;
 
       // Helper to generate XPath
       function getXPath(element: Element): string {
@@ -107,6 +112,7 @@ export class ActionRecorder {
         };
 
         (window as any)._recordedActions.push(action);
+        console.log('[ActionRecorder] Captured click:', action);
       }, true);
 
       // Capture inputs
@@ -123,6 +129,7 @@ export class ActionRecorder {
         };
 
         (window as any)._recordedActions.push(action);
+        console.log('[ActionRecorder] Captured input:', action);
       }, true);
 
       // Capture form submissions
@@ -138,31 +145,36 @@ export class ActionRecorder {
         };
 
         (window as any)._recordedActions.push(action);
+        console.log('[ActionRecorder] Captured submit:', action);
       }, true);
+
+      console.log('[ActionRecorder] Event listeners attached successfully');
     });
-
-    // Track navigation
-    this.page.on('framenavigated', async (frame: any) => {
-      if (frame === this.page.mainFrame()) {
-        const action: RecordedAction = {
-          type: 'navigate',
-          selector: '',
-          description: `Navigate to ${frame.url()}`,
-          url: frame.url(),
-          timestamp: Date.now(),
-        };
-
-        this.actions.push(action);
-        await this.saveActions();
-      }
-    });
-
-    // Poll for captured actions from the page
-    this.startPolling();
   }
 
   /**
-   * Poll the page for captured actions and save them
+   * Start recording user actions by injecting monitoring script
+   */
+  async startRecording() {
+    this.recording = true;
+
+    console.log('[ActionRecorder] Starting recording');
+
+    // Inject the monitoring script into the current page
+    await this.injectMonitoringScript();
+
+    // Initialize last URL for navigation tracking
+    this.lastUrl = this.page.url();
+    console.log('[ActionRecorder] Initial URL:', this.lastUrl);
+
+    // Poll for captured actions and URL changes
+    this.startPolling();
+
+    console.log('[ActionRecorder] Started recording');
+  }
+
+  /**
+   * Poll the page for captured actions and URL changes
    */
   private startPolling() {
     const pollInterval = setInterval(async () => {
@@ -172,6 +184,35 @@ export class ActionRecorder {
       }
 
       try {
+        // Check for URL changes (navigation detection)
+        const currentUrl = this.page.url();
+        if (currentUrl !== this.lastUrl) {
+          console.log('[ActionRecorder] URL changed:', this.lastUrl, '->', currentUrl);
+
+          // Record navigation action
+          const action: RecordedAction = {
+            type: 'navigate',
+            selector: '',
+            description: `Navigate to ${currentUrl}`,
+            url: currentUrl,
+            timestamp: Date.now(),
+          };
+
+          this.actions.push(action);
+          await this.saveActions();
+
+          // Update last URL
+          this.lastUrl = currentUrl;
+
+          // Re-inject monitoring script on the new page
+          try {
+            console.log('[ActionRecorder] Re-injecting script after navigation');
+            await this.injectMonitoringScript();
+          } catch (error) {
+            console.log('[ActionRecorder] Error re-injecting script:', error);
+          }
+        }
+
         // Retrieve actions captured in the page
         const pageActions = await this.page.evaluate(() => {
           const actions = (window as any)._recordedActions || [];
@@ -180,12 +221,13 @@ export class ActionRecorder {
         });
 
         if (pageActions && pageActions.length > 0) {
+          console.log('[ActionRecorder] Retrieved', pageActions.length, 'actions from page');
           this.actions.push(...pageActions);
           await this.saveActions();
         }
       } catch (error) {
-        // Page might be navigating, ignore errors
-        console.log('[ActionRecorder] Error polling actions:', error);
+        // Page might be navigating or transitioning, ignore errors
+        console.log('[ActionRecorder] Error polling:', error);
       }
     }, 2000); // Poll every 2 seconds
 
