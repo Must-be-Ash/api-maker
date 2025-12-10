@@ -31,7 +31,7 @@ async function updateThumbnails() {
   try {
     console.log('🔌 Connecting to MongoDB...');
     await client.connect();
-    const db = client.db('blog-agent');
+    const db = client.db('test');
     const collection = db.collection('workflows');
 
     for (const filePath of imageFiles) {

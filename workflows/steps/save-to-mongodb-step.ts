@@ -38,7 +38,7 @@ export async function saveToMongoDBStep({
   try {
     await client.connect();
 
-    const database = client.db('blog-agent');
+    const database = client.db('test');
     const collection = database.collection('workflows');
 
     // Upsert the workflow data (insert if new, update if exists)

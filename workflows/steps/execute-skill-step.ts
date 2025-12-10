@@ -275,9 +275,33 @@ Be precise and thorough in your extraction.`,
   });
 
   console.log('[executeAIRelearn] Agent execution complete');
+  console.log('[executeAIRelearn] Full result keys:', Object.keys(result));
+  console.log('[executeAIRelearn] Result:', JSON.stringify(result, null, 2));
+
+  // Extract data from actions if available (even if task marked incomplete)
+  let extractionData = null;
+  if (result.actions && Array.isArray(result.actions)) {
+    // Find the extraction action in the actions array
+    const extractionAction = result.actions.find(
+      (action: any) => action.type === 'extract' || action.extraction
+    );
+
+    if (extractionAction) {
+      extractionData = extractionAction.extraction || extractionAction;
+      console.log('[executeAIRelearn] Found extraction data:', extractionData);
+    }
+  }
+
+  // Build improved message with extraction data
+  let improvedMessage = result.message || 'Task execution completed';
+  if (extractionData && typeof extractionData === 'string') {
+    improvedMessage = extractionData;
+  }
 
   return {
     ...result,
+    message: improvedMessage,
+    extraction: extractionData,  // Always include extraction if available
     history: [], // Agent doesn't expose history in v3
   };
 }

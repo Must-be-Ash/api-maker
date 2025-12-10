@@ -114,7 +114,7 @@ async function saveStepStatusToMongoDB(runId: string, update: StepUpdate) {
 
   try {
     await client.connect();
-    const db = client.db('blog-agent');
+    const db = client.db('test');
     const collection = db.collection('workflow_step_status');
 
     // Upsert the step status (update if exists, insert if not)

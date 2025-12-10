@@ -37,7 +37,7 @@ async function deleteWorkflows() {
     await client.connect();
     console.log('✅ Connected to MongoDB\n');
 
-    const db = client.db('blog-agent');
+    const db = client.db('test');
 
     // Delete from workflows collection
     console.log('🗑️  Deleting workflows...');

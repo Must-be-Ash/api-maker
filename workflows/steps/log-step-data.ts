@@ -23,7 +23,7 @@ export async function logStepDataStep({
   try {
     await client.connect();
 
-    const database = client.db('blog-agent');
+    const database = client.db('test');
     const collection = database.collection('workflow_step_logs');
 
     // Create detailed log entry

@@ -14,7 +14,7 @@ async function checkWorkflowLogs(runId: string) {
     await client.connect();
     console.log('✅ Connected to MongoDB\n');
 
-    const database = client.db('blog-agent');
+    const database = client.db('test');
     const collection = database.collection('workflow_step_logs');
 
     // Get all logs for this runId

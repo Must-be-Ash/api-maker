@@ -15,7 +15,7 @@ export async function GET() {
     const client = new MongoClient(mongoUri);
     await client.connect();
 
-    const db = client.db('blog-agent');
+    const db = client.db('test');
     const collection = db.collection('workflows');
 
     // Get all workflows, sorted by most recent first

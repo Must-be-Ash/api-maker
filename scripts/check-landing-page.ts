@@ -12,7 +12,7 @@ async function checkData() {
 
   try {
     await client.connect();
-    const db = client.db('blog-agent');
+    const db = client.db('test');
     const collection = db.collection('workflows');
 
     const doc = await collection.findOne({

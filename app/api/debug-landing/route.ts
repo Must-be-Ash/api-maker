@@ -19,7 +19,7 @@ export async function GET(request: NextRequest) {
     const client = new MongoClient(mongoUri);
     await client.connect();
 
-    const db = client.db('blog-agent');
+    const db = client.db('test');
     const collection = db.collection('workflows');
 
     const doc = await collection.findOne({ runId });

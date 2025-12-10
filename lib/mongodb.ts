@@ -52,10 +52,11 @@ export async function getMongoClient(): Promise<MongoClient> {
 
 /**
  * Get MongoDB database instance
- * @param dbName Optional database name, defaults to database from URI
+ * @param dbName Optional database name, defaults to 'test' database
  * @returns Promise<Db>
  */
 export async function connectDB(dbName?: string): Promise<Db> {
   const client = await getMongoClient();
-  return client.db(dbName);
+  // Default to 'test' database to ensure we never accidentally use 'blog-agent'
+  return client.db(dbName || 'test');
 }

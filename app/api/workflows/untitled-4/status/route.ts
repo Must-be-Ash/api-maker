@@ -43,7 +43,7 @@ export async function GET(request: Request) {
           const client = new MongoClient(mongoUri);
           await client.connect();
 
-          const db = client.db('blog-agent');
+          const db = client.db('test');
           const collection = db.collection('workflow_step_status');
 
           // Get all step statuses for this run, sorted by timestamp

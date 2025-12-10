@@ -12,7 +12,7 @@ async function getStepDetail(runId: string, stepName: string) {
 
   try {
     await client.connect();
-    const database = client.db('blog-agent');
+    const database = client.db('test');
     const collection = database.collection('workflow_step_logs');
 
     const log = await collection.findOne({ runId, stepName });

@@ -21,7 +21,7 @@ async function getLandingPageData(runId: string) {
     const client = new MongoClient(mongoUri);
     await client.connect();
 
-    const db = client.db('blog-agent');
+    const db = client.db('test');
     const collection = db.collection('workflows');
 
     const workflow = await collection.findOne({ runId });
@@ -46,7 +46,7 @@ async function checkWorkflowInProgress(runId: string): Promise<boolean> {
     const client = new MongoClient(mongoUri);
     await client.connect();
 
-    const db = client.db('blog-agent');
+    const db = client.db('test');
     const stepStatusCollection = db.collection('workflow_step_status');
 
     // Check if any step records exist for this runId
