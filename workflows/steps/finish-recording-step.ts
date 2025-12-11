@@ -155,12 +155,25 @@ export async function finishRecordingStep(input: FinishRecordingInput): Promise<
 
   // Replace demo values with variable placeholders in actions
   const variableMappedActions = recording.recordedActions.map((action: RecordedAction) => {
-    if (action.value && variableMapping[action.value]) {
-      return {
-        ...action,
-        value: variableMapping[action.value], // Replace with %variable%
-        originalValue: action.value, // Keep original for reference
-      };
+    if (action.value) {
+      let newValue = action.value;
+      let wasReplaced = false;
+
+      // Replace each mapped value within the action's value
+      Object.entries(variableMapping).forEach(([originalText, placeholder]) => {
+        if (newValue.includes(originalText)) {
+          newValue = newValue.replace(new RegExp(originalText, 'gi'), placeholder);
+          wasReplaced = true;
+        }
+      });
+
+      if (wasReplaced) {
+        return {
+          ...action,
+          value: newValue, // Replace with placeholders
+          originalValue: action.value, // Keep original for reference
+        };
+      }
     }
     return action;
   });

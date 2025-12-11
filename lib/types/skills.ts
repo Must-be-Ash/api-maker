@@ -6,6 +6,23 @@
  */
 
 /**
+ * Interaction type classification for semantic value capture
+ */
+export type InteractionType =
+  | 'text-input'          // Search boxes, text fields (100% of use cases)
+  | 'date-picker'         // Calendar widgets (45% of use cases)
+  | 'dropdown'            // Single-select dropdowns (65% of use cases)
+  | 'checkbox'            // Checkboxes, toggles (35% of use cases)
+  | 'radio'               // Radio buttons
+  | 'number-input'        // Number inputs, counters (40% of use cases)
+  | 'range-slider'        // Price ranges, sliders (20% of use cases)
+  | 'autocomplete'        // Location/address autocomplete (40% of use cases)
+  | 'multi-select'        // Multi-select filters (15% of use cases)
+  | 'button-click'        // Submit buttons, action buttons
+  | 'link-click'          // Navigation links
+  | 'unknown';
+
+/**
  * User demonstration capture - exact actions the user performed
  *
  * Note: After action grouping, 'fill' actions become 'type' actions with complete values.
@@ -19,6 +36,11 @@ export interface RecordedAction {
   url?: string;                 // For navigate actions
   timestamp: number;
   endTimestamp?: number;        // Optional: timestamp when grouped action ended
+
+  // Semantic value capture (Phase 1-2)
+  semanticValue?: string | number | boolean | null;  // The actual value selected/entered
+  semanticType?: InteractionType;                     // Type of interaction (date-picker, dropdown, etc.)
+  semanticLabel?: string | null;                      // Contextual label (e.g., "departure date", "cabin class")
 }
 
 /**
