@@ -866,36 +866,36 @@ stagehand.act('Select departure date 2025-01-15')
 - [ ] Radio buttons (10%) - options
 
 ### Recording Phase (Phase 1-2)
-- [ ] Add `semanticValue`, `semanticType`, `semanticLabel` fields to `RecordedAction` type in `/lib/types/skills.ts`
-- [ ] **P1**: Implement `captureDropdownValue()` in `/lib/capture/action-recorder.ts`
-- [ ] **P2**: Implement `captureSemanticValue()` for date pickers
-- [ ] **P2**: Implement `captureNumberValue()` for number/range inputs
-- [ ] **P2**: Implement `captureAutocompleteValue()` for location inputs
-- [ ] **P3**: Implement `captureToggleValue()` for checkboxes
+- [x] Add `semanticValue`, `semanticType`, `semanticLabel` fields to `RecordedAction` type in `/lib/types/skills.ts`
+- [x] **P1**: Implement `captureDropdownValue()` in `/lib/capture/action-recorder.ts`
+- [x] **P2**: Implement `captureSemanticValue()` for date pickers
+- [x] **P2**: Implement `captureNumberValue()` for number/range inputs
+- [x] **P2**: Implement `captureAutocompleteValue()` for location inputs
+- [x] **P3**: Implement `captureToggleValue()` for checkboxes
 - [ ] **P4**: Implement `captureMultiSelectValue()` for multi-select filters
 - [ ] Create `/lib/capture/interaction-classifier.ts` with classification logic for ALL widget types
-- [ ] Integrate semantic capture into click event handler in `action-recorder.ts`
-- [ ] Add post-interaction DOM queries to extract values (with 200ms delay for DOM updates)
+- [x] Integrate semantic capture into click event handler in `action-recorder.ts`
+- [x] Add post-interaction DOM queries to extract values (with 200ms delay for DOM updates)
 - [ ] Test with: dropdowns (P1), date pickers (P2), number inputs (P2), location autocomplete (P2)
 
 ### Variable Detection (Phase 3)
-- [ ] Create `SemanticValue` interface in `/lib/capture/variable-detector.ts`
-- [ ] Implement `detectVariablesEnhanced()` with support for all interaction types
-- [ ] Update prompt to include interaction type and context
-- [ ] Modify `finish-recording-step.ts` to use enhanced detection
-- [ ] Extract semantic values from all actions, not just text inputs
+- [x] Create `SemanticValue` interface in `/lib/capture/variable-detector.ts`
+- [x] Implement `detectVariablesEnhanced()` with support for all interaction types
+- [x] Update prompt to include interaction type and context
+- [x] Modify `finish-recording-step.ts` to use enhanced detection
+- [x] Extract semantic values from all actions, not just text inputs
 - [ ] Test variable mapping for multi-type workflows (text + dates + dropdowns)
 
 ### Natural Language Generation (Phase 4)
-- [ ] Update `convertToStagehand()` in `/finish-recording-step.ts`
-- [ ] **P1**: Add logic for dropdown semantic instructions ("Select cabin class %cabinClass%")
-- [ ] **P2**: Add logic for date picker semantic instructions ("Select departure date %departureDate%")
-- [ ] **P2**: Add logic for number input semantic instructions ("Set guest count to %guests%")
-- [ ] **P2**: Add logic for autocomplete semantic instructions ("Select location %city%")
-- [ ] **P3**: Add logic for checkbox semantic instructions ("Enable %filterName% filter")
+- [x] Update `convertToStagehand()` in `/finish-recording-step.ts`
+- [x] **P1**: Add logic for dropdown semantic instructions ("Select cabin class %cabinClass%")
+- [x] **P2**: Add logic for date picker semantic instructions ("Select departure date %departureDate%")
+- [x] **P2**: Add logic for number input semantic instructions ("Set guest count to %guests%")
+- [x] **P2**: Add logic for autocomplete semantic instructions ("Select location %city%")
+- [x] **P3**: Add logic for checkbox semantic instructions ("Enable %filterName% filter")
 - [ ] **P4**: Add logic for multi-select semantic instructions ("Select amenities %amenities%")
-- [ ] Generate instructions with variable placeholders for ALL interaction types
-- [ ] Preserve semantic metadata in `stagehandWorkflow` (value, type, label)
+- [x] Generate instructions with variable placeholders for ALL interaction types
+- [x] Preserve semantic metadata in `stagehandWorkflow` (value, type, label)
 - [ ] Test generated instructions are human-readable and AI-understandable
 
 ### Execution Phase (Phase 5)

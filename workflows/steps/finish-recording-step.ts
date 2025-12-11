@@ -5,7 +5,7 @@ import type {
   StagehandAction,
   SkillMetrics,
 } from "@/lib/types/skills";
-import { detectVariables } from "@/lib/capture/variable-detector";
+import { detectVariables, detectVariablesEnhanced, type SemanticValue } from "@/lib/capture/variable-detector";
 import { extractTypedValues } from "@/lib/capture/action-grouper";
 import { generateExtractionSchema } from "@/lib/extraction/schema-generator";
 
@@ -138,18 +138,54 @@ export async function finishRecordingStep(input: FinishRecordingInput): Promise<
     actionsCount: recording.recordedActions?.length || 0,
   });
 
-  // Extract typed values from recorded actions (for variable detection)
-  const typedValues = extractTypedValues(recording.recordedActions || []);
-  console.log('[finishRecordingStep] Extracted typed values:', typedValues);
+  // Extract ALL semantic values from recorded actions (not just text inputs)
+  // This includes values from dropdowns, date pickers, number inputs, autocomplete, checkboxes
+  const semanticValues: SemanticValue[] = (recording.recordedActions || [])
+    .map((action: RecordedAction, index: number): SemanticValue | null => {
+      // Extract semantic value if present
+      if (action.semanticValue !== undefined && action.semanticValue !== null && action.semanticType) {
+        return {
+          value: action.semanticValue,
+          type: action.semanticType,
+          label: action.semanticLabel || action.description || 'unknown',
+          actionIndex: index
+        };
+      }
+      // Fallback: Extract text input values (for compatibility)
+      if (action.value && (action.type === 'fill' || action.type === 'type')) {
+        return {
+          value: action.value,
+          type: 'text-input' as const,
+          label: action.description || 'text input',
+          actionIndex: index
+        };
+      }
+      return null;
+    })
+    .filter((sv: SemanticValue | null): sv is SemanticValue => sv !== null);
 
-  // Detect variables and map them to typed values
+  console.log('[finishRecordingStep] Extracted semantic values:', semanticValues);
+
+  // Detect variables and map them to semantic values (ENHANCED VERSION)
   let variableMapping: Record<string, string> = {};
-  if (typedValues.length > 0 && recording.goal) {
+  if (semanticValues.length > 0 && recording.goal) {
     try {
-      variableMapping = await detectVariables(recording.goal, typedValues);
-      console.log('[finishRecordingStep] Variable mapping:', variableMapping);
+      // Use enhanced detection that understands all interaction types
+      variableMapping = await detectVariablesEnhanced(recording.goal, semanticValues);
+      console.log('[finishRecordingStep] Variable mapping (enhanced):', variableMapping);
     } catch (error) {
-      console.error('[finishRecordingStep] Error detecting variables:', error);
+      console.error('[finishRecordingStep] Error detecting variables (enhanced):', error);
+
+      // Fallback to old detection method (text inputs only)
+      try {
+        const typedValues = extractTypedValues(recording.recordedActions || []);
+        if (typedValues.length > 0) {
+          variableMapping = await detectVariables(recording.goal, typedValues);
+          console.log('[finishRecordingStep] Variable mapping (fallback):', variableMapping);
+        }
+      } catch (fallbackError) {
+        console.error('[finishRecordingStep] Error in fallback detection:', fallbackError);
+      }
     }
   }
 
@@ -350,18 +386,105 @@ export async function finishRecordingStep(input: FinishRecordingInput): Promise<
 /**
  * Convert recorded actions to Stagehand workflow format
  *
+ * ENHANCED: Now generates semantic instructions for all widget types
+ * (date pickers, dropdowns, number inputs, autocomplete, checkboxes)
+ *
  * Note: Handles both raw actions ('fill') and grouped actions ('type')
  * Preserves variable placeholders (%variable%) in values
  */
 function convertToStagehand(actions: RecordedAction[]): StagehandAction[] {
   return actions.map(action => {
+    // Navigate actions
     if (action.type === 'navigate') {
       return {
         method: 'navigate',
         url: action.url!,
         instruction: `Navigate to ${action.url}`,
       };
-    } else if (action.type === 'click') {
+    }
+
+    // Submit actions
+    if (action.type === 'submit') {
+      return {
+        method: 'act',
+        selector: action.selector,
+        instruction: action.description || 'Submit form',
+      };
+    }
+
+    // SEMANTIC VALUE HANDLING - Generate natural language instructions for all widget types
+    if (action.semanticValue !== undefined && action.semanticValue !== null && action.semanticType) {
+      const semanticValueStr = String(action.semanticValue);
+
+      // Check if this value is a variable placeholder
+      const isVariable = semanticValueStr.startsWith('%') && semanticValueStr.endsWith('%');
+      const displayValue = isVariable ? semanticValueStr : `"${semanticValueStr}"`;
+
+      switch (action.semanticType) {
+        case 'date-picker':
+          // Generate: "Select departure date %departureDate%" or "Select date 2025-12-17"
+          return {
+            method: 'act',
+            selector: action.selector,
+            instruction: `Select ${action.semanticLabel || 'date'} ${isVariable ? semanticValueStr : semanticValueStr}`,
+          };
+
+        case 'dropdown':
+          // Generate: "Select cabin class %cabinClass%" or "Select cabin class economy"
+          return {
+            method: 'act',
+            selector: action.selector,
+            instruction: `Select ${action.semanticLabel || 'option'} ${displayValue}`,
+          };
+
+        case 'number-input':
+        case 'range-slider':
+          // Generate: "Set guest count to %guests%" or "Set guest count to 2"
+          return {
+            method: 'act',
+            selector: action.selector,
+            instruction: `Set ${action.semanticLabel || 'value'} to ${semanticValueStr}`,
+          };
+
+        case 'autocomplete':
+          // Generate: "Select origin %origin%" or "Select location New York"
+          return {
+            method: 'act',
+            selector: action.selector,
+            instruction: `Select ${action.semanticLabel || 'location'} ${displayValue}`,
+          };
+
+        case 'checkbox':
+          // Generate: "Enable direct flights filter" or "Disable remote only"
+          const checkboxAction = action.semanticValue === true ? 'Enable' : 'Disable';
+          return {
+            method: 'act',
+            selector: action.selector,
+            instruction: `${checkboxAction} ${action.semanticLabel || 'option'}`,
+          };
+
+        case 'text-input':
+          // Text inputs - existing behavior with enhanced label
+          const valueInstruction = isVariable ? semanticValueStr : displayValue;
+          return {
+            method: 'act',
+            selector: action.selector,
+            instruction: `Fill ${action.semanticLabel || action.description} with ${valueInstruction}`,
+            value: semanticValueStr,
+          };
+
+        default:
+          // Fallback for unknown semantic types
+          return {
+            method: 'act',
+            selector: action.selector,
+            instruction: action.description,
+          };
+      }
+    }
+
+    // LEGACY HANDLING - For actions without semantic values (backward compatibility)
+    if (action.type === 'click') {
       return {
         method: 'act',
         selector: action.selector,
@@ -379,12 +502,6 @@ function convertToStagehand(actions: RecordedAction[]): StagehandAction[] {
         selector: action.selector,
         instruction: `${action.description} with value ${valueInstruction}`,
         value: action.value,
-      };
-    } else if (action.type === 'submit') {
-      return {
-        method: 'act',
-        selector: action.selector,
-        instruction: action.description || 'Submit form',
       };
     } else {
       return {

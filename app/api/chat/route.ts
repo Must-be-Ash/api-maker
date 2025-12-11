@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import OpenAI from 'openai';
 
 // IMPORTANT: Replace this with your actual skill ID after recording
-const FLIGHT_SEARCH_SKILL_ID = process.env.FLIGHT_SEARCH_SKILL_ID || 'YOUR_SKILL_ID_HERE';
+const SKILL_ID = process.env.SKILL_ID || 'YOUR_SKILL_ID_HERE';
 
 const openai = new OpenAI({
   apiKey: process.env.OPENAI_API_KEY,
@@ -11,7 +11,8 @@ const openai = new OpenAI({
 /**
  * Chat API
  *
- * Accepts natural language queries about flights and uses the skills system to find results
+ * Accepts natural language queries and uses the skills system to find results
+ * Automatically detects skill variables and parses queries accordingly
  */
 export async function POST(request: NextRequest) {
   try {
@@ -26,27 +27,54 @@ export async function POST(request: NextRequest) {
 
     console.log('[POST /api/chat] Received message:', message);
 
-    // Step 1: Use OpenAI to parse the natural language query
+    // Step 1: Fetch the skill to understand what variables it needs
+    const skillInfoResponse = await fetch(
+      `${process.env.NEXT_PUBLIC_URL || 'http://localhost:3000'}/api/skills/${SKILL_ID}`
+    );
+
+    if (!skillInfoResponse.ok) {
+      return NextResponse.json({
+        response: `Sorry, I couldn't find the skill. Please check that SKILL_ID is set correctly.`
+      });
+    }
+
+    const skillInfo = await skillInfoResponse.json();
+    console.log('[POST /api/chat] Skill info:', { goal: skillInfo.goal, variables: skillInfo.variables });
+
+    // Extract variable names from the skill
+    const variableNames = skillInfo.variables?.map((v: any) => v.name) || [];
+    
+    // If no variables defined, try to infer from goal (look for %variable% patterns)
+    const goalVariables = (skillInfo.goal?.match(/%(\w+)%/g) || []).map((v: string) => v.replace(/%/g, ''));
+    const allVariables = [...new Set([...variableNames, ...goalVariables])];
+    
+    console.log('[POST /api/chat] Detected variables:', allVariables);
+
+    // Step 2: Use OpenAI to parse the natural language query based on skill variables
+    const variableDescriptions = allVariables.length > 0 
+      ? allVariables.map((v: string) => `- ${v}: (extract from query based on context)`).join('\n')
+      : 'No specific variables - extract the main search query or intent';
+
     const parseResponse = await openai.chat.completions.create({
       model: 'gpt-4o-mini',
       messages: [
         {
           role: 'system',
-          content: `You are a flight query parser. Extract flight search parameters from user queries.
+          content: `You are a query parser for a browser automation skill. 
 
-Return a JSON object with these fields:
-- origin: departure city/airport (string)
-- destination: arrival city/airport (string)
-- departureDate: departure date in YYYY-MM-DD format (string, use current year ${new Date().getFullYear()} if not specified)
-- returnDate: return date in YYYY-MM-DD format (string, optional for one-way)
-- tripType: "roundtrip" or "oneway" (string)
+The skill's goal is: "${skillInfo.goal || 'Unknown'}"
 
-If the query is not about flights or you cannot extract the information, return:
-{ "error": "Could not understand the flight query. Please specify origin, destination, and dates." }
+Extract the following variables from the user's query:
+${variableDescriptions}
+
+Return a JSON object with the extracted variables. Use the exact variable names: ${allVariables.join(', ')}
+
+If the query doesn't match the skill's purpose or you cannot extract the required information, return:
+{ "error": "Could not understand the query. Please rephrase your question." }
 
 Examples:
-- "cheapest flight from Vancouver to LAX December 6 to 14" → { origin: "Vancouver", destination: "LAX", departureDate: "2025-12-06", returnDate: "2025-12-14", tripType: "roundtrip" }
-- "one way from NYC to Miami on Jan 15" → { origin: "NYC", destination: "Miami", departureDate: "2026-01-15", tripType: "oneway" }
+- If skill needs "query" variable and user asks "find Kendrick Lamar concerts" → { "query": "Kendrick Lamar" }
+- If skill needs "origin" and "destination" and user asks "flights from NYC to LAX" → { "origin": "NYC", "destination": "LAX" }
 
 Today's date is: ${new Date().toISOString().split('T')[0]}`
         },
@@ -68,21 +96,16 @@ Today's date is: ${new Date().toISOString().split('T')[0]}`
       });
     }
 
-    // Step 2: Call the skill execution API
-    console.log('[POST /api/chat] Executing skill:', FLIGHT_SEARCH_SKILL_ID);
+    // Step 3: Call the skill execution API
+    console.log('[POST /api/chat] Executing skill:', SKILL_ID);
 
     const skillResponse = await fetch(
-      `${process.env.NEXT_PUBLIC_URL || 'http://localhost:3000'}/api/skills/${FLIGHT_SEARCH_SKILL_ID}/execute`,
+      `${process.env.NEXT_PUBLIC_URL || 'http://localhost:3000'}/api/skills/${SKILL_ID}/execute`,
       {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          variables: {
-            origin: parsedQuery.origin,
-            destination: parsedQuery.destination,
-            departureDate: parsedQuery.departureDate,
-            returnDate: parsedQuery.returnDate || parsedQuery.departureDate,
-          },
+          variables: parsedQuery,
         }),
       }
     );
@@ -92,77 +115,90 @@ Today's date is: ${new Date().toISOString().split('T')[0]}`
       console.error('[POST /api/chat] Skill execution failed:', errorData);
 
       return NextResponse.json({
-        response: `Sorry, I encountered an error while searching for flights. The flight search skill may need to be re-recorded or the website structure may have changed.\n\nError: ${errorData.error || 'Skill execution failed'}`
+        response: `Sorry, I encountered an error while executing the skill. The skill may need to be re-recorded or the website structure may have changed.\n\nError: ${errorData.error || 'Skill execution failed'}`
       });
     }
 
     const skillResult = await skillResponse.json();
     console.log('[POST /api/chat] Skill result:', skillResult);
 
-    // Step 3: Format the response
-    let responseText = '';
-
+    // Step 4: Format the response using LLM
     if (skillResult.success) {
-      responseText = `✅ **Flight Search Results**\n\n`;
-      responseText += `🛫 Route: ${parsedQuery.origin} → ${parsedQuery.destination}\n`;
-      responseText += `📅 Dates: ${parsedQuery.departureDate}`;
-      if (parsedQuery.returnDate && parsedQuery.returnDate !== parsedQuery.departureDate) {
-        responseText += ` to ${parsedQuery.returnDate}`;
-      }
-      responseText += `\n\n`;
-
-      // Extract flight details from the agent's message
-      if (skillResult.data?.message) {
-        responseText += `📝 ${skillResult.data.message}\n\n`;
-      }
-
-      // Try to extract price from various possible locations
-      let price = null;
-      if (skillResult.data?.flights?.[0]?.price) {
-        price = skillResult.data.flights[0].price;
-      } else if (skillResult.data?.extraction?.price) {
-        price = skillResult.data.extraction.price;
-      } else if (skillResult.data?.extraction) {
-        price = skillResult.data.extraction;
+      // Extract the data from various possible locations (handle nested structures)
+      let extractedData: any = null;
+      
+      // Try different paths to find the actual result data
+      if (skillResult.data?.extraction?.result) {
+        extractedData = skillResult.data.extraction.result;
+      } else if (skillResult.data?.extraction && typeof skillResult.data.extraction === 'object' && 'result' in skillResult.data.extraction) {
+        extractedData = skillResult.data.extraction.result;
+      } else if (skillResult.data?.extraction && typeof skillResult.data.extraction === 'object' && !skillResult.data.extraction.type) {
+        // If extraction is an object but not a Stagehand action object, use it directly
+        extractedData = skillResult.data.extraction;
+      } else if (skillResult.data?.result) {
+        extractedData = skillResult.data.result;
+      } else if (skillResult.data && typeof skillResult.data === 'object') {
+        extractedData = skillResult.data;
       }
 
-      if (price) {
-        responseText += `💰 **Price**: ${price}\n\n`;
-      }
+      console.log('[POST /api/chat] Extracted data for formatting:', extractedData);
 
-      // Add flight details if available
-      if (skillResult.data?.flights && skillResult.data.flights.length > 0) {
-        responseText += `✈️ **Flight Details**:\n`;
-        skillResult.data.flights.forEach((flight: any, idx: number) => {
-          responseText += `\nFlight ${idx + 1}:\n`;
-          if (flight.airline) responseText += `  • Airline: ${flight.airline}\n`;
-          if (flight.flightNumber) responseText += `  • Flight: ${flight.flightNumber}\n`;
-          if (flight.departure) responseText += `  • Departure: ${flight.departure}\n`;
-          if (flight.arrival) responseText += `  • Arrival: ${flight.arrival}\n`;
-          if (flight.price) responseText += `  • Price: ${flight.price}\n`;
+      if (!extractedData || (typeof extractedData === 'object' && Object.keys(extractedData).length === 0)) {
+        // Fallback if no data found
+        return NextResponse.json({
+          response: `✅ Search completed successfully, but no data was extracted. The skill may need to be updated to extract the information you're looking for.\n\n🔗 [View session recording](${skillResult.sessionUrl || 'N/A'})`
         });
-        responseText += `\n`;
       }
 
-      // Add execution details
-      responseText += `⚡ Strategy used: ${skillResult.strategy}\n`;
-      responseText += `⏱️ Execution time: ${(skillResult.executionTime / 1000).toFixed(1)}s\n`;
+      // Use LLM to format the response in a user-friendly way
+      const formatResponse = await openai.chat.completions.create({
+        model: 'gpt-4o-mini',
+        messages: [
+          {
+            role: 'system',
+            content: `You are a helpful assistant that formats search results in a clear, user-friendly way.
 
+The user asked: "${message}"
+
+Format the extracted data into a natural, conversational response. Answer the user's question directly using the data provided. Highlight the most important information (like prices, dates, locations, names) prominently. Use emojis sparingly but effectively. Make it easy to read and understand.
+
+Guidelines:
+- If the data contains prices: Show them clearly and prominently (e.g., "💰 **Price**: $181 incl. fees")
+- If the data contains dates: Format them nicely (e.g., "📅 **Date**: December 13, 2025 at 11:00 AM")
+- If the data contains locations: Show clearly (e.g., "📍 **Location**: Exhibition Park in Canberra, Australia")
+- If the data contains events/names: Show prominently (e.g., "🎵 **Event**: Spilt Milk Canberra with Kendrick Lamar")
+
+Keep the response concise but informative. Don't just list the data - present it naturally as if you're directly answering the user's question. Start with the most important information first.`
+          },
+          {
+            role: 'user',
+            content: `Here's the extracted data from the web search:\n\n${JSON.stringify(extractedData, null, 2)}\n\nFormat this into a clear, user-friendly response that directly answers: "${message}"`
+          }
+        ],
+        temperature: 0.3,
+      });
+
+      let responseText = formatResponse.choices[0].message.content || '';
+
+      // Add a link to the session recording if available
       if (skillResult.sessionUrl) {
-        responseText += `\n🔗 [View session recording](${skillResult.sessionUrl})`;
+        responseText += `\n\n🔗 [View full session recording](${skillResult.sessionUrl})`;
       }
-    } else {
-      responseText = `❌ Flight search failed.\n\n`;
-      responseText += `The automation encountered an issue. This could be due to:\n`;
-      responseText += `- Website changes\n`;
-      responseText += `- Network issues\n`;
-      responseText += `- Invalid search parameters\n\n`;
-      responseText += `Error: ${skillResult.error || 'Unknown error'}`;
-    }
 
-    return NextResponse.json({
-      response: responseText
-    });
+      return NextResponse.json({
+        response: responseText
+      });
+    } else {
+      // Handle error case
+      const errorText = `❌ Search failed.\n\n`;
+      const errorDetails = `The automation encountered an issue. This could be due to:\n`;
+      const errorReasons = `- Website changes\n- Network issues\n- Invalid search parameters\n\n`;
+      const errorMessage = `Error: ${skillResult.error || 'Unknown error'}`;
+
+      return NextResponse.json({
+        response: errorText + errorDetails + errorReasons + errorMessage
+      });
+    }
 
   } catch (error) {
     console.error('[POST /api/chat] Error:', error);

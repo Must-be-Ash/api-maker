@@ -7,9 +7,7 @@ have a user do something on the web and it gets recorded and the agent can repea
 
 Skills System lets you turn any manual web task into a reusable API by demonstrating it once. Describe your goal (e.g., "find the cheapest flight from A to B"), open a Live View browser, perform the task manually (navigate, click, fill forms), and click "Finish Recording" — the system captures your actions and generates an API endpoint you can call with different inputs. It uses a triple replay strategy: first exact selectors for speed (1–3 seconds, no AI cost), then natural language if the UI changed, and finally AI re-learning as a fallback, ensuring reliability even when websites update. This lets anyone create production-ready APIs without coding, turning repetitive web workflows into automated, reusable services that others can use via simple API calls.
 
-have a user do something on the web and it gets recorded and the agent can repeat the same task. You'll control the browser to 
-perform the task, then click "Finish Recording" to generate the skill. You say what you want done, record yourself do it and that 
-produces an API.
+have a user do something on the web and it gets recorded and the agent can repeat the same task. You'll control the browser to perform the task, then click "Finish Recording" to generate the skill. You say what you want done, record yourself do it and that produces an API.
 
 Build a **browser-use style "Skills" system** where users **demonstrate** what they want once, and get a reusable API endpoint that can be called repeatedly with different inputs.
 
