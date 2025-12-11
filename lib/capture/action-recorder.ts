@@ -1,9 +1,13 @@
 import { RecordedAction } from '../types/skills';
 import { connectDB } from '../mongodb';
+import { groupActions } from './action-grouper';
 
 /**
  * ActionRecorder captures user actions in a browser session
  * Uses page instrumentation to track clicks, inputs, and navigation
+ *
+ * Note: Raw actions are captured at keystroke-level during recording,
+ * then grouped into semantic actions when recording stops.
  */
 export class ActionRecorder {
   private actions: RecordedAction[] = [];
@@ -175,6 +179,13 @@ export class ActionRecorder {
 
   /**
    * Poll the page for captured actions and URL changes
+   *
+   * KNOWN LIMITATION: This uses setInterval stored on global. It runs within a
+   * Workflow step and may not survive worker reclamation during very long recordings
+   * (>5-10 minutes). For typical 1-5 minute demos, this works reliably.
+   *
+   * The Browserbase session uses keepAlive: true to survive disconnections.
+   * A heartbeat timestamp is updated on each poll to enable monitoring.
    */
   private startPolling() {
     const pollInterval = setInterval(async () => {
@@ -184,6 +195,9 @@ export class ActionRecorder {
       }
 
       try {
+        // Update heartbeat timestamp for monitoring
+        await this.updateHeartbeat();
+
         // Check for URL changes (navigation detection)
         const currentUrl = this.page.url();
         if (currentUrl !== this.lastUrl) {
@@ -237,6 +251,30 @@ export class ActionRecorder {
   }
 
   /**
+   * Update heartbeat timestamp in MongoDB
+   *
+   * This allows external monitoring to detect if recording has stopped unexpectedly.
+   * If lastHeartbeat is >5 seconds old, the recording may have stalled.
+   */
+  private async updateHeartbeat() {
+    try {
+      const db = await connectDB();
+      await db.collection('recording_sessions').updateOne(
+        { recordingId: this.recordingId },
+        {
+          $set: {
+            lastHeartbeat: new Date().toISOString(),
+            updatedAt: new Date().toISOString()
+          }
+        }
+      );
+    } catch (error) {
+      // Don't throw - heartbeat is non-critical
+      console.error('[ActionRecorder] Error updating heartbeat:', error);
+    }
+  }
+
+  /**
    * Stop recording
    */
   async stopRecording() {
@@ -248,7 +286,15 @@ export class ActionRecorder {
       delete (global as any).recordingIntervals[this.recordingId];
     }
 
-    // Final save
+    // Group raw actions into semantic actions before saving
+    console.log('[ActionRecorder] Grouping', this.actions.length, 'raw actions...');
+    const groupedActions = groupActions(this.actions);
+    console.log('[ActionRecorder] Grouped into', groupedActions.length, 'semantic actions');
+
+    // Replace raw actions with grouped actions
+    this.actions = groupedActions as RecordedAction[];
+
+    // Final save with grouped actions
     await this.saveActions();
   }
 

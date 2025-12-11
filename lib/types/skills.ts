@@ -7,14 +7,18 @@
 
 /**
  * User demonstration capture - exact actions the user performed
+ *
+ * Note: After action grouping, 'fill' actions become 'type' actions with complete values.
+ * Both raw and grouped action types are supported.
  */
 export interface RecordedAction {
-  type: 'navigate' | 'click' | 'fill' | 'select' | 'hover' | 'extract';
-  selector: string;             // Exact selector from user action
+  type: 'navigate' | 'click' | 'fill' | 'type' | 'select' | 'hover' | 'extract' | 'submit';
+  selector?: string;            // Exact selector from user action (optional for some action types)
   description: string;          // Human-readable description
-  value?: string;               // For fill/select actions
+  value?: string;               // For fill/type/select actions
   url?: string;                 // For navigate actions
   timestamp: number;
+  endTimestamp?: number;        // Optional: timestamp when grouped action ended
 }
 
 /**
@@ -91,9 +95,20 @@ export interface Skill {
 
   // Schema for data extraction (if applicable)
   schema?: object;              // Zod schema as JSON
+  extractionSchema?: {          // Generated extraction schema
+    fields: Array<{
+      name: string;
+      type: 'string' | 'number' | 'boolean' | 'date' | 'array' | 'object';
+      description: string;
+      optional?: boolean;
+    }>;
+    instruction: string;
+    description: string;
+  } | null;
 
   // Parameterization
   variables?: SkillVariable[];
+  variableMapping?: Record<string, string>; // Maps demo values to %variable% placeholders
 
   // Replay configuration
   replayStrategy: "hybrid";     // Always hybrid for max reliability
@@ -229,9 +244,15 @@ export interface ExecuteSkillInput {
 export interface ExecuteSkillOutput {
   success: boolean;
   data: any;
+  extractedData?: any; // The actual extracted data from the execution
   strategy: "exact_replay" | "natural_language" | "ai_relearn";
   executionTime: number;
   tokensUsed: number;
   sessionId: string;
   sessionUrl: string;
+  debugUrl?: string; // CDP inspection URL from Browserbase
+  validation?: {
+    valid: boolean;
+    errors: string[];
+  };
 }

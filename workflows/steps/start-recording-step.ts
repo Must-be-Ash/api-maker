@@ -25,6 +25,7 @@ export async function startRecordingStep(input: StartRecordingInput): Promise<St
     },
     body: JSON.stringify({
       projectId: process.env.BROWSERBASE_PROJECT_ID,
+      keepAlive: true, // Enable keep-alive for long-running recording sessions
       browserSettings: {
         recordSession: true,
         logSession: true,
@@ -80,7 +81,7 @@ export async function startRecordingStep(input: StartRecordingInput): Promise<St
     projectId: process.env.BROWSERBASE_PROJECT_ID,
     verbose: 1,
     browserbaseSessionID: sessionId,
-    modelName: "gpt-4o", // Use OpenAI GPT-4o for AI operations
+    model: "openai/gpt-4o", // Use OpenAI GPT-4o for AI operations (v3 API)
   });
 
   await stagehand.init();

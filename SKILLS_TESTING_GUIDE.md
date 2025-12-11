@@ -47,6 +47,226 @@ The app will be available at `http://localhost:3000`
 
 ---
 
+## 🎯 Working with Variables
+
+### What are Variables?
+
+Variables make skills **reusable** with different input values. Instead of creating a skill that only searches "Vancouver → LAX", you can create a **generic** skill that searches any origin → any destination.
+
+### Variable Syntax
+
+Use the `%variableName%` pattern in your goal:
+
+```
+❌ Specific (one-time use):
+"Search for flights from Vancouver to LAX"
+
+✅ Reusable (works for any cities):
+"Search for flights from %origin% to %destination%"
+```
+
+### Variable Naming Conventions
+
+Follow these guidelines for naming variables:
+
+| ✅ Good Variable Names | ❌ Bad Variable Names |
+|------------------------|------------------------|
+| `%origin%` | `%start%` (unclear) |
+| `%destination%` | `%end%` (unclear) |
+| `%departureDate%` | `%date1%` (unclear) |
+| `%productName%` | `%product%` (too generic) |
+| `%maxPrice%` | `%price%` (ambiguous) |
+| `%firstName%` | `%name1%` (unclear) |
+| `%emailAddress%` | `%email_address%` (use camelCase, not snake_case) |
+
+**Rules:**
+- Use `camelCase` (first word lowercase, subsequent words capitalized)
+- Be **descriptive** and **specific**
+- Wrap variable names with `%` on both sides
+- Avoid special characters except letters and numbers
+
+### Common Variable Patterns
+
+#### Flight Search
+```
+Goal: "Search for round trip flights from %origin% to %destination% departing on %departureDate% and returning on %returnDate%"
+
+Variables:
+- %origin% → "Vancouver", "Toronto", "New York"
+- %destination% → "LAX", "Miami", "London"
+- %departureDate% → "Jan 10, 2026", "2026-01-10"
+- %returnDate% → "Jan 15, 2026", "2026-01-15"
+```
+
+#### E-commerce Product Search
+```
+Goal: "Search for %productName% on Amazon and find products under %maxPrice%"
+
+Variables:
+- %productName% → "iPhone 15 Pro", "MacBook Pro", "Sony Headphones"
+- %maxPrice% → "500", "1000", "2000"
+```
+
+#### Form Submission
+```
+Goal: "Fill contact form with name %fullName%, email %emailAddress%, and message %message%"
+
+Variables:
+- %fullName% → "John Doe", "Jane Smith"
+- %emailAddress% → "john@example.com", "jane@company.com"
+- %message% → "I'm interested in your product", "Question about pricing"
+```
+
+#### Hotel Booking
+```
+Goal: "Search for hotels in %location% from %checkIn% to %checkOut% for %guests% guests under %maxPrice% per night"
+
+Variables:
+- %location% → "San Francisco", "Seattle", "Austin"
+- %checkIn% → "Feb 10, 2026", "2026-02-10"
+- %checkOut% → "Feb 12, 2026", "2026-02-12"
+- %guests% → "2", "4"
+- %maxPrice% → "150", "200"
+```
+
+#### Social Media Posting
+```
+Goal: "Post %message% on Twitter with hashtag %hashtag%"
+
+Variables:
+- %message% → "Check out our new product!", "Happy Monday everyone!"
+- %hashtag% → "#TechNews", "#MondayMotivation"
+```
+
+### How Variables Work (Behind the Scenes)
+
+1. **Recording Phase**:
+   - You provide a goal with variables: `"Search from %origin% to %destination%"`
+   - You demonstrate with example values: "Vancouver" → "LAX"
+   - System detects which typed values map to which variables
+   - Actions are stored with placeholders: `{ value: "%origin%" }`
+
+2. **Execution Phase**:
+   - You provide variable values: `{ origin: "Toronto", destination: "NYC" }`
+   - System substitutes variables before execution:
+     - `%origin%` → "Toronto"
+     - `%destination%` → "NYC"
+   - Skill executes with YOUR values, not demo values
+
+### Testing with Different Variables
+
+#### Method 1: UI Testing
+
+1. Create a skill with variables in the goal
+2. Demonstrate with example values
+3. On the skill detail page, enter different variables:
+   ```
+   Origin: Toronto
+   Destination: Miami
+   ```
+4. Click "Execute" to see variable substitution in action
+
+#### Method 2: API Testing
+
+```bash
+# Execute with first set of variables
+curl -X POST http://localhost:3000/api/skills/[skillId]/execute \
+  -H "Content-Type: application/json" \
+  -d '{
+    "variables": {
+      "origin": "Toronto",
+      "destination": "NYC"
+    }
+  }'
+
+# Execute again with different variables
+curl -X POST http://localhost:3000/api/skills/[skillId]/execute \
+  -H "Content-Type: application/json" \
+  -d '{
+    "variables": {
+      "origin": "Seattle",
+      "destination": "Miami"
+    }
+  }'
+```
+
+### Variable Substitution Strategies
+
+The system substitutes variables in **all three execution strategies**:
+
+#### Strategy 1: Exact Replay
+```typescript
+// Stored action:
+{ type: 'fill', selector: '#origin', value: '%origin%' }
+
+// At execution with { origin: 'Toronto' }:
+await page.locator('#origin').fill('Toronto')  // ✅ Substituted
+```
+
+#### Strategy 2: Natural Language
+```typescript
+// Stored instruction:
+"Fill the origin field with %origin%"
+
+// At execution with { origin: 'Toronto' }:
+await stagehand.act("Fill the origin field with Toronto")  // ✅ Substituted
+```
+
+#### Strategy 3: AI Re-learn
+```typescript
+// Stored goal:
+"Search for flights from %origin% to %destination%"
+
+// At execution with { origin: 'Toronto', destination: 'NYC' }:
+agent.execute("Search for flights from Toronto to NYC")  // ✅ Substituted
+```
+
+### Extraction with Variables
+
+When using variables, the system validates that extracted data matches your search criteria:
+
+```typescript
+// You searched for Vancouver → LAX
+// Extraction: { route: "Toronto → NYC", price: "$450" }
+// Validation: ❌ FAIL - Route doesn't match search
+
+// You searched for Toronto → NYC
+// Extraction: { route: "Toronto → NYC", price: "$450" }
+// Validation: ✅ PASS - Route matches search
+```
+
+This prevents the agent from clicking the wrong results!
+
+### Best Practices
+
+#### ✅ DO:
+- Use descriptive variable names: `%departureDate%` not `%date%`
+- Be consistent with naming across skills
+- Test with 2-3 different variable values to ensure reusability
+- Provide example values during demo that are similar to expected inputs
+
+#### ❌ DON'T:
+- Use generic names: `%var1%`, `%input%`, `%data%`
+- Mix naming conventions: `%first_name%` and `%lastName%`
+- Create too many variables for a simple task
+- Use variables for values that never change
+
+### Troubleshooting Variables
+
+**Issue**: Variables not substituted, demo values used instead
+- **Cause**: Variable mapping not detected during recording
+- **Solution**: Ensure goal contains variables before recording
+
+**Issue**: Extraction fails validation
+- **Cause**: Agent clicked wrong result (e.g., different city)
+- **Solution**: Strategy 3 system prompt includes validation criteria
+
+**Issue**: Variable name mismatch
+- **Cause**: Execution provided `{ from: "Toronto" }` but goal expects `%origin%`
+- **Solution**: Match variable names exactly (case-sensitive)
+
+---
+
 ## Testing Flow
 
 ### Option 1: UI Testing (Recommended for First Test)
