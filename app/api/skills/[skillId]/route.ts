@@ -58,13 +58,15 @@ export async function GET(
  * PATCH /api/skills/[skillId]
  *
  * Updates a skill's properties (e.g., name, price).
+ * Only the skill creator can edit the skill.
  *
  * Request body:
  * - name?: string (new skill name)
  * - price?: number (new skill price)
+ * - requestorAddress?: string (EVM wallet address of requestor for ownership validation)
  *
  * Response:
- * - Success message
+ * - Success message or 403 if unauthorized
  */
 export async function PATCH(
   request: NextRequest,
@@ -82,7 +84,36 @@ export async function PATCH(
     }
 
     const body = await request.json();
-    const { name, price } = body;
+    const { name, price, requestorAddress } = body;
+
+    // Fetch skill from MongoDB first to check ownership
+    const db = await connectDB();
+    const skill = await db.collection('skills').findOne({ skillId });
+
+    if (!skill) {
+      return Response.json(
+        { error: 'Skill not found' },
+        { status: 404 }
+      );
+    }
+
+    // Check ownership: if skill has a creator, only they can edit
+    if (skill.creatorAddress) {
+      if (!requestorAddress) {
+        return Response.json(
+          { error: 'Unauthorized: Authentication required to edit this skill' },
+          { status: 401 }
+        );
+      }
+
+      // Case-insensitive address comparison
+      if (skill.creatorAddress.toLowerCase() !== requestorAddress.toLowerCase()) {
+        return Response.json(
+          { error: 'Unauthorized: Only the skill creator can edit this skill' },
+          { status: 403 }
+        );
+      }
+    }
 
     // Build update object
     const updateFields: any = {
@@ -122,7 +153,6 @@ export async function PATCH(
     console.log('[PATCH /api/skills/[skillId]] Updating skill:', skillId, updateFields);
 
     // Update skill in MongoDB
-    const db = await connectDB();
     const result = await db.collection('skills').updateOne(
       { skillId },
       { $set: updateFields }

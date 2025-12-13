@@ -719,6 +719,9 @@ export async function finishRecordingStep(input: FinishRecordingInput): Promise<
 
     price: parseFloat(process.env.SKILL_EXECUTION_PRICE || '0.01'),
 
+    // Ownership tracking for wallet-based authorization
+    creatorAddress: input.creatorAddress || null,
+
     createdAt: new Date().toISOString(),
     updatedAt: new Date().toISOString(),
   });

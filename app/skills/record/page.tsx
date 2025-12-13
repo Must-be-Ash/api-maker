@@ -4,9 +4,11 @@ import { useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { ArrowRight, Video, Sparkles, CheckCircle2, Loader2 } from 'lucide-react';
 import { Header } from '@/components/Header';
+import { useEvmAddress } from '@coinbase/cdp-hooks';
 
 export default function RecordSkillPage() {
   const router = useRouter();
+  const { evmAddress } = useEvmAddress();
   const [step, setStep] = useState<'describe' | 'recording' | 'validating' | 'review'>('describe');
   const [goal, setGoal] = useState('');
   const [startUrl, setStartUrl] = useState('');
@@ -83,6 +85,7 @@ export default function RecordSkillPage() {
         body: JSON.stringify({
           recordingId: recordingData.recordingId,
           sessionId: recordingData.sessionId,
+          creatorAddress: evmAddress || null,
         }),
       });
 

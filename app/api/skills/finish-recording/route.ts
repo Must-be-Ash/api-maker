@@ -11,6 +11,7 @@ import { NextRequest } from 'next/server';
  * Request Body:
  * - recordingId: string (required) - ID of the recording session
  * - sessionId: string (required) - Browserbase session ID
+ * - creatorAddress?: string (optional) - EVM wallet address of skill creator
  *
  * Response:
  * - skillId: string - Unique ID for the created skill
@@ -23,7 +24,7 @@ import { NextRequest } from 'next/server';
 export async function POST(request: NextRequest) {
   try {
     const body = await request.json();
-    const { recordingId, sessionId } = body;
+    const { recordingId, sessionId, creatorAddress } = body;
 
     // Validate input
     if (!recordingId || typeof recordingId !== 'string') {
@@ -43,6 +44,7 @@ export async function POST(request: NextRequest) {
     const input: FinishRecordingInput = {
       recordingId,
       sessionId,
+      creatorAddress: creatorAddress || null,
     };
 
     console.log('[POST /api/skills/finish-recording] Finishing recording workflow', input);

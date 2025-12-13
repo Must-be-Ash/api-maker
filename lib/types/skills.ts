@@ -168,6 +168,9 @@ export interface Skill {
   // x402 configuration
   price: number;                // Price in USD (default: 0.01)
 
+  // Ownership tracking for wallet-based authorization
+  creatorAddress?: string | null;  // EVM wallet address of skill creator
+
   createdAt: string;
   updatedAt: string;
 }
@@ -257,6 +260,7 @@ export interface StartRecordingOutput {
 export interface FinishRecordingInput {
   recordingId: string;
   sessionId: string;
+  creatorAddress?: string; // EVM wallet address of skill creator
 }
 
 /**

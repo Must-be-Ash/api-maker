@@ -4,6 +4,7 @@ import { useState, useEffect } from 'react';
 import { useParams } from 'next/navigation';
 import { Header } from '@/components/Header';
 import { SkillTester } from '@/components/SkillTester';
+import { useEvmAddress } from '@coinbase/cdp-hooks';
 import {
   Loader2,
   CheckCircle2,
@@ -43,11 +44,13 @@ interface Skill {
   createdAt: string;
   updatedAt: string;
   variableMapping?: Record<string, string>;
+  creatorAddress?: string | null;
 }
 
 export default function SkillDetailsPage() {
   const params = useParams();
   const skillId = params.skillId as string;
+  const { evmAddress } = useEvmAddress();
 
   const [skill, setSkill] = useState<Skill | null>(null);
   const [loading, setLoading] = useState(true);
@@ -59,6 +62,11 @@ export default function SkillDetailsPage() {
   const [editedName, setEditedName] = useState('');
   const [isEditingPrice, setIsEditingPrice] = useState(false);
   const [editedPrice, setEditedPrice] = useState('');
+
+  // Check if current user is the creator of this skill
+  const isCreator = skill?.creatorAddress &&
+                     evmAddress &&
+                     skill.creatorAddress.toLowerCase() === evmAddress.toLowerCase();
 
   useEffect(() => {
     fetchSkill();
@@ -150,11 +158,15 @@ export default function SkillDetailsPage() {
         headers: {
           'Content-Type': 'application/json',
         },
-        body: JSON.stringify({ name: editedName.trim() }),
+        body: JSON.stringify({
+          name: editedName.trim(),
+          requestorAddress: evmAddress,
+        }),
       });
 
       if (!response.ok) {
-        throw new Error('Failed to update skill name');
+        const error = await response.json();
+        throw new Error(error.error || 'Failed to update skill name');
       }
 
       // Update local state
@@ -163,7 +175,7 @@ export default function SkillDetailsPage() {
       setEditedName('');
     } catch (err) {
       console.error('Error updating skill name:', err);
-      alert('Failed to update skill name');
+      alert(err instanceof Error ? err.message : 'Failed to update skill name');
     }
   };
 
@@ -194,11 +206,15 @@ export default function SkillDetailsPage() {
         headers: {
           'Content-Type': 'application/json',
         },
-        body: JSON.stringify({ price: newPrice }),
+        body: JSON.stringify({
+          price: newPrice,
+          requestorAddress: evmAddress,
+        }),
       });
 
       if (!response.ok) {
-        throw new Error('Failed to update skill price');
+        const error = await response.json();
+        throw new Error(error.error || 'Failed to update skill price');
       }
 
       // Update local state
@@ -207,7 +223,7 @@ export default function SkillDetailsPage() {
       setEditedPrice('');
     } catch (err) {
       console.error('Error updating skill price:', err);
-      alert('Failed to update skill price');
+      alert(err instanceof Error ? err.message : 'Failed to update skill price');
     }
   };
 
@@ -294,15 +310,17 @@ export default function SkillDetailsPage() {
               </button>
             </div>
           ) : (
-            <div className="flex items-center gap-3 group">
+            <div className="flex items-center gap-3">
               <h1 className="text-4xl font-bold text-slate-900">{skill.name}</h1>
-              <button
-                onClick={startEditingName}
-                className="p-2 opacity-0 group-hover:opacity-100 hover:bg-slate-200 rounded-lg transition-all"
-                title="Edit name"
-              >
-                <Pencil className="h-5 w-5 text-slate-600" />
-              </button>
+              {isCreator && (
+                <button
+                  onClick={startEditingName}
+                  className="p-2 hover:bg-slate-200 rounded-lg transition-colors"
+                  title="Edit name"
+                >
+                  <Pencil className="h-5 w-5 text-slate-600" />
+                </button>
+              )}
             </div>
           )}
           <p className="text-lg text-slate-600">{skill.goal}</p>
@@ -376,13 +394,15 @@ export default function SkillDetailsPage() {
                 <div className="text-3xl font-bold text-slate-900">
                   ${skill.price.toFixed(2)}
                 </div>
-                <button
-                  onClick={startEditingPrice}
-                  className="absolute top-6 right-6 p-1.5 opacity-0 group-hover:opacity-100 hover:bg-slate-100 rounded transition-all"
-                  title="Edit price"
-                >
-                  <Pencil className="h-3.5 w-3.5 text-slate-600" />
-                </button>
+                {isCreator && (
+                  <button
+                    onClick={startEditingPrice}
+                    className="absolute top-6 right-6 p-1.5 hover:bg-slate-100 rounded transition-colors"
+                    title="Edit price"
+                  >
+                    <Pencil className="h-3.5 w-3.5 text-slate-600" />
+                  </button>
+                )}
               </div>
             )}
           </div>
