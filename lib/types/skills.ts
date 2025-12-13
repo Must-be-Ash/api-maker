@@ -102,6 +102,25 @@ export interface SkillMetrics {
 }
 
 /**
+ * Page context captured at the end of recording session.
+ * Contains metadata about the final page state for context-aware schema generation.
+ */
+export interface PageContext {
+  url: string;
+  title: string;
+  headings: string[];
+  visibleText: string;
+  structuralHints: {
+    hasPriceElements: boolean;
+    hasDateElements: boolean;
+    hasTableData: boolean;
+    hasListItems: boolean;
+    hasFormElements: boolean;
+  };
+  sampleExtraction?: any; // Sample extraction result from testing during recording
+}
+
+/**
  * Main Skill document stored in MongoDB
  */
 export interface Skill {
@@ -114,6 +133,9 @@ export interface Skill {
   recordedActions: RecordedAction[];     // Exact user demonstration
   stagehandWorkflow: StagehandAction[];  // Converted to Stagehand
   history: HistoryEntry[];               // Validation run history
+
+  // Page context for context-aware extraction (Phase 1-3)
+  pageContext?: PageContext | null;      // Captured page metadata and sample extraction
 
   // Schema for data extraction (if applicable)
   schema?: object;              // Zod schema as JSON
@@ -243,6 +265,15 @@ export interface FinishRecordingInput {
 export interface FinishRecordingOutput {
   skillId: string;
   name: string;
+  goal: string;
+  originalGoal: string;
+  goalInference: {
+    structuredGoal: string;
+    variables: string[];
+    category: string;
+    extractionHints: string[];
+    confidence: number;
+  } | null;
   recordedActions: RecordedAction[];
   stagehandWorkflow: StagehandAction[];
   testResult: {

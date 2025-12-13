@@ -4,10 +4,13 @@ import type {
   RecordedAction,
   StagehandAction,
   SkillMetrics,
+  PageContext,
 } from "@/lib/types/skills";
 import { detectVariables, detectVariablesEnhanced, type SemanticValue } from "@/lib/capture/variable-detector";
 import { extractTypedValues } from "@/lib/capture/action-grouper";
-import { generateExtractionSchema } from "@/lib/extraction/schema-generator";
+import { generateExtractionSchema, type ExtractionSchema } from "@/lib/extraction/schema-generator";
+import { inferGoalFromIntent } from "@/lib/ai/goal-inference";
+import { z } from "zod";
 
 /**
  * Convert auto-navigations after search/form actions into submit actions.
@@ -42,6 +45,7 @@ function filterRedundantNavigations(actions: RecordedAction[]): RecordedAction[]
 
     // Look back for recent type/fill actions (within threshold)
     let shouldConvertToSubmit = false;
+    let isResultPageNavigation = false;
     let triggerAction = null;
 
     for (let j = i - 1; j >= 0; j--) {
@@ -66,19 +70,62 @@ function filterRedundantNavigations(actions: RecordedAction[]): RecordedAction[]
           triggerAction = prevAction;
           break;
         }
+
+        // 🔴 NEW: Also detect result page navigations (no query params)
+        // If navigation happens after user input to a DIFFERENT page (not same base URL)
+        // This means the page navigated to a result/details page - should be removed
+        if (!hasQueryParams && action.url) {
+          // Get previous page URL from earlier navigation or current page
+          let previousUrl: string | undefined;
+          for (let k = i - 1; k >= 0; k--) {
+            if (actions[k].type === 'navigate' && actions[k].url) {
+              previousUrl = actions[k].url;
+              break;
+            }
+          }
+
+          if (previousUrl) {
+            try {
+              const previousBase = new URL(previousUrl).pathname;
+              const currentBase = new URL(action.url).pathname;
+
+              // If navigating to a different path (not just query params)
+              if (previousBase !== currentBase) {
+                console.log('[filterRedundantNavigations] 🚫 Detected result page navigation:',
+                  action.url.substring(0, 100));
+                console.log('[filterRedundantNavigations]    Previous page:', previousBase);
+                console.log('[filterRedundantNavigations]    Result page:  ', currentBase);
+                isResultPageNavigation = true;
+                triggerAction = prevAction;
+                break;
+              }
+            } catch (error) {
+              // Invalid URL, skip this check
+              console.warn('[filterRedundantNavigations] Invalid URL, skipping result page check');
+            }
+          }
+        }
       }
     }
 
-    if (shouldConvertToSubmit && triggerAction) {
+    // Handle navigations that should be converted to submit or removed
+    if ((shouldConvertToSubmit || isResultPageNavigation) && triggerAction) {
       // Convert navigation to a submit action that uses the selector from the type/fill action
       const submitAction: RecordedAction = {
         type: 'submit',
         selector: triggerAction.selector, // Use the input field selector
-        description: 'Press Enter to submit search',
+        description: isResultPageNavigation
+          ? 'Submit and wait for navigation'
+          : 'Press Enter to submit search',
         timestamp: action.timestamp,
       };
       filtered.push(submitAction);
-      console.log('[filterRedundantNavigations] ✓ Created submit action:', submitAction.description);
+
+      if (isResultPageNavigation) {
+        console.log('[filterRedundantNavigations] ✓ Removed result page navigation, created submit action');
+      } else {
+        console.log('[filterRedundantNavigations] ✓ Created submit action:', submitAction.description);
+      }
       continue;
     }
 
@@ -88,6 +135,98 @@ function filterRedundantNavigations(actions: RecordedAction[]): RecordedAction[]
   }
 
   return filtered;
+}
+
+/**
+ * Captures page context from the browser session for context-aware schema generation.
+ * Extracts page title, URL, headings, visible text, and structural hints about the page.
+ *
+ * @param page - Playwright page object from Stagehand session
+ * @returns PageContext object or null if capture fails
+ */
+async function capturePageContext(page: any): Promise<PageContext | null> {
+  try {
+    return await page.evaluate(() => ({
+      title: document.title,
+      url: window.location.href,
+      headings: Array.from(document.querySelectorAll('h1, h2, h3'))
+        .map(h => h.textContent?.trim())
+        .filter(Boolean)
+        .slice(0, 5),
+      visibleText: document.body.innerText.slice(0, 1000),
+      structuralHints: {
+        hasPriceElements: !!(
+          document.querySelector('[class*="price"], [data-price], [itemprop="price"]') ||
+          /\$\d+|\d+\s*USD|€\d+|£\d+/.test(document.body.innerText)
+        ),
+        hasDateElements: !!(
+          document.querySelector('[datetime], [class*="date"], [data-date]') ||
+          /\d{1,2}\/\d{1,2}\/\d{4}|\d{4}-\d{2}-\d{2}/.test(document.body.innerText)
+        ),
+        hasTableData: !!document.querySelector('table, [role="table"], [class*="table"]'),
+        hasListItems: !!document.querySelector('ul li, ol li, [role="list"]'),
+        hasFormElements: !!document.querySelector('form, input, textarea, select'),
+      },
+    }));
+  } catch (error) {
+    console.error('[capturePageContext] Error:', error);
+    return null;
+  }
+}
+
+/**
+ * Build Zod Schema from Extraction Schema
+ *
+ * Converts an ExtractionSchema (generated by LLM) into a Zod schema
+ * that can be used for runtime validation during extraction testing.
+ *
+ * @param schema - The extraction schema with field definitions
+ * @returns A Zod schema object for validation
+ */
+function buildZodSchemaFromExtraction(schema: ExtractionSchema): z.ZodObject<any> {
+  const shape: Record<string, z.ZodTypeAny> = {};
+
+  for (const field of schema.fields) {
+    let fieldSchema: z.ZodTypeAny;
+
+    // Map extraction schema types to Zod types
+    switch (field.type) {
+      case 'string':
+        fieldSchema = z.string().describe(field.description);
+        break;
+      case 'number':
+        fieldSchema = z.number().describe(field.description);
+        break;
+      case 'boolean':
+        fieldSchema = z.boolean().describe(field.description);
+        break;
+      case 'date':
+        // Date can be string (ISO format) or Date object
+        fieldSchema = z.union([z.string(), z.date()]).describe(field.description);
+        break;
+      case 'array':
+        // Array of any type (could be strings, objects, etc.)
+        fieldSchema = z.array(z.any()).describe(field.description);
+        break;
+      case 'object':
+        // Generic object with any properties - use z.record for flexible objects
+        fieldSchema = z.record(z.string(), z.any()).describe(field.description);
+        break;
+      default:
+        // Fallback for unknown types
+        console.warn(`[buildZodSchemaFromExtraction] Unknown field type: ${field.type}, using z.any()`);
+        fieldSchema = z.any().describe(field.description);
+    }
+
+    // Make field optional if specified in schema
+    if (field.optional) {
+      fieldSchema = fieldSchema.optional();
+    }
+
+    shape[field.name] = fieldSchema;
+  }
+
+  return z.object(shape);
 }
 
 /**
@@ -104,26 +243,13 @@ export async function finishRecordingStep(input: FinishRecordingInput): Promise<
 
   // Stop action recorder if it exists
   const activeRecorder = (global as any).activeRecorders?.[input.recordingId];
-  if (activeRecorder) {
-    await activeRecorder.recorder.stopRecording();
-    console.log('[finishRecordingStep] Stopped action recorder');
+  let pageContext: PageContext | null = null;
 
-    // Close the Stagehand session (releases keep-alive session)
-    try {
-      await activeRecorder.stagehand.close();
-      console.log('[finishRecordingStep] Released keep-alive session');
-    } catch (error) {
-      console.log('[finishRecordingStep] Error closing Stagehand session:', error);
-    }
-
-    // Clean up global reference
-    delete (global as any).activeRecorders[input.recordingId];
-  }
-
+  // ✅ RESTRUCTURE: Load recording data BEFORE closing session (needed for extraction testing)
   // Dynamically import MongoDB helper
   const { connectDB } = await import("@/lib/mongodb");
 
-  // Load recording session from MongoDB
+  // Load recording session from MongoDB EARLY
   const db = await connectDB();
   const recording = await db.collection('recording_sessions').findOne({
     recordingId: input.recordingId,
@@ -137,6 +263,108 @@ export async function finishRecordingStep(input: FinishRecordingInput): Promise<
     recordingId: input.recordingId,
     actionsCount: recording.recordedActions?.length || 0,
   });
+
+  if (activeRecorder) {
+    await activeRecorder.recorder.stopRecording();
+    console.log('[finishRecordingStep] Stopped action recorder');
+
+    // ✅ FIX: Reload recording to get GROUPED actions after stopRecording()
+    const updatedRecording = await db.collection('recording_sessions').findOne({
+      recordingId: input.recordingId,
+    });
+    if (updatedRecording) {
+      Object.assign(recording, updatedRecording);
+      console.log('[finishRecordingStep] Reloaded recording with grouped actions:', {
+        actionsCount: recording.recordedActions?.length || 0,
+      });
+    }
+
+    // ✅ NEW: Capture page context BEFORE closing session
+    if (activeRecorder.stagehand?.context?.pages) {
+      try {
+        const page = activeRecorder.stagehand.context.pages()[0];
+        if (page) {
+          pageContext = await capturePageContext(page);
+          console.log('[finishRecordingStep] Captured page context:', {
+            url: pageContext?.url,
+            title: pageContext?.title,
+            headingCount: pageContext?.headings.length || 0,
+            hints: pageContext?.structuralHints,
+          });
+        } else {
+          console.log('[finishRecordingStep] No page found in context.pages()');
+        }
+      } catch (error) {
+        console.error('[finishRecordingStep] Error capturing page context:', error);
+      }
+    } else {
+      console.log('[finishRecordingStep] Cannot capture context - stagehand.context.pages not available');
+    }
+
+    // ✅ NEW: Test extraction BEFORE closing session (Phase 3, Step 3.2)
+    // This allows us to validate the schema works with actual page content
+    if (pageContext && recording.goal && activeRecorder.stagehand?.context?.pages) {
+      try {
+        console.log('[finishRecordingStep] 🧪 Testing extraction schema before session close...');
+
+        // Note: We'll generate a preliminary schema and test it here
+        // Full schema generation with all context happens after session close
+        // This is just a quick validation test
+
+        const page = activeRecorder.stagehand.context.pages()[0];
+        if (page) {
+          // Quick schema generation with basic context
+          const testSchema = await generateExtractionSchema(recording.goal, {
+            startUrl: recording.startUrl,
+            finalUrl: pageContext.url,
+            pageTitle: pageContext.title,
+            headings: pageContext.headings,
+            visibleText: pageContext.visibleText,
+            structuralHints: pageContext.structuralHints,
+          });
+
+          console.log('[finishRecordingStep] Generated test schema:', {
+            fields: testSchema.fields.length,
+            instruction: testSchema.instruction,
+          });
+
+          // Build Zod schema and test extraction
+          const zodSchema = buildZodSchemaFromExtraction(testSchema);
+
+          // V3 API: extract(instruction, schema, options?)
+          const sampleExtraction = await activeRecorder.stagehand.extract(
+            testSchema.instruction,
+            zodSchema
+          );
+
+          // Log success without the huge sampleExtraction object
+          console.log('[finishRecordingStep] ✅ Extraction test PASSED');
+
+          // Store sample extraction in pageContext for later use (excluding pageText to avoid huge data)
+          if (sampleExtraction && typeof sampleExtraction === 'object') {
+            const { pageText, ...extractedData } = sampleExtraction as any;
+            (pageContext as any).sampleExtraction = extractedData;
+          }
+
+        }
+      } catch (extractionError) {
+        console.warn('[finishRecordingStep] ⚠️  Extraction test FAILED:', extractionError);
+        // Schema is generated but extraction failed - this is OK, we'll keep the schema
+        // User will see this at execution time
+      }
+    }
+
+    // Now close the Stagehand session (releases keep-alive session)
+    try {
+      await activeRecorder.stagehand.close();
+      console.log('[finishRecordingStep] Released keep-alive session');
+    } catch (error) {
+      console.log('[finishRecordingStep] Error closing Stagehand session:', error);
+    }
+
+    // Clean up global reference
+    delete (global as any).activeRecorders[input.recordingId];
+  }
 
   // Extract ALL semantic values from recorded actions (not just text inputs)
   // This includes values from dropdowns, date pickers, number inputs, autocomplete, checkboxes
@@ -198,15 +426,31 @@ export async function finishRecordingStep(input: FinishRecordingInput): Promise<
       // Replace each mapped value within the action's value
       Object.entries(variableMapping).forEach(([originalText, placeholder]) => {
         if (newValue.includes(originalText)) {
-          newValue = newValue.replace(new RegExp(originalText, 'gi'), placeholder);
+          // Escape special regex characters in originalText
+          const escapedText = originalText.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+          newValue = newValue.replace(new RegExp(escapedText, 'gi'), placeholder);
           wasReplaced = true;
         }
       });
 
       if (wasReplaced) {
+        // ALSO UPDATE semanticValue if it exists (Bug fix: ensure workflow instructions use placeholders)
+        let newSemanticValue = action.semanticValue;
+        if (action.semanticValue !== undefined && action.semanticValue !== null) {
+          Object.entries(variableMapping).forEach(([originalText, placeholder]) => {
+            const semanticStr = String(newSemanticValue);
+            if (semanticStr.includes(originalText)) {
+              // Escape special regex characters in originalText
+              const escapedText = originalText.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+              newSemanticValue = semanticStr.replace(new RegExp(escapedText, 'gi'), placeholder);
+            }
+          });
+        }
+
         return {
           ...action,
           value: newValue, // Replace with placeholders
+          semanticValue: newSemanticValue, // ✅ FIX: Also update semanticValue
           originalValue: action.value, // Keep original for reference
         };
       }
@@ -247,14 +491,85 @@ export async function finishRecordingStep(input: FinishRecordingInput): Promise<
     removed: allActions.length - filteredActions.length
   });
 
-  // Generate extraction schema from goal
-  let extractionSchema = null;
-  if (recording.goal) {
+  // ✅ NEW: Infer structured goal from vague user intent (Phase 1, Task 1.2)
+  let finalGoal = recording.goal;
+  let originalGoal = recording.goal;
+  let goalInference = null;
+
+  // Check if goal is vague or just a variable placeholder
+  const isVagueGoal =
+    recording.goal.length < 20 ||                    // Too short (e.g., "get weather", "search")
+    recording.goal.match(/^%\w+%$/) ||               // Just a variable (e.g., "%query%")
+    !recording.goal.includes('%');                   // No variables (might need to add them)
+
+  if (isVagueGoal && semanticValues.length > 0) {
+    console.log('[finishRecordingStep] Goal appears vague, inferring structured goal...');
+    console.log('[finishRecordingStep] Original goal:', recording.goal);
+
     try {
-      extractionSchema = await generateExtractionSchema(recording.goal);
+      // Extract demo query from first semantic value (usually the main input)
+      const demoQuery = semanticValues[0]?.value?.toString() || '';
+
+      // Call goal inference
+      const inferredGoal = await inferGoalFromIntent(
+        recording.goal,
+        demoQuery,
+        recording.startUrl,
+        filteredActions.map(a => ({ type: a.type, description: a.description || '' }))
+      );
+
+      console.log('[finishRecordingStep] Inferred goal:', {
+        original: recording.goal,
+        structured: inferredGoal.structuredGoal,
+        variables: inferredGoal.variables,
+        category: inferredGoal.category,
+        confidence: inferredGoal.confidence
+      });
+
+      // Use inferred goal if confidence is high enough
+      if (inferredGoal.confidence >= 0.7) {
+        finalGoal = inferredGoal.structuredGoal;
+        goalInference = inferredGoal; // Store the full inference result
+        console.log('[finishRecordingStep] ✅ Using inferred goal (confidence >= 0.7)');
+      } else {
+        console.log('[finishRecordingStep] ⚠️  Confidence too low, keeping original goal');
+      }
+
+    } catch (error) {
+      console.error('[finishRecordingStep] Error during goal inference:', error);
+      console.log('[finishRecordingStep] Continuing with original goal');
+    }
+  } else {
+    console.log('[finishRecordingStep] Goal appears well-structured, skipping inference');
+  }
+
+  // Generate extraction schema from goal with context
+  let extractionSchema = null;
+  if (finalGoal) {
+    try {
+      // ✅ NEW: Pass context to schema generator for better accuracy
+      extractionSchema = await generateExtractionSchema(finalGoal, {
+        startUrl: recording.startUrl,
+        finalUrl: pageContext?.url,
+        pageTitle: pageContext?.title,
+        headings: pageContext?.headings,
+        visibleText: pageContext?.visibleText,
+        structuralHints: pageContext?.structuralHints,
+        semanticValues: semanticValues.map(sv => ({
+          value: sv.value,
+          type: sv.type,
+          label: sv.label,
+        })),
+        actions: filteredActions.map(a => ({
+          type: a.type,
+          description: a.description || '',
+          selector: a.selector,
+        })),
+      });
       console.log('[finishRecordingStep] Generated extraction schema:', {
         fields: extractionSchema.fields.length,
         instruction: extractionSchema.instruction,
+        withContext: !!pageContext,
       });
     } catch (error) {
       console.error('[finishRecordingStep] Error generating schema:', error);
@@ -295,21 +610,49 @@ export async function finishRecordingStep(input: FinishRecordingInput): Promise<
     console.log('[finishRecordingStep] Validating workflow by replaying');
 
     const startTime = Date.now();
+    const VALIDATION_TIMEOUT = 60000; // 60 seconds max
 
-    await replayWorkflow(stagehand, page, stagehandWorkflow);
+    try {
+      await Promise.race([
+        replayWorkflow(stagehand, page, stagehandWorkflow, variableMapping),
+        new Promise((_, reject) =>
+          setTimeout(() => reject(new Error('Validation timeout')), VALIDATION_TIMEOUT)
+        )
+      ]);
+      testResult = { success: true };
+      console.log('[finishRecordingStep] Workflow validation successful');
+    } catch (error) {
+      const errorMessage = (error as Error).message;
+      if (errorMessage === 'Validation timeout') {
+        console.warn('[finishRecordingStep] Validation timed out after 60s, skipping validation');
+        testResult = { success: false, error: 'Validation timeout' };
+        // Continue anyway - validation is not critical for skill creation
+      } else {
+        throw error; // Re-throw other errors
+      }
+    }
 
     const duration = Date.now() - startTime;
 
-    // Get metrics if available
-    const stagehandMetrics = await stagehand.metrics;
+    // Get metrics if available (with timeout to handle API errors)
+    let stagehandMetrics: any = null;
+    try {
+      stagehandMetrics = await Promise.race([
+        stagehand.metrics,
+        new Promise((_, reject) =>
+          setTimeout(() => reject(new Error('Metrics timeout')), 5000)
+        )
+      ]) as any;
+    } catch (error) {
+      console.log('[Metrics] Failed to fetch, continuing without metrics:', (error as Error).message);
+      // Don't throw - metrics are non-critical for skill creation
+    }
+
     metrics = {
       totalTokens: (stagehandMetrics?.totalPromptTokens || 0) + (stagehandMetrics?.totalCompletionTokens || 0),
       duration,
       operations: stagehandWorkflow.length,
     };
-
-    testResult = { success: true };
-    console.log('[finishRecordingStep] Workflow validation successful');
 
     // Close Stagehand session (ignore CDP transport errors during cleanup)
     try {
@@ -333,9 +676,21 @@ export async function finishRecordingStep(input: FinishRecordingInput): Promise<
   // Save skill to MongoDB
   await db.collection('skills').insertOne({
     skillId,
-    name: `Skill: ${recording.goal.substring(0, 50)}`,
-    goal: recording.goal,
+    name: `Skill: ${finalGoal.substring(0, 50)}`,
+    goal: finalGoal,
+    originalGoal: originalGoal, // ✅ NEW: Store original goal before inference
+    goalInference: goalInference, // ✅ NEW: Store inference metadata (if goal was inferred)
     startUrl: recording.startUrl,
+
+    // Page context (for context-aware extraction)
+    pageContext: pageContext ? {
+      url: pageContext.url,
+      title: pageContext.title,
+      headings: pageContext.headings,
+      visibleText: pageContext.visibleText,
+      structuralHints: pageContext.structuralHints,
+      sampleExtraction: pageContext.sampleExtraction || null, // ✅ NEW: Sample extraction from testing
+    } : null,
 
     // HYBRID STORAGE - Now with variable-mapped actions, initial navigation, and filtered redundant navigations
     recordedActions: filteredActions || [],
@@ -375,8 +730,11 @@ export async function finishRecordingStep(input: FinishRecordingInput): Promise<
 
   return {
     skillId,
-    name: `Skill: ${recording.goal.substring(0, 50)}`,
-    recordedActions: allActions || [],
+    name: `Skill: ${finalGoal.substring(0, 50)}`,
+    goal: finalGoal,
+    originalGoal: originalGoal,
+    goalInference: goalInference,
+    recordedActions: filteredActions || [],  // ✅ FIX: Return grouped/filtered actions
     stagehandWorkflow,
     testResult,
     metrics,
@@ -515,8 +873,25 @@ function convertToStagehand(actions: RecordedAction[]): StagehandAction[] {
 
 /**
  * Replay workflow to validate it works
+ *
+ * IMPORTANT: During replay, we need to reverse-substitute variables back to their demo values.
+ * For example: If variableMapping is {"what's the price of apple stock?": "%query%"},
+ * we need to substitute "%query%" back to "what's the price of apple stock?" for validation.
  */
-async function replayWorkflow(stagehand: any, page: any, workflow: StagehandAction[]) {
+async function replayWorkflow(
+  stagehand: any,
+  page: any,
+  workflow: StagehandAction[],
+  variableMapping?: Record<string, string>
+) {
+  // Create reverse mapping: %query% → "what's the price of apple stock?"
+  const reverseMapping: Record<string, string> = {};
+  if (variableMapping) {
+    Object.entries(variableMapping).forEach(([originalValue, variable]) => {
+      reverseMapping[variable] = originalValue;
+    });
+  }
+
   for (const action of workflow) {
     console.log('[replayWorkflow] Executing action:', action.method, action.instruction);
 
@@ -526,11 +901,27 @@ async function replayWorkflow(stagehand: any, page: any, workflow: StagehandActi
         timeoutMs: 15000,
       });
     } else if (action.method === 'act') {
+      // Reverse-substitute variables in the value
+      let valueToUse = action.value;
+      if (valueToUse && Object.keys(reverseMapping).length > 0) {
+        Object.entries(reverseMapping).forEach(([variable, originalValue]) => {
+          if (valueToUse) {
+            valueToUse = valueToUse.replace(variable, originalValue);
+          }
+        });
+        if (valueToUse !== action.value) {
+          console.log('[replayWorkflow] Reverse-substituted variable:', {
+            from: action.value,
+            to: valueToUse
+          });
+        }
+      }
+
       // Try exact selector first (Strategy 1)
       if (action.selector) {
         try {
-          if (action.value) {
-            await page.locator(action.selector).fill(action.value, { timeout: 5000 });
+          if (valueToUse) {
+            await page.locator(action.selector).fill(valueToUse, { timeout: 5000 });
           } else {
             await page.locator(action.selector).click({ timeout: 5000 });
           }

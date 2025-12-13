@@ -8,6 +8,8 @@ import type {
 } from "@/lib/types/skills";
 import { buildZodSchemaFromFields } from "@/lib/extraction/zod-schema-builder";
 import { ExecutionResultTracker } from "@/lib/execution/result-tracker";
+import { extractVariablesFromInput } from "@/lib/ai/variable-extractor";
+import { generateExtractionSchema } from "@/lib/extraction/schema-generator";
 
 /**
  * Execute Skill Step
@@ -38,13 +40,79 @@ export async function executeSkillStep(input: ExecuteSkillInput): Promise<Execut
     operations: skill.recordedActions.length,
   });
 
+  // Detect variables in skill goal
+  const variables = skill.goal.match(/%(\w+)%/g) || [];
+  let processedVariables = input.variables || {};
+
+  // If skill has variables and user provided input, extract intelligently
+  if (variables.length > 0 && input.variables) {
+    const inputKeys = Object.keys(input.variables);
+    const firstValue = input.variables[inputKeys[0]];
+
+    // Check if user passed natural language input that needs parsing
+    // (e.g., user passed one value but skill needs multiple variables)
+    if (inputKeys.length === 1 && variables.length > 1 && typeof firstValue === 'string') {
+      console.log('[executeSkillStep] Extracting multiple variables from natural language input:', firstValue);
+
+      try {
+        processedVariables = await extractVariablesFromInput(
+          skill.goal,
+          firstValue,
+          variables
+        );
+
+        console.log('[executeSkillStep] Extracted variables:', processedVariables);
+      } catch (error) {
+        console.error('[executeSkillStep] Error extracting variables:', error);
+        console.log('[executeSkillStep] Falling back to original input');
+        // Keep original input.variables
+      }
+    } else {
+      console.log('[executeSkillStep] Using provided variables directly:', processedVariables);
+    }
+  }
+
   // Initialize execution result tracker
   const tracker = new ExecutionResultTracker(
     input.skillId,
     skill.name,
-    input.variables || {},
+    processedVariables, // Use extracted/processed variables
     `/api/skills/${input.skillId}/execute`
   );
+
+  // Regenerate schema if skill has variables
+  if (variables.length > 0 && skill.extractionSchema && processedVariables) {
+    console.log('[executeSkillStep] Skill has variables, regenerating schema with actual values');
+
+    // Substitute variables in goal
+    let substitutedGoal = skill.goal;
+    Object.entries(processedVariables).forEach(([key, value]) => {
+      // Add % symbols if not already present
+      const placeholder = key.startsWith('%') ? key : `%${key}%`;
+      substitutedGoal = substitutedGoal.replace(placeholder, value as string);
+    });
+
+    console.log('[executeSkillStep] Substituted goal:', {
+      original: skill.goal,
+      substituted: substitutedGoal
+    });
+
+    try {
+      // Regenerate schema with actual context
+      const regeneratedSchema = await generateExtractionSchema(substitutedGoal);
+
+      // Use regenerated schema
+      skill.extractionSchema = regeneratedSchema;
+
+      console.log('[executeSkillStep] Regenerated schema:', {
+        fields: regeneratedSchema.fields.map(f => f.name),
+        instruction: regeneratedSchema.instruction
+      });
+    } catch (error) {
+      console.error('[executeSkillStep] Error regenerating schema:', error);
+      console.log('[executeSkillStep] Continuing with original schema');
+    }
+  }
 
   // Extract and build Zod schema from stored extraction schema
   let zodExtractionSchema: z.ZodObject<any> | null = null;
@@ -80,6 +148,24 @@ export async function executeSkillStep(input: ExecuteSkillInput): Promise<Execut
   await stagehand.init();
   const page = stagehand.context.pages()[0];
 
+  // Helper function to reset page state between strategy attempts
+  async function resetPageState() {
+    console.log('[executeSkillStep] 🔄 Resetting page state for next strategy...');
+    try {
+      // Navigate to a blank page first to clear any existing state
+      await page.goto('about:blank', { waitUntil: 'domcontentloaded', timeoutMs: 5000 });
+
+      // Then navigate to the start URL to begin fresh
+      if (skill?.startUrl) {
+        console.log('[executeSkillStep] 🔄 Navigating to clean start URL:', skill.startUrl);
+        await page.goto(skill.startUrl, { waitUntil: 'domcontentloaded', timeoutMs: 10000 });
+        console.log('[executeSkillStep] ✓ Page state reset complete');
+      }
+    } catch (error) {
+      console.warn('[executeSkillStep] ⚠️ Page reset failed, continuing anyway:', (error as Error).message);
+    }
+  }
+
   let strategy: "exact_replay" | "natural_language" | "ai_relearn" = "exact_replay";
   let result: any;
   const executionStart = Date.now();
@@ -91,7 +177,7 @@ export async function executeSkillStep(input: ExecuteSkillInput): Promise<Execut
     result = await executeExactReplay(
       page,
       skill.recordedActions,
-      input.variables,
+      processedVariables, // Use extracted/processed variables
       stagehand,
       zodExtractionSchema,
       skill.extractionSchema?.instruction,
@@ -108,6 +194,10 @@ export async function executeSkillStep(input: ExecuteSkillInput): Promise<Execut
       actionsAttempted: skill.recordedActions.length,
     });
 
+    // 🔄 CRITICAL: Reset page state before attempting Strategy 2
+    // Strategy 1 may have left the page in a bad state (wrong URL, partial inputs)
+    await resetPageState();
+
     // STRATEGY 2: STAGEHAND NATURAL LANGUAGE (AI-Resilient)
     try {
       console.log('[executeSkillStep] Attempting Strategy 2: Natural Language');
@@ -116,7 +206,7 @@ export async function executeSkillStep(input: ExecuteSkillInput): Promise<Execut
       result = await executeNaturalLanguage(
         stagehand,
         skill.stagehandWorkflow,
-        input.variables,
+        processedVariables, // Use extracted/processed variables
         zodExtractionSchema,
         skill.extractionSchema?.instruction,
         skill.startUrl  // SOLUTION B: Pass startUrl for initial navigation
@@ -132,6 +222,10 @@ export async function executeSkillStep(input: ExecuteSkillInput): Promise<Execut
         actionsAttempted: skill.stagehandWorkflow?.length,
       });
 
+      // 🔄 CRITICAL: Reset page state before attempting Strategy 3
+      // Strategy 2 may have left the page in a bad state
+      await resetPageState();
+
       // STRATEGY 3: AI AGENT RE-LEARN (Ultimate Fallback)
       console.log('[executeSkillStep] Attempting Strategy 3: AI Re-learn');
       strategy = "ai_relearn";
@@ -139,7 +233,7 @@ export async function executeSkillStep(input: ExecuteSkillInput): Promise<Execut
       result = await executeAIRelearn(
         stagehand,
         skill.goal,
-        input.variables,
+        processedVariables, // Use extracted/processed variables
         skill.startUrl,
         zodExtractionSchema,
         skill.extractionSchema
@@ -201,8 +295,8 @@ export async function executeSkillStep(input: ExecuteSkillInput): Promise<Execut
 
   // Validate extraction
   let validationResult = { valid: true, errors: [] as string[] };
-  if (extractedData && input.variables) {
-    validationResult = validateExtraction(extractedData, input.variables);
+  if (extractedData && processedVariables && Object.keys(processedVariables).length > 0) {
+    validationResult = validateExtraction(extractedData, processedVariables);
     tracker.setValidation(validationResult.valid, validationResult.errors);
   } else if (!extractedData) {
     validationResult = { valid: false, errors: ['No data was extracted'] };
@@ -227,7 +321,7 @@ export async function executeSkillStep(input: ExecuteSkillInput): Promise<Execut
     strategy,
     executionTime,
     tokensUsed,
-    variables: input.variables,
+    variables: processedVariables, // Use extracted/processed variables
     success: finalSuccess,  // ✅ FIX: Based on validation, not hardcoded true
     extractedData,  // ✅ FIX: Save extracted data
     validationErrors: validationResult.errors,  // ✅ FIX: Save validation errors
@@ -327,15 +421,74 @@ async function executeExactReplay(
 
       await page.locator(action.selector).fill(value, { timeout: 5000 });
     } else if (action.type === 'submit') {
-      // Handle submit actions using Stagehand's natural language act()
-      // This is more reliable than trying to press Enter via Playwright
-      if (stagehand) {
-        await stagehand.act(action.description || 'Submit search');
-        console.log('[executeExactReplay] Submitted using Stagehand act():', action.description);
+      // Submit the form by pressing Enter
+      // The selector points to the input field that triggered the navigation
+      if (action.selector) {
+        console.log('[executeExactReplay] ⏎ Submitting form via:', action.selector);
+
+        // Capture URL before submit to detect navigation
+        const urlBeforeSubmit = page.url();
+        console.log('[executeExactReplay] URL before submit:', urlBeforeSubmit);
+
+        try {
+          // Wait for autocomplete suggestions to load after typing
+          await new Promise(resolve => setTimeout(resolve, 1000));
+
+          // Submit the form using page.evaluate() (verified against Stagehand docs)
+          console.log('[executeExactReplay] ⏎ Submitting form via:', action.selector);
+
+          await page.evaluate((selector: string) => {
+            const el = document.querySelector(selector);
+            if (el) {
+              const form = el.closest('form');
+              if (form) {
+                form.requestSubmit(); // Modern way to trigger submit with validation
+              } else {
+                // Fallback: Dispatch Enter key event
+                el.dispatchEvent(new KeyboardEvent('keydown', {
+                  key: 'Enter',
+                  code: 'Enter',
+                  keyCode: 13,
+                  bubbles: true
+                }));
+              }
+            }
+          }, action.selector);
+
+          // Wait for navigation to occur (poll for URL change)
+          const navigationStartTime = Date.now();
+          let navigationOccurred = false;
+
+          while (Date.now() - navigationStartTime < 10000) {
+            await new Promise(resolve => setTimeout(resolve, 500));
+            const currentUrl = page.url();
+
+            if (currentUrl !== urlBeforeSubmit) {
+              navigationOccurred = true;
+              console.log('[executeExactReplay] ✓ Navigation detected:', currentUrl);
+              break;
+            }
+          }
+
+          if (!navigationOccurred) {
+            throw new Error('Form submission did not trigger navigation - autocomplete dropdown may require explicit selection');
+          }
+
+          // Wait for page to be fully loaded
+          // Stagehand v3 API: waitForLoadState(state, timeoutMs?)
+          await page.waitForLoadState('domcontentloaded', 5000);
+          console.log('[executeExactReplay] ✓ Navigation completed after submit');
+        } catch (error) {
+          console.error('[executeExactReplay] ✗ Submit failed:', (error as Error).message);
+          throw error; // Re-throw to fail Strategy 1 and try Strategy 2
+        }
       } else {
-        // Fallback: Try to press Enter by typing newline character
-        await page.locator(action.selector).type('\n', { timeout: 5000 });
-        console.log('[executeExactReplay] Submitted using Enter key fallback');
+        // Fallback: Use AI to find and click submit button
+        console.warn('[executeExactReplay] No selector for submit action, using AI fallback');
+        if (stagehand) {
+          await stagehand.act(action.description || 'Submit search');
+          console.log('[executeExactReplay] Submitted using Stagehand act():', action.description);
+        }
       }
     }
 
@@ -399,7 +552,8 @@ async function executeNaturalLanguage(
     });
   }
 
-  for (const action of workflow) {
+  for (let i = 0; i < workflow.length; i++) {
+    const action = workflow[i];
     let instruction = action.instruction;
     let value = action.value;
 
@@ -422,6 +576,21 @@ async function executeNaturalLanguage(
       });
     }
 
+    // 🔍 AUTOCOMPLETE DETECTION: Detect "fill + submit" pattern and handle type-then-select autocomplete
+    // Pattern: fill action followed by submit action = search with autocomplete dropdown
+    let isAutocomplete = false;
+    if (action.method === 'act' &&
+        instruction &&
+        instruction.toLowerCase().includes('fill') &&
+        value &&
+        i + 1 < workflow.length &&
+        workflow[i + 1].instruction?.toLowerCase().includes('submit')) {
+
+      console.log('[executeNaturalLanguage] 🔍 Detected autocomplete pattern - will use two-step approach');
+      isAutocomplete = true;
+      // Keep original instruction for typing, handle selection separately after
+    }
+
     console.log('[executeNaturalLanguage] Action:', action.method, instruction);
 
     if (action.method === 'navigate') {
@@ -430,7 +599,48 @@ async function executeNaturalLanguage(
         timeoutMs: 10000,
       });
     } else if (action.method === 'act') {
-      await stagehand.act(instruction);
+      // Use AI for all actions in Natural Language strategy
+      console.log('[executeNaturalLanguage] Executing via AI:', instruction);
+      await stagehand.act(instruction, { page: page });
+
+      // 🔍 AUTOCOMPLETE TWO-STEP: After typing, wait for dropdown and select suggestion
+      if (isAutocomplete) {
+        console.log('[executeNaturalLanguage] 💤 Waiting 3s for autocomplete dropdown to load...');
+        await new Promise(resolve => setTimeout(resolve, 3000));
+
+        console.log('[executeNaturalLanguage] 🎯 Clicking autocomplete suggestion matching typed value...');
+        const urlBeforeClick = page.url();
+        console.log('[executeNaturalLanguage] URL before click:', urlBeforeClick);
+
+        // Use the actual typed value in the instruction for better targeting
+        // Example: "click on 'New York' in the autocomplete suggestions"
+        const clickInstruction = `click on the link or suggestion containing '${value}' in the dropdown list`;
+        console.log('[executeNaturalLanguage] Click instruction:', clickInstruction);
+
+        try {
+          await stagehand.act(clickInstruction, { page: page });
+          console.log('[executeNaturalLanguage] ✓ Autocomplete suggestion clicked');
+        } catch (error) {
+          console.error('[executeNaturalLanguage] ⚠️  Stagehand error after click:', (error as Error).message);
+
+          // Check if navigation actually occurred despite the error (Stagehand internal error after successful click)
+          await new Promise(resolve => setTimeout(resolve, 1500)); // Wait for potential navigation
+          const urlAfterClick = page.url();
+          console.log('[executeNaturalLanguage] URL after click:', urlAfterClick);
+
+          if (urlAfterClick !== urlBeforeClick) {
+            console.log('[executeNaturalLanguage] ✓ Navigation occurred despite Stagehand error - treating as success');
+            // Navigation happened, continue execution
+          } else {
+            console.error('[executeNaturalLanguage] ✗ No navigation occurred - click truly failed');
+            throw error; // Re-throw if navigation didn't happen
+          }
+        }
+
+        // Skip the submit action since we handled it via autocomplete
+        i++; // Skip next action (submit)
+        console.log('[executeNaturalLanguage] ⏭️  Skipped redundant submit action');
+      }
     } else if (action.method === 'extract') {
       // If schema is provided, use it
       if (action.schema) {

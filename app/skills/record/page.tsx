@@ -7,10 +7,11 @@ import { Header } from '@/components/Header';
 
 export default function RecordSkillPage() {
   const router = useRouter();
-  const [step, setStep] = useState<'describe' | 'recording' | 'validating'>('describe');
+  const [step, setStep] = useState<'describe' | 'recording' | 'validating' | 'review'>('describe');
   const [goal, setGoal] = useState('');
   const [startUrl, setStartUrl] = useState('');
   const [recordingData, setRecordingData] = useState<any>(null);
+  const [finishedSkill, setFinishedSkill] = useState<any>(null);
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
 
@@ -54,6 +55,21 @@ export default function RecordSkillPage() {
     }
   };
 
+  const handleAcceptInferredGoal = () => {
+    // User accepts the inferred goal, proceed to skill page
+    if (finishedSkill) {
+      router.push(`/skills/${finishedSkill.skillId}`);
+    }
+  };
+
+  const handleEditManually = () => {
+    // User wants to edit manually, redirect to skill page for editing
+    // In the future, this could open an inline editor
+    if (finishedSkill) {
+      router.push(`/skills/${finishedSkill.skillId}`);
+    }
+  };
+
   const handleFinishRecording = async () => {
     setStep('validating');
     setError(null);
@@ -76,9 +92,15 @@ export default function RecordSkillPage() {
       }
 
       const skill = await response.json();
+      setFinishedSkill(skill);
 
-      // Redirect to skill details page
-      router.push(`/skills/${skill.skillId}`);
+      // If goal inference was performed, show review step
+      if (skill.goalInference) {
+        setStep('review');
+      } else {
+        // No inference, go directly to skill details page
+        router.push(`/skills/${skill.skillId}`);
+      }
     } catch (err) {
       console.error('Failed to finish recording:', err);
       setError(err instanceof Error ? err.message : 'Failed to process recording. Please try again.');
@@ -276,6 +298,111 @@ export default function RecordSkillPage() {
             </div>
             <div className="max-w-md mx-auto bg-slate-200 rounded-full h-2 overflow-hidden">
               <div className="bg-blue-600 h-full w-2/3 animate-pulse rounded-full" />
+            </div>
+          </div>
+        )}
+
+        {/* Step 4: Review Inferred Goal */}
+        {step === 'review' && finishedSkill && finishedSkill.goalInference && (
+          <div className="space-y-8">
+            <div className="text-center space-y-4">
+              <div className="inline-flex items-center gap-2 px-4 py-2 bg-green-50 text-green-700 rounded-full text-sm font-medium">
+                <Sparkles className="h-4 w-4" />
+                Goal Enhanced by AI
+              </div>
+              <h2 className="text-3xl font-bold text-slate-900">
+                Review Your Skill Goal
+              </h2>
+              <p className="text-lg text-slate-600 max-w-2xl mx-auto">
+                We analyzed your intent and demo to create a structured, reusable goal.
+              </p>
+            </div>
+
+            <div className="bg-white rounded-2xl shadow-lg p-8 space-y-6">
+              {/* Original Goal */}
+              <div className="pb-6 border-b border-slate-200">
+                <div className="text-sm font-semibold text-slate-500 mb-2">
+                  Your Input
+                </div>
+                <div className="text-slate-700 bg-slate-50 rounded-lg p-4 font-mono text-sm">
+                  "{finishedSkill.originalGoal}"
+                </div>
+              </div>
+
+              {/* Inferred Goal */}
+              <div className="pb-6 border-b border-slate-200">
+                <div className="flex items-center justify-between mb-3">
+                  <div className="text-sm font-semibold text-slate-900">
+                    AI-Enhanced Goal
+                  </div>
+                  <div className="flex items-center gap-2 px-3 py-1 bg-blue-50 text-blue-700 rounded-full text-xs font-medium">
+                    <Sparkles className="h-3 w-3" />
+                    Confidence: {Math.round(finishedSkill.goalInference.confidence * 100)}%
+                  </div>
+                </div>
+                <div className="text-slate-900 bg-blue-50 border-2 border-blue-200 rounded-lg p-4 font-mono text-sm">
+                  "{finishedSkill.goalInference.structuredGoal}"
+                </div>
+              </div>
+
+              {/* Variables Detected */}
+              {finishedSkill.goalInference.variables && finishedSkill.goalInference.variables.length > 0 && (
+                <div className="pb-6 border-b border-slate-200">
+                  <div className="text-sm font-semibold text-slate-900 mb-3">
+                    Variables Detected
+                  </div>
+                  <div className="flex flex-wrap gap-2">
+                    {finishedSkill.goalInference.variables.map((variable: string, index: number) => (
+                      <span
+                        key={index}
+                        className="px-3 py-1 bg-purple-50 text-purple-700 rounded-full text-sm font-mono font-medium border border-purple-200"
+                      >
+                        {variable}
+                      </span>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              {/* Category */}
+              <div>
+                <div className="text-sm font-semibold text-slate-900 mb-3">
+                  Category
+                </div>
+                <div className="inline-flex px-3 py-1 bg-slate-100 text-slate-700 rounded-full text-sm font-medium">
+                  {finishedSkill.goalInference.category.replace(/_/g, ' ')}
+                </div>
+              </div>
+            </div>
+
+            {/* Action Buttons */}
+            <div className="flex gap-4">
+              <button
+                onClick={handleAcceptInferredGoal}
+                className="flex-1 bg-blue-600 text-white rounded-xl p-4 font-semibold text-lg hover:bg-blue-700 transition-all flex items-center justify-center gap-2"
+              >
+                <CheckCircle2 className="h-5 w-5" />
+                Use This Goal
+              </button>
+              <button
+                onClick={handleEditManually}
+                className="px-8 py-4 border-2 border-slate-300 text-slate-700 rounded-xl hover:bg-slate-50 font-semibold transition-all"
+              >
+                Edit Manually
+              </button>
+            </div>
+
+            {/* Info Box */}
+            <div className="bg-blue-50 border border-blue-200 rounded-xl p-6">
+              <div className="flex items-start gap-3">
+                <div className="text-2xl">💡</div>
+                <div className="text-sm text-slate-700">
+                  <strong>Why use the enhanced goal?</strong> The AI-enhanced goal includes variable
+                  placeholders (like <code className="px-1 bg-blue-100 rounded">%query%</code>) that make
+                  your skill reusable with different inputs. This means you can execute the same skill
+                  with different values without re-recording!
+                </div>
+              </div>
             </div>
           </div>
         )}
