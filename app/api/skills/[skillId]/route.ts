@@ -53,3 +53,98 @@ export async function GET(
     );
   }
 }
+
+/**
+ * PATCH /api/skills/[skillId]
+ *
+ * Updates a skill's properties (e.g., name, price).
+ *
+ * Request body:
+ * - name?: string (new skill name)
+ * - price?: number (new skill price)
+ *
+ * Response:
+ * - Success message
+ */
+export async function PATCH(
+  request: NextRequest,
+  { params }: { params: Promise<{ skillId: string }> }
+) {
+  try {
+    const { skillId } = await params;
+
+    // Validate skillId
+    if (!skillId || typeof skillId !== 'string') {
+      return Response.json(
+        { error: 'skillId is required' },
+        { status: 400 }
+      );
+    }
+
+    const body = await request.json();
+    const { name, price } = body;
+
+    // Build update object
+    const updateFields: any = {
+      updatedAt: new Date().toISOString()
+    };
+
+    // Validate and add name if provided
+    if (name !== undefined) {
+      if (typeof name !== 'string' || !name.trim()) {
+        return Response.json(
+          { error: 'name must be a non-empty string' },
+          { status: 400 }
+        );
+      }
+      updateFields.name = name.trim();
+    }
+
+    // Validate and add price if provided
+    if (price !== undefined) {
+      if (typeof price !== 'number' || price < 0 || isNaN(price)) {
+        return Response.json(
+          { error: 'price must be a non-negative number' },
+          { status: 400 }
+        );
+      }
+      updateFields.price = price;
+    }
+
+    // Ensure at least one field is being updated
+    if (Object.keys(updateFields).length === 1) {
+      return Response.json(
+        { error: 'At least one field (name or price) must be provided' },
+        { status: 400 }
+      );
+    }
+
+    console.log('[PATCH /api/skills/[skillId]] Updating skill:', skillId, updateFields);
+
+    // Update skill in MongoDB
+    const db = await connectDB();
+    const result = await db.collection('skills').updateOne(
+      { skillId },
+      { $set: updateFields }
+    );
+
+    if (result.matchedCount === 0) {
+      return Response.json(
+        { error: 'Skill not found' },
+        { status: 404 }
+      );
+    }
+
+    return Response.json({ success: true, message: 'Skill updated successfully' });
+  } catch (error) {
+    console.error('[PATCH /api/skills/[skillId]] Error:', error);
+
+    return Response.json(
+      {
+        error: 'Failed to update skill',
+        message: error instanceof Error ? error.message : 'Unknown error',
+      },
+      { status: 500 }
+    );
+  }
+}

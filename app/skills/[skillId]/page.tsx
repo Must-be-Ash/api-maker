@@ -15,6 +15,11 @@ import {
   ChevronDown,
   ChevronUp,
   Code,
+  Copy,
+  Check,
+  Pencil,
+  X,
+  DollarSign,
 } from 'lucide-react';
 
 interface Skill {
@@ -48,6 +53,12 @@ export default function SkillDetailsPage() {
   const [loading, setLoading] = useState(true);
   const [showWorkflow, setShowWorkflow] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [copied, setCopied] = useState(false);
+  const [copiedCurl, setCopiedCurl] = useState(false);
+  const [isEditingName, setIsEditingName] = useState(false);
+  const [editedName, setEditedName] = useState('');
+  const [isEditingPrice, setIsEditingPrice] = useState(false);
+  const [editedPrice, setEditedPrice] = useState('');
 
   useEffect(() => {
     fetchSkill();
@@ -69,6 +80,134 @@ export default function SkillDetailsPage() {
       setError(err instanceof Error ? err.message : 'Failed to load skill');
     } finally {
       setLoading(false);
+    }
+  };
+
+  const copyEndpoint = async () => {
+    const endpoint = `/api/skills/${skillId}/execute`;
+    try {
+      await navigator.clipboard.writeText(endpoint);
+      setCopied(true);
+      setTimeout(() => setCopied(false), 2000);
+    } catch (err) {
+      console.error('Failed to copy:', err);
+    }
+  };
+
+  const generateCurlCommand = () => {
+    if (!skill) return '';
+
+    // Extract variable names from variableMapping
+    const variables: Record<string, string> = {};
+    if (skill.variableMapping && Object.keys(skill.variableMapping).length > 0) {
+      // variableMapping is like { "San Francisco": "%city%" }
+      // We need to extract "city" and provide example values
+      Object.entries(skill.variableMapping).forEach(([exampleValue, placeholder]) => {
+        // Extract variable name from placeholder (e.g., "%city%" -> "city")
+        const varName = placeholder.replace(/%/g, '');
+        variables[varName] = exampleValue;
+      });
+    }
+
+    const curlCommand = `curl -X POST http://localhost:3000/api/skills/${skillId}/execute \\
+  -H "Content-Type: application/json" \\
+  -d '{
+    "variables": ${JSON.stringify(variables, null, 6).replace(/\n/g, '\n    ')}
+  }'`;
+
+    return curlCommand;
+  };
+
+  const copyCurlCommand = async () => {
+    const curlCommand = generateCurlCommand();
+    try {
+      await navigator.clipboard.writeText(curlCommand);
+      setCopiedCurl(true);
+      setTimeout(() => setCopiedCurl(false), 2000);
+    } catch (err) {
+      console.error('Failed to copy:', err);
+    }
+  };
+
+  const startEditingName = () => {
+    if (skill) {
+      setEditedName(skill.name);
+      setIsEditingName(true);
+    }
+  };
+
+  const cancelEditingName = () => {
+    setIsEditingName(false);
+    setEditedName('');
+  };
+
+  const saveSkillName = async () => {
+    if (!skill || !editedName.trim()) return;
+
+    try {
+      const response = await fetch(`/api/skills/${skillId}`, {
+        method: 'PATCH',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ name: editedName.trim() }),
+      });
+
+      if (!response.ok) {
+        throw new Error('Failed to update skill name');
+      }
+
+      // Update local state
+      setSkill({ ...skill, name: editedName.trim() });
+      setIsEditingName(false);
+      setEditedName('');
+    } catch (err) {
+      console.error('Error updating skill name:', err);
+      alert('Failed to update skill name');
+    }
+  };
+
+  const startEditingPrice = () => {
+    if (skill) {
+      setEditedPrice(skill.price.toString());
+      setIsEditingPrice(true);
+    }
+  };
+
+  const cancelEditingPrice = () => {
+    setIsEditingPrice(false);
+    setEditedPrice('');
+  };
+
+  const saveSkillPrice = async () => {
+    if (!skill) return;
+
+    const newPrice = parseFloat(editedPrice);
+    if (isNaN(newPrice) || newPrice < 0) {
+      alert('Please enter a valid price');
+      return;
+    }
+
+    try {
+      const response = await fetch(`/api/skills/${skillId}`, {
+        method: 'PATCH',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ price: newPrice }),
+      });
+
+      if (!response.ok) {
+        throw new Error('Failed to update skill price');
+      }
+
+      // Update local state
+      setSkill({ ...skill, price: newPrice });
+      setIsEditingPrice(false);
+      setEditedPrice('');
+    } catch (err) {
+      console.error('Error updating skill price:', err);
+      alert('Failed to update skill price');
     }
   };
 
@@ -126,12 +265,51 @@ export default function SkillDetailsPage() {
               </div>
             )}
           </div>
-          <h1 className="text-4xl font-bold text-slate-900">{skill.name}</h1>
+          {isEditingName ? (
+            <div className="flex items-center gap-3">
+              <input
+                type="text"
+                value={editedName}
+                onChange={(e) => setEditedName(e.target.value)}
+                className="flex-1 text-4xl font-bold text-slate-900 bg-white border-2 border-blue-500 rounded-lg px-4 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                autoFocus
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter') saveSkillName();
+                  if (e.key === 'Escape') cancelEditingName();
+                }}
+              />
+              <button
+                onClick={saveSkillName}
+                className="p-3 bg-blue-600 hover:bg-blue-700 text-white rounded-lg transition-colors"
+                title="Save"
+              >
+                <Check className="h-5 w-5" />
+              </button>
+              <button
+                onClick={cancelEditingName}
+                className="p-3 bg-slate-200 hover:bg-slate-300 text-slate-700 rounded-lg transition-colors"
+                title="Cancel"
+              >
+                <X className="h-5 w-5" />
+              </button>
+            </div>
+          ) : (
+            <div className="flex items-center gap-3 group">
+              <h1 className="text-4xl font-bold text-slate-900">{skill.name}</h1>
+              <button
+                onClick={startEditingName}
+                className="p-2 opacity-0 group-hover:opacity-100 hover:bg-slate-200 rounded-lg transition-all"
+                title="Edit name"
+              >
+                <Pencil className="h-5 w-5 text-slate-600" />
+              </button>
+            </div>
+          )}
           <p className="text-lg text-slate-600">{skill.goal}</p>
         </div>
 
         {/* Metrics */}
-        <div className="grid grid-cols-3 gap-4">
+        <div className="grid grid-cols-4 gap-4">
           <div className="bg-white border border-slate-200 rounded-xl p-6 space-y-2">
             <div className="flex items-center gap-2 text-slate-500">
               <Layers className="h-4 w-4" />
@@ -157,17 +335,100 @@ export default function SkillDetailsPage() {
               {skill.metrics.totalTokens.toLocaleString()}
             </div>
           </div>
+          <div className="bg-white border border-slate-200 rounded-xl p-6 space-y-2 group relative">
+            <div className="flex items-center gap-2 text-slate-500">
+              <DollarSign className="h-4 w-4" />
+              <span className="text-sm font-medium">Price</span>
+            </div>
+            {isEditingPrice ? (
+              <div className="flex items-center gap-2">
+                <span className="text-xl font-bold text-slate-900">$</span>
+                <input
+                  type="number"
+                  step="0.01"
+                  min="0"
+                  value={editedPrice}
+                  onChange={(e) => setEditedPrice(e.target.value)}
+                  className="w-20 text-xl font-bold text-slate-900 bg-white border-2 border-blue-500 rounded px-2 py-1 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  autoFocus
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter') saveSkillPrice();
+                    if (e.key === 'Escape') cancelEditingPrice();
+                  }}
+                />
+                <button
+                  onClick={saveSkillPrice}
+                  className="p-1.5 bg-blue-600 hover:bg-blue-700 text-white rounded transition-colors"
+                  title="Save"
+                >
+                  <Check className="h-3.5 w-3.5" />
+                </button>
+                <button
+                  onClick={cancelEditingPrice}
+                  className="p-1.5 bg-slate-200 hover:bg-slate-300 text-slate-700 rounded transition-colors"
+                  title="Cancel"
+                >
+                  <X className="h-3.5 w-3.5" />
+                </button>
+              </div>
+            ) : (
+              <div className="flex items-center gap-2">
+                <div className="text-3xl font-bold text-slate-900">
+                  ${skill.price.toFixed(2)}
+                </div>
+                <button
+                  onClick={startEditingPrice}
+                  className="absolute top-6 right-6 p-1.5 opacity-0 group-hover:opacity-100 hover:bg-slate-100 rounded transition-all"
+                  title="Edit price"
+                >
+                  <Pencil className="h-3.5 w-3.5 text-slate-600" />
+                </button>
+              </div>
+            )}
+          </div>
         </div>
 
         {/* API Endpoint */}
         <div className="bg-white border border-slate-200 rounded-xl p-6 space-y-4">
           <h2 className="text-xl font-bold text-slate-900">API Endpoint</h2>
-          <div className="bg-slate-900 text-green-400 rounded-lg p-4 font-mono text-sm space-y-2">
+          <div className="bg-slate-900 text-green-400 rounded-lg p-4 font-mono text-sm space-y-2 relative">
+            <button
+              onClick={copyEndpoint}
+              className="absolute top-4 right-4 p-2 hover:bg-slate-800 rounded-md transition-colors"
+              title="Copy endpoint"
+            >
+              {copied ? (
+                <Check className="h-4 w-4 text-green-400" />
+              ) : (
+                <Copy className="h-4 w-4 text-slate-400 hover:text-slate-200" />
+              )}
+            </button>
             <div className="text-blue-400">POST</div>
             <div>/api/skills/{skillId}/execute</div>
             <div className="text-slate-500 text-xs mt-3">
               Price: ${skill.price.toFixed(2)} per execution
             </div>
+          </div>
+        </div>
+
+        {/* cURL Command Example */}
+        <div className="bg-white border border-slate-200 rounded-xl p-6 space-y-4">
+          <h2 className="text-xl font-bold text-slate-900">cURL Command Example</h2>
+          <div className="bg-slate-900 text-green-400 rounded-lg p-4 font-mono text-sm relative">
+            <button
+              onClick={copyCurlCommand}
+              className="absolute top-4 right-4 p-2 hover:bg-slate-800 rounded-md transition-colors"
+              title="Copy cURL command"
+            >
+              {copiedCurl ? (
+                <Check className="h-4 w-4 text-green-400" />
+              ) : (
+                <Copy className="h-4 w-4 text-slate-400 hover:text-slate-200" />
+              )}
+            </button>
+            <pre className="whitespace-pre-wrap break-all pr-12">
+              {generateCurlCommand()}
+            </pre>
           </div>
         </div>
 

@@ -394,12 +394,67 @@ export async function finishRecordingStep(input: FinishRecordingInput): Promise<
 
   console.log('[finishRecordingStep] Extracted semantic values:', semanticValues);
 
-  // Detect variables and map them to semantic values (ENHANCED VERSION)
+  // ✅ PHASE 1: Infer structured goal from vague user intent FIRST (before variable detection)
+  // This ensures we work with the enhanced/proper goal, not the original malformed one
+  let finalGoal = recording.goal;
+  let originalGoal = recording.goal;
+  let goalInference = null;
+
+  // Check if goal is vague or just a variable placeholder
+  const isVagueGoal =
+    recording.goal.length < 20 ||                    // Too short (e.g., "get weather", "search")
+    recording.goal.match(/^%\w+%?$/) ||              // Just a variable (e.g., "%query%" or malformed "%query")
+    !recording.goal.includes('%');                   // No variables (might need to add them)
+
+  if (isVagueGoal && semanticValues.length > 0) {
+    console.log('[finishRecordingStep] Goal appears vague, inferring structured goal...');
+    console.log('[finishRecordingStep] Original goal:', recording.goal);
+
+    try {
+      // Extract demo query from first semantic value (usually the main input)
+      const demoQuery = semanticValues[0]?.value?.toString() || '';
+
+      // Call goal inference - convert grouped actions to simple action summaries
+      const actionSummaries = (recording.recordedActions || []).map((a: RecordedAction) => ({
+        type: a.type,
+        description: a.description || ''
+      }));
+
+      const inferredGoal = await inferGoalFromIntent(
+        recording.goal,
+        demoQuery,
+        recording.startUrl,
+        actionSummaries
+      );
+
+      console.log('[finishRecordingStep] Inferred goal:', {
+        original: recording.goal,
+        structured: inferredGoal.structuredGoal,
+        variables: inferredGoal.variables,
+        category: inferredGoal.category,
+        confidence: inferredGoal.confidence
+      });
+
+      // Use inferred goal if confidence is high enough
+      if (inferredGoal.confidence >= 0.7) {
+        finalGoal = inferredGoal.structuredGoal;
+        goalInference = inferredGoal;
+        console.log('[finishRecordingStep] ✅ Using inferred goal (confidence >= 0.7)');
+      } else {
+        console.log('[finishRecordingStep] ⚠️  Keeping original goal (low confidence)');
+      }
+    } catch (error) {
+      console.error('[finishRecordingStep] Error inferring goal:', error);
+    }
+  }
+
+  // ✅ PHASE 2: Detect variables and map them to semantic values (ENHANCED VERSION)
+  // Now using the enhanced/inferred goal, not the original malformed one
   let variableMapping: Record<string, string> = {};
-  if (semanticValues.length > 0 && recording.goal) {
+  if (semanticValues.length > 0 && finalGoal) {
     try {
       // Use enhanced detection that understands all interaction types
-      variableMapping = await detectVariablesEnhanced(recording.goal, semanticValues);
+      variableMapping = await detectVariablesEnhanced(finalGoal, semanticValues);
       console.log('[finishRecordingStep] Variable mapping (enhanced):', variableMapping);
     } catch (error) {
       console.error('[finishRecordingStep] Error detecting variables (enhanced):', error);
@@ -408,7 +463,7 @@ export async function finishRecordingStep(input: FinishRecordingInput): Promise<
       try {
         const typedValues = extractTypedValues(recording.recordedActions || []);
         if (typedValues.length > 0) {
-          variableMapping = await detectVariables(recording.goal, typedValues);
+          variableMapping = await detectVariables(finalGoal, typedValues);
           console.log('[finishRecordingStep] Variable mapping (fallback):', variableMapping);
         }
       } catch (fallbackError) {
@@ -490,58 +545,6 @@ export async function finishRecordingStep(input: FinishRecordingInput): Promise<
     after: filteredActions.length,
     removed: allActions.length - filteredActions.length
   });
-
-  // ✅ NEW: Infer structured goal from vague user intent (Phase 1, Task 1.2)
-  let finalGoal = recording.goal;
-  let originalGoal = recording.goal;
-  let goalInference = null;
-
-  // Check if goal is vague or just a variable placeholder
-  const isVagueGoal =
-    recording.goal.length < 20 ||                    // Too short (e.g., "get weather", "search")
-    recording.goal.match(/^%\w+%$/) ||               // Just a variable (e.g., "%query%")
-    !recording.goal.includes('%');                   // No variables (might need to add them)
-
-  if (isVagueGoal && semanticValues.length > 0) {
-    console.log('[finishRecordingStep] Goal appears vague, inferring structured goal...');
-    console.log('[finishRecordingStep] Original goal:', recording.goal);
-
-    try {
-      // Extract demo query from first semantic value (usually the main input)
-      const demoQuery = semanticValues[0]?.value?.toString() || '';
-
-      // Call goal inference
-      const inferredGoal = await inferGoalFromIntent(
-        recording.goal,
-        demoQuery,
-        recording.startUrl,
-        filteredActions.map(a => ({ type: a.type, description: a.description || '' }))
-      );
-
-      console.log('[finishRecordingStep] Inferred goal:', {
-        original: recording.goal,
-        structured: inferredGoal.structuredGoal,
-        variables: inferredGoal.variables,
-        category: inferredGoal.category,
-        confidence: inferredGoal.confidence
-      });
-
-      // Use inferred goal if confidence is high enough
-      if (inferredGoal.confidence >= 0.7) {
-        finalGoal = inferredGoal.structuredGoal;
-        goalInference = inferredGoal; // Store the full inference result
-        console.log('[finishRecordingStep] ✅ Using inferred goal (confidence >= 0.7)');
-      } else {
-        console.log('[finishRecordingStep] ⚠️  Confidence too low, keeping original goal');
-      }
-
-    } catch (error) {
-      console.error('[finishRecordingStep] Error during goal inference:', error);
-      console.log('[finishRecordingStep] Continuing with original goal');
-    }
-  } else {
-    console.log('[finishRecordingStep] Goal appears well-structured, skipping inference');
-  }
 
   // Generate extraction schema from goal with context
   let extractionSchema = null;
