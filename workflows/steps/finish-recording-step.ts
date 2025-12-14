@@ -364,6 +364,119 @@ export async function finishRecordingStep(input: FinishRecordingInput): Promise<
 
     // Clean up global reference
     delete (global as any).activeRecorders[input.recordingId];
+  } else {
+    // 🔧 PRODUCTION FALLBACK: activeRecorder doesn't exist (different serverless function)
+    console.log('[finishRecordingStep] Active recorder not found in global (serverless mode)');
+    console.log('[finishRecordingStep] Attempting to reconnect to Browserbase session and retrieve actions...');
+
+    try {
+      // Dynamically import Stagehand
+      const { Stagehand } = await import("@browserbasehq/stagehand");
+
+      // Reconnect to the existing Browserbase session
+      const stagehand = new Stagehand({
+        env: "BROWSERBASE",
+        apiKey: process.env.BROWSERBASE_API_KEY,
+        projectId: process.env.BROWSERBASE_PROJECT_ID,
+        verbose: 0,
+        disablePino: true,
+        browserbaseSessionID: input.sessionId, // Reconnect to existing session
+        model: "openai/gpt-4o",
+      });
+
+      await stagehand.init();
+      const page = stagehand.context.pages()[0];
+
+      console.log('[finishRecordingStep] Reconnected to Browserbase session');
+
+      // Retrieve all accumulated actions from browser
+      const pageActions = await page.evaluate(() => {
+        const actions = (window as any)._recordedActions || [];
+        (window as any)._recordedActions = []; // Clear after retrieval
+        return actions;
+      });
+
+      console.log('[finishRecordingStep] Retrieved', pageActions.length, 'actions from browser');
+
+      if (pageActions && pageActions.length > 0) {
+        // Dynamically import action grouper
+        const { groupActions } = await import("@/lib/capture/action-grouper");
+
+        // Group raw actions into semantic actions
+        console.log('[finishRecordingStep] Grouping', pageActions.length, 'raw actions...');
+        const groupedActions = groupActions(pageActions);
+        console.log('[finishRecordingStep] Grouped into', groupedActions.length, 'semantic actions');
+
+        // Save grouped actions to database
+        await db.collection('recording_sessions').updateOne(
+          { recordingId: input.recordingId },
+          {
+            $set: {
+              recordedActions: groupedActions,
+              updatedAt: new Date().toISOString(),
+            },
+          }
+        );
+
+        // Reload recording with new actions
+        Object.assign(recording, {
+          recordedActions: groupedActions,
+        });
+
+        console.log('[finishRecordingStep] Saved grouped actions to database');
+      }
+
+      // Capture page context (needed for schema generation)
+      pageContext = await capturePageContext(page);
+      console.log('[finishRecordingStep] Captured page context:', {
+        url: pageContext?.url,
+        title: pageContext?.title,
+        headingCount: pageContext?.headings.length || 0,
+      });
+
+      // Test extraction schema (optional, can skip if session expires)
+      if (pageContext && recording.goal) {
+        try {
+          const testSchema = await generateExtractionSchema(recording.goal, {
+            startUrl: recording.startUrl,
+            finalUrl: pageContext.url,
+            pageTitle: pageContext.title,
+            headings: pageContext.headings,
+            visibleText: pageContext.visibleText,
+            structuralHints: pageContext.structuralHints,
+          });
+
+          console.log('[finishRecordingStep] Generated test schema:', {
+            fields: testSchema.fields.length,
+            instruction: testSchema.instruction,
+          });
+
+          const zodSchema = buildZodSchemaFromExtraction(testSchema);
+          const sampleExtraction = await stagehand.extract(
+            testSchema.instruction,
+            zodSchema
+          );
+
+          console.log('[finishRecordingStep] ✅ Extraction test PASSED');
+
+          if (sampleExtraction && typeof sampleExtraction === 'object') {
+            const { pageText, ...extractedData } = sampleExtraction as any;
+            (pageContext as any).sampleExtraction = extractedData;
+          }
+        } catch (error) {
+          console.log('[finishRecordingStep] Extraction test failed (session may have expired):', error);
+          // Continue anyway - schema will be generated without testing
+        }
+      }
+
+      // Close the session
+      await stagehand.close();
+      console.log('[finishRecordingStep] Released Browserbase session');
+
+    } catch (error) {
+      console.error('[finishRecordingStep] Error in production fallback path:', error);
+      // Continue anyway - worst case we have 0 actions but skill is still created
+    }
   }
 
   // Extract ALL semantic values from recorded actions (not just text inputs)
