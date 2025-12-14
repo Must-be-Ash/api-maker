@@ -1053,6 +1053,29 @@ export class ActionRecorder {
       delete (global as any).recordingIntervals[this.recordingId];
     }
 
+    // 🔧 FIX: Do a final retrieval of actions from browser before grouping
+    // This is critical for Vercel/serverless where setInterval may have stopped
+    try {
+      console.log('[ActionRecorder] Performing final action retrieval from browser...');
+      const pageActions = await this.page.evaluate(() => {
+        const actions = (window as any)._recordedActions || [];
+        (window as any)._recordedActions = []; // Clear after retrieval
+        return actions;
+      });
+
+      if (pageActions && pageActions.length > 0) {
+        console.log('[ActionRecorder] Retrieved', pageActions.length, 'actions from final retrieval');
+        this.actions.push(...pageActions);
+        // Save immediately in case grouping fails
+        await this.saveActions();
+      } else {
+        console.log('[ActionRecorder] No additional actions found in browser');
+      }
+    } catch (error) {
+      console.error('[ActionRecorder] Error during final action retrieval:', error);
+      // Continue anyway - work with whatever actions we have
+    }
+
     // Group raw actions into semantic actions before saving
     console.log('[ActionRecorder] Grouping', this.actions.length, 'raw actions...');
     const groupedActions = groupActions(this.actions);
