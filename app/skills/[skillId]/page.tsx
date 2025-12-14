@@ -231,7 +231,7 @@ export default function SkillDetailsPage() {
             // REMOVED: requestorAddress (server-verified now!)
           }),
         }
-      });
+      );
 
       if (!response.ok) {
         const error = await response.json();
