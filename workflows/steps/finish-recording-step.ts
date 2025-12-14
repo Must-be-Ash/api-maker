@@ -356,10 +356,20 @@ export async function finishRecordingStep(input: FinishRecordingInput): Promise<
 
     // Now close the Stagehand session (releases keep-alive session)
     try {
-      await activeRecorder.stagehand.close();
+      await Promise.race([
+        activeRecorder.stagehand.close(),
+        new Promise((_, reject) =>
+          setTimeout(() => reject(new Error('Close timeout')), 10000) // 10 second timeout
+        )
+      ]);
       console.log('[finishRecordingStep] Released keep-alive session');
     } catch (error) {
-      console.log('[finishRecordingStep] Error closing Stagehand session:', error);
+      const errorMessage = error instanceof Error ? error.message : String(error);
+      if (errorMessage === 'Close timeout') {
+        console.log('[finishRecordingStep] Session close timed out after 10s, continuing anyway');
+      } else {
+        console.log('[finishRecordingStep] Error closing Stagehand session:', error);
+      }
     }
 
     // Clean up global reference
@@ -469,9 +479,23 @@ export async function finishRecordingStep(input: FinishRecordingInput): Promise<
         }
       }
 
-      // Close the session
-      await stagehand.close();
-      console.log('[finishRecordingStep] Released Browserbase session');
+      // Close the session with timeout
+      try {
+        await Promise.race([
+          stagehand.close(),
+          new Promise((_, reject) =>
+            setTimeout(() => reject(new Error('Close timeout')), 10000)
+          )
+        ]);
+        console.log('[finishRecordingStep] Released Browserbase session');
+      } catch (closeError) {
+        const errorMessage = closeError instanceof Error ? closeError.message : String(closeError);
+        if (errorMessage === 'Close timeout') {
+          console.log('[finishRecordingStep] Session close timed out after 10s, continuing anyway');
+        } else {
+          console.log('[finishRecordingStep] Error closing session:', closeError);
+        }
+      }
 
     } catch (error) {
       console.error('[finishRecordingStep] Error in production fallback path:', error);
@@ -771,13 +795,23 @@ export async function finishRecordingStep(input: FinishRecordingInput): Promise<
       operations: stagehandWorkflow.length,
     };
 
-    // Close Stagehand session (ignore CDP transport errors during cleanup)
+    // Close Stagehand session with timeout (prevent hanging)
     try {
-      await stagehand.close();
+      await Promise.race([
+        stagehand.close(),
+        new Promise((_, reject) =>
+          setTimeout(() => reject(new Error('Close timeout')), 10000) // 10 second timeout
+        )
+      ]);
       console.log('[finishRecordingStep] Validation session closed successfully');
     } catch (closeError) {
       // CDP transport errors during close are expected and can be ignored
-      console.log('[finishRecordingStep] Session cleanup completed (CDP transport closed)');
+      const errorMessage = closeError instanceof Error ? closeError.message : String(closeError);
+      if (errorMessage === 'Close timeout') {
+        console.log('[finishRecordingStep] Session close timed out after 10s, continuing anyway');
+      } else {
+        console.log('[finishRecordingStep] Session cleanup completed (CDP transport closed)');
+      }
     }
   } catch (error) {
     console.error('[finishRecordingStep] Workflow validation failed:', error);
