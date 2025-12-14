@@ -1,538 +1,203 @@
 'use client';
 
-import { useState, useEffect, useRef } from 'react';
-import { useRouter } from 'next/navigation';
-import { TextShimmer } from '@/components/ui/text-shimmer';
-import { ArrowRight } from 'lucide-react';
+import Link from 'next/link';
 import Image from 'next/image';
-import { useIsSignedIn, useCurrentUser } from '@coinbase/cdp-hooks';
-import { AuthButton } from '@coinbase/cdp-react/components/AuthButton';
-import { getCurrentUser, toViemAccount } from '@coinbase/cdp-core';
-import { wrapFetchWithPayment } from 'x402-fetch';
-import { createWalletClient, http, publicActions } from 'viem';
-import { base } from 'viem/chains';
-import { COST_CONFIG } from '@/lib/config';
-import { logPaymentInitiation, logPaymentSettlement, extractTxHashFromPaymentResponse } from '@/lib/payment-logger';
-import { Header } from '@/components/Header';
+import { motion } from 'framer-motion';
 
-export default function Home() {
-  const [url, setUrl] = useState('');
-  const [campaignDescription, setDescription] = useState('');
-  const [referenceImages, setReferenceImages] = useState<File[]>([]);
-  const [imagePreviews, setImagePreviews] = useState<string[]>([]);
-  const [uploadingImage, setUploadingImage] = useState(false);
-  const [loading, setLoading] = useState(false);
-  const [error, setError] = useState<string | null>(null);
-  const [focused, setFocused] = useState(false);
-  const [focusedCampaign, setFocusedCampaign] = useState(false);
-  const [isDragging, setIsDragging] = useState(false);
-  const authButtonRef = useRef<HTMLDivElement>(null);
-  const router = useRouter();
-  const { isSignedIn } = useIsSignedIn();
-  const { currentUser } = useCurrentUser();
-
-  const validateUrl = (url: string): string | null => {
-    if (!url.trim()) return 'URL is required';
-    try {
-      const parsed = new URL(url);
-      if (!parsed.protocol.startsWith('http')) {
-        return 'URL must start with http:// or https://';
-      }
-      return null;
-    } catch {
-      return 'Please enter a valid URL';
-    }
-  };
-
-  const validateCampaign = (description: string): string | null => {
-    if (!description.trim()) return 'Campaign description is required';
-    if (description.trim().length < 20) {
-      return 'Campaign description must be at least 20 characters';
-    }
-    return null;
-  };
-
-  const addImages = (files: FileList | File[]) => {
-    const fileArray = Array.from(files);
-    const validFiles: File[] = [];
-    const previews: string[] = [];
-
-    // Can only have 2 images max
-    const remainingSlots = 2 - referenceImages.length;
-    const filesToProcess = fileArray.slice(0, remainingSlots);
-
-    for (const file of filesToProcess) {
-      // Validate file size (max 10MB)
-      if (file.size > 10 * 1024 * 1024) {
-        setError('Images must be less than 10MB each');
-        continue;
-      }
-      // Validate file type - only PNG, JPEG, JPG, WebP
-      const validTypes = ['image/png', 'image/jpeg', 'image/jpg', 'image/webp'];
-      if (!validTypes.includes(file.type.toLowerCase())) {
-        setError('Please upload PNG, JPEG, or WebP images only');
-        continue;
-      }
-      validFiles.push(file);
-
-      // Create preview
-      const reader = new FileReader();
-      reader.onloadend = () => {
-        previews.push(reader.result as string);
-        if (previews.length === validFiles.length) {
-          setImagePreviews([...imagePreviews, ...previews]);
-        }
-      };
-      reader.readAsDataURL(file);
-    }
-
-    if (validFiles.length > 0) {
-      setReferenceImages([...referenceImages, ...validFiles]);
-      setError(null);
-    }
-  };
-
-  const handleImageChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    if (e.target.files) {
-      addImages(e.target.files);
-    }
-  };
-
-  const handleDragEnter = (e: React.DragEvent) => {
-    e.preventDefault();
-    e.stopPropagation();
-    setIsDragging(true);
-  };
-
-  const handleDragLeave = (e: React.DragEvent) => {
-    e.preventDefault();
-    e.stopPropagation();
-    setIsDragging(false);
-  };
-
-  const handleDragOver = (e: React.DragEvent) => {
-    e.preventDefault();
-    e.stopPropagation();
-  };
-
-  const handleDrop = (e: React.DragEvent) => {
-    e.preventDefault();
-    e.stopPropagation();
-    setIsDragging(false);
-
-    const files = e.dataTransfer.files;
-    if (files) {
-      addImages(files);
-    }
-  };
-
-  const removeImage = (index: number) => {
-    setReferenceImages(referenceImages.filter((_, i) => i !== index));
-    setImagePreviews(imagePreviews.filter((_, i) => i !== index));
-  };
-
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
-
-    // AUTH CHECK: Require user to be signed in
-    if (!isSignedIn || !currentUser) {
-      console.log('[Form Submit] User not signed in, triggering auth modal');
-      // Trigger the hidden AuthButton to open the Coinbase auth modal
-      const authButton = authButtonRef.current?.querySelector('button');
-      if (authButton) {
-        authButton.click();
-      }
-      return;
-    }
-
-    console.log('[Form Submit] Starting submission');
-    console.log('[Form Submit] URL:', url);
-    console.log('[Form Submit] Campaign description length:', campaignDescription.length);
-    console.log('[Form Submit] Reference images:', referenceImages.length, referenceImages.map(i => i.name));
-    console.log('[Form Submit] User wallet:', currentUser.evmAccounts?.[0]);
-
-    const urlError = validateUrl(url);
-    if (urlError) {
-      console.error('[Form Submit] URL validation failed:', urlError);
-      setError(urlError);
-      return;
-    }
-
-    const campaignError = validateCampaign(campaignDescription);
-    if (campaignError) {
-      console.error('[Form Submit] Campaign validation failed:', campaignError);
-      setError(campaignError);
-      return;
-    }
-
-    setLoading(true);
-    setError(null);
-
-    let imageUrl: string | undefined;
-
-    // Upload first image if provided (keeping backward compatibility)
-    if (referenceImages.length > 0) {
-      console.log('[Upload] Starting image upload:', referenceImages[0].name, referenceImages[0].size, 'bytes');
-      try {
-        setUploadingImage(true);
-        const formData = new FormData();
-        formData.append('image', referenceImages[0]);
-
-        console.log('[Upload] Sending POST to /api/upload');
-        const uploadResponse = await fetch('/api/upload', {
-          method: 'POST',
-          body: formData,
-        });
-
-        console.log('[Upload] Response status:', uploadResponse.status);
-
-        if (!uploadResponse.ok) {
-          const errorData = await uploadResponse.json();
-          console.error('[Upload] Upload failed:', errorData);
-          throw new Error(errorData.error || 'Failed to upload image');
-        }
-
-        const uploadData = await uploadResponse.json();
-        imageUrl = uploadData.blobUrl;
-        console.log('[Upload] ✓ Upload successful:', imageUrl);
-      } catch (err) {
-        console.error('[Upload] Upload error:', err);
-        setError('Failed to upload reference image. Continuing without it...');
-        // Continue without image - don't fail the workflow
-      } finally {
-        setUploadingImage(false);
-      }
-    } else {
-      console.log('[Upload] No reference images provided, skipping upload');
-    }
-
-    // PAYMENT SETUP: Create wallet client and wrap fetch with x402 payment
-    try {
-      console.log('[Payment] Setting up x402 payment wrapper');
-
-      // Step 1: Get CDP user's EOA account
-      const user = await getCurrentUser();
-      if (!user || !user.evmAccounts || user.evmAccounts.length === 0) {
-        throw new Error('No wallet found. Please sign in again.');
-      }
-
-      const viemAccount = await toViemAccount(user.evmAccounts[0]);
-      console.log('[Payment] Got viem account:', viemAccount.address);
-
-      // Step 2: Create viem wallet client for signing
-      const walletClient = createWalletClient({
-        account: viemAccount,
-        chain: base,
-        transport: http('https://mainnet.base.org'),
-      }).extend(publicActions);
-      console.log('[Payment] Created wallet client on Base network');
-
-      // Step 3: Wrap fetch with x402 payment capability
-      const maxPaymentAmount = BigInt(COST_CONFIG.maxPaymentAmount * 10 ** 6); // Convert to 6 decimals
-      const fetchFunc = wrapFetchWithPayment(
-        fetch,
-        walletClient as any,
-        maxPaymentAmount
-      ) as typeof fetch;
-      console.log('[Payment] Wrapped fetch with payment capability');
-
-      // Step 4: Log payment initiation
-      logPaymentInitiation('Landing Page Generation', COST_CONFIG.landingPageGeneration);
-
-      // Step 5: Start workflow with payment wrapper
-      const response = await fetchFunc('/api/workflows/untitled-4', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          url,
-          campaignDescription,
-          imageUrl,
-          userId: viemAccount.address, // Include user ID for rate limiting
-        }),
-      });
-
-      console.log('[Workflow] Response status:', response.status);
-
-      // Step 6: Handle response
-      if (response.status === 402) {
-        console.warn('[Payment] Payment required (402), x402-fetch will handle automatically');
-        // The x402-fetch wrapper will retry with payment
-        return;
-      }
-
-      if (!response.ok) {
-        const data = await response.json();
-        throw new Error(data.error || 'Failed to start workflow');
-      }
-
-      const { runId } = await response.json();
-      console.log('[Workflow] ✓ Workflow started:', runId);
-
-      // Step 7: Log payment settlement
-      const paymentResponseHeader = response.headers.get('X-PAYMENT-RESPONSE');
-      const txHash = extractTxHashFromPaymentResponse(paymentResponseHeader);
-      if (txHash) {
-        logPaymentSettlement('Landing Page Generation', txHash, COST_CONFIG.landingPageGeneration);
-      }
-
-      // Step 8: Redirect to workflow status page
-      router.push(`/workflow/${runId}`);
-
-    } catch (error) {
-      console.error('[Client] Failed to create content:', error);
-
-      let errorMessage = 'An unknown error occurred';
-      if (error instanceof Error) {
-        if (error.message.includes('402') || error.message.includes('Payment')) {
-          errorMessage = 'Payment failed. Please ensure you have sufficient USDC balance ($1.99) on Base network.';
-        } else if (error.message.includes('rejected')) {
-          errorMessage = 'Payment was rejected by your wallet';
-        } else if (error.message.includes('Insufficient funds')) {
-          errorMessage = 'Insufficient USDC balance. You need at least $1.99 USDC on Base.';
-        } else {
-          errorMessage = error.message;
-        }
-      }
-
-      setError(errorMessage);
-      setLoading(false);
-    }
-  };
+export default function LandingPage() {
 
   return (
-    <main className="min-h-screen bg-[#fafafa] flex flex-col">
-      {/* Subtle grid pattern background */}
-      <div
-        className="fixed inset-0 pointer-events-none"
-        style={{
-          backgroundImage: `radial-gradient(circle at 1px 1px, rgb(0 0 0 / 0.03) 1px, transparent 0)`,
-          backgroundSize: '24px 24px',
-        }}
-      />
-
-      {/* Header */}
-      <Header />
-
-      {/* Main content */}
-      <div className="flex-1 flex items-center justify-center p-6 relative">
-        <div className="w-full max-w-xl">
-          {/* Logo/Brand mark */}
-          <div className="flex justify-center mb-12">
-            <Image
-              src="/logo-ts.svg"
-              alt="Slophub"
-              width={80}
-              height={80}
-              className="object-contain"
-            />
-          </div>
-
-          {/* Heading */}
-          <div className="text-center mb-10">
-            <h1 className="text-4xl font-semibold tracking-tight text-slate-900 mb-3" style={{ fontFamily: 'var(--font-caprasimo)' }}>
-              Slophub
-            </h1>
-            <p className="text-slate-500 text-lg">
-              Create conversion-focused landing pages for your campaigns
-            </p>
-          </div>
-
-          {/* Form */}
-          <form onSubmit={handleSubmit} className="space-y-4">
-            <div className="relative">
-              <div 
-                className={`
-                  relative bg-white rounded-2xl transition-all duration-300
-                  ${focused ? 'shadow-lg shadow-black/5 ring-2 ring-black/5' : 'shadow-sm shadow-black/5'}
-                `}
-              >
-                <input
-                  type="text"
-                  value={url}
-                  onChange={(e) => {
-                    setUrl(e.target.value);
-                    if (error) setError(null);
-                  }}
-                  onFocus={() => setFocused(true)}
-                  onBlur={() => setFocused(false)}
-                  placeholder="Enter website URL"
-                  className="w-full px-5 py-4 bg-transparent text-slate-900 placeholder:text-slate-400 focus:outline-none text-base rounded-2xl"
-                  disabled={loading}
-                />
-              </div>
-              
-              {error && (
-                <p className="absolute -bottom-6 left-0 text-sm text-red-500 font-medium">
-                  {error}
-                </p>
-              )}
-            </div>
-
-            <div className="relative">
-              <p className="text-sm text-slate-500 mb-2">
-                Describe who you're targeting and what this campaign is about
-              </p>
-              <div
-                className={`
-                  relative bg-white rounded-2xl transition-all duration-300
-                  ${focusedCampaign ? 'shadow-lg shadow-black/5 ring-2 ring-black/5' : 'shadow-sm shadow-black/5'}
-                `}
-              >
-                <textarea
-                  value={campaignDescription}
-                  onChange={(e) => {
-                    setDescription(e.target.value);
-                    if (error) setError(null);
-                  }}
-                  onFocus={() => setFocusedCampaign(true)}
-                  onBlur={() => setFocusedCampaign(false)}
-                  placeholder="Example: Target small business owners who need simple invoicing software. Focus on saving time and reducing paperwork hassle."
-                  rows={4}
-                  className="w-full px-5 py-4 bg-transparent text-slate-900 placeholder:text-slate-400 focus:outline-none text-base rounded-2xl resize-none"
-                  disabled={loading}
-                />
-              </div>
-            </div>
-
-            <div className="relative pt-2">
-              <label className="block text-sm font-medium text-slate-700 mb-2">
-                Reference Images (Optional)
-              </label>
-
-              {/* Drag and Drop Zone */}
-              <div
-                onDragEnter={handleDragEnter}
-                onDragLeave={handleDragLeave}
-                onDragOver={handleDragOver}
-                onDrop={handleDrop}
-                className={`
-                  relative bg-white rounded-2xl shadow-sm shadow-black/5 p-6 transition-all duration-200 cursor-pointer
-                  ${isDragging ? 'ring-2 ring-black/20 bg-slate-50' : ''}
-                `}
-              >
-                {/* Upload Input */}
-                <input
-                  type="file"
-                  id="image"
-                  accept="image/png,image/jpeg,image/jpg,image/webp"
-                  multiple
-                  onChange={handleImageChange}
-                  className="hidden"
-                  disabled={loading || referenceImages.length >= 2}
-                />
-
-                {/* Drop Zone */}
-                <label
-                  htmlFor="image"
-                  className="flex flex-col items-center justify-center py-8 cursor-pointer"
-                >
-                  <svg
-                    className="w-12 h-12 text-slate-300 mb-3"
-                    fill="none"
-                    stroke="currentColor"
-                    viewBox="0 0 24 24"
-                  >
-                    <path
-                      strokeLinecap="round"
-                      strokeLinejoin="round"
-                      strokeWidth={1.5}
-                      d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12"
-                    />
-                  </svg>
-                  <p className="text-sm font-medium text-slate-700 mb-1">
-                    {isDragging ? 'Drop images here' : 'Drag & drop images or click to browse'}
-                  </p>
-                  <p className="text-xs text-slate-400">
-                    PNG, JPEG, or WebP • Max 2 images
-                  </p>
-                </label>
-
-                {/* Image Previews */}
-                {imagePreviews.length > 0 && (
-                  <div className="mt-6 grid grid-cols-2 gap-4">
-                    {imagePreviews.map((preview, index) => (
-                      <div key={index} className="relative group">
-                        <img
-                          src={preview}
-                          alt={`Preview ${index + 1}`}
-                          className="w-full h-32 object-cover rounded-xl border-2 border-slate-200"
-                        />
-                        <button
-                          type="button"
-                          onClick={() => removeImage(index)}
-                          className="absolute top-2 right-2 p-1.5 bg-red-500 text-white rounded-lg opacity-0 group-hover:opacity-100 transition-opacity hover:bg-red-600"
-                        >
-                          <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-                          </svg>
-                        </button>
-                      </div>
-                    ))}
-                  </div>
-                )}
-
-                <p className="mt-4 text-xs text-slate-400 text-center">
-                  Images will guide the style of generated assets
-                </p>
-              </div>
-            </div>
-
-            <button
-              type="submit"
-              disabled={loading || !url.trim() || !campaignDescription.trim() || campaignDescription.trim().length < 20}
-              className={`
-                w-full py-4 px-6 rounded-2xl font-medium text-base
-                flex items-center justify-center gap-2
-                transition-all duration-200
-                ${loading || !url.trim() || !campaignDescription.trim() || campaignDescription.trim().length < 20
-                  ? 'bg-slate-100 text-slate-400 cursor-not-allowed'
-                  : 'bg-black text-white hover:bg-slate-800 active:scale-[0.98]'
-                }
-              `}
+    <main className="min-h-screen bg-[#F8F8F9] relative overflow-x-hidden">
+      {/* Hero Section with Navigation */}
+      <section className="relative pt-12 pb-20 px-6">
+        <div className="max-w-7xl mx-auto">
+          {/* Hero container - image spans full width, text overlays left side */}
+          <div className="relative">
+            {/* Hero Visual - full width */}
+            <motion.div
+              className="relative w-full"
+              initial={{ opacity: 0, scale: 0.95 }}
+              animate={{ opacity: 1, scale: 1 }}
+              transition={{ duration: 0.8, delay: 0.2, ease: [0.22, 1, 0.36, 1] }}
             >
-              {loading ? (
-                <TextShimmer
-                  duration={1.2}
-                  className="text-base font-medium [--base-color:theme(colors.slate.500)] [--base-gradient-color:theme(colors.slate.300)]"
-                >
-                  {isSignedIn ? 'Processing payment & creating page...' : 'Creating your landing page...'}
-                </TextShimmer>
-              ) : (
-                <>
-                  {isSignedIn ? `Generate ($${COST_CONFIG.landingPageGeneration} USDC)` : 'Sign In to Generate'}
-                  <ArrowRight className="h-4 w-4" />
-                </>
-              )}
-            </button>
-          </form>
+              <div className="relative w-full aspect-[16/9] lg:aspect-[2/1]">
+                <Image
+                  src="/landing-asset.jpg"
+                  alt="Browser automation visual showing JSON, CSV extraction"
+                  fill
+                  className="object-contain object-right"
+                  priority
+                />
+              </div>
+            </motion.div>
 
-          {/* Features hint */}
-          <div className="mt-12 flex items-center justify-center gap-3 md:gap-6 text-[11px] md:text-sm text-slate-400">
-            <div className="flex items-center gap-1">
-              <div className="h-1 w-1 rounded-full bg-slate-300" />
-              <span className="whitespace-nowrap">Conversion-focused</span>
-            </div>
-            <div className="flex items-center gap-1">
-              <div className="h-1 w-1 rounded-full bg-slate-300" />
-              <span className="whitespace-nowrap">Brand-consistent</span>
-            </div>
-            <div className="flex items-center gap-1">
-              <div className="h-1 w-1 rounded-full bg-slate-300" />
-              <span className="whitespace-nowrap">Single-purpose CTAs</span>
-            </div>
+            {/* Text Content - positioned over the left side of the image */}
+            <motion.div
+              className="absolute inset-y-0 left-0 flex flex-col justify-center text-left max-w-xl lg:max-w-2xl z-10"
+              initial={{ opacity: 0, y: 20 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ duration: 0.6, ease: [0.22, 1, 0.36, 1] }}
+            >
+              {/* Navigation */}
+              <nav className="mb-8">
+                <div className="flex items-center gap-2">
+                  <Image
+                    src="/logo.png"
+                    alt="Dittod"
+                    width={32}
+                    height={32}
+                    className="rounded-lg"
+                  />
+                  <span className="text-3xl md:text-4xl font-bold text-black tracking-tight">Dittod</span>
+                </div>
+              </nav>
+
+              <h1 className="text-4xl md:text-5xl lg:text-6xl xl:text-7xl font-bold text-black mb-6 leading-tight tracking-tight text-left">
+                Turn any browser session into an API
+              </h1>
+
+              <p className="text-base md:text-lg lg:text-xl text-gray-600 mb-8 leading-relaxed text-left">
+                Describe what you want, demonstrate it once in a live browser, and we'll generate a reusable API you can call with different inputs. Think of it as showing Ai how to do something, there's no coding.
+              </p>
+
+              <div className="text-left">
+                <Link
+                  href="/skills/record"
+                  className="relative inline-flex items-center justify-center px-8 py-4 rounded-full font-medium text-white transition-all duration-200 border-0 cursor-pointer shadow-[0_8px_32px_rgba(0,0,0,0.3),0_2px_8px_rgba(0,0,0,0.2),inset_0_1px_0_rgba(255,255,255,0.1)] hover:shadow-[0_4px_16px_rgba(0,0,0,0.4),inset_0_2px_4px_rgba(0,0,0,0.3)] active:shadow-[0_2px_8px_rgba(0,0,0,0.4),inset_0_3px_6px_rgba(0,0,0,0.4)] hover:scale-[0.98] active:scale-[0.96]"
+                  style={{
+                    background: 'linear-gradient(145deg, #4a4a4a 0%, #3a3a3a 50%, #2a2a2a 100%)'
+                  }}
+                >
+                  <span className="relative z-10">Get Started for Free</span>
+
+                  {/* Subtle inner highlight */}
+                  <div className="absolute inset-0 rounded-full bg-gradient-to-b from-white/10 to-transparent opacity-60 pointer-events-none" />
+
+                  {/* Bottom shadow accent */}
+                  <div className="absolute -bottom-1 left-1/2 transform -translate-x-1/2 w-[90%] h-1 bg-black/20 rounded-full blur-sm" />
+                </Link>
+              </div>
+            </motion.div>
           </div>
         </div>
-      </div>
+      </section>
+
+      {/* Feature Section */}
+      <section className="py-16 px-6">
+        <div className="max-w-7xl mx-auto">
+          <div className="grid md:grid-cols-3 gap-6">
+            {/* Feature 1: Teach by doing */}
+            <motion.div
+              className="bg-white rounded-2xl p-8 shadow-sm hover:shadow-md transition-shadow duration-300"
+              initial={{ opacity: 0, y: 20 }}
+              whileInView={{ opacity: 1, y: 0 }}
+              viewport={{ once: true }}
+              transition={{ duration: 0.5, delay: 0.1 }}
+            >
+              {/* Title row: title left, image right */}
+              <div className="flex items-center justify-between gap-4 mb-4">
+                <h3 className="text-2xl font-bold text-black text-left">
+                  Teach Once <br /> Reuse Forever
+                </h3>
+                <div className="w-28 h-28 relative flex-shrink-0">
+                  <Image
+                    src="/cursor.jpg"
+                    alt="Cursor icon"
+                    fill
+                    className="object-contain"
+                  />
+                </div>
+              </div>
+              {/* Body text below */}
+              <p className="text-base text-gray-600 leading-relaxed text-left">
+                Enter a goal like "Fill job applications". We spin up a virtual browser, and you simply click through the workflow once to demonstrate it.
+              </p>
+            </motion.div>
+
+            {/* Feature 2: Self-healing automation */}
+            <motion.div
+              className="bg-white rounded-2xl p-8 shadow-sm hover:shadow-md transition-shadow duration-300"
+              initial={{ opacity: 0, y: 20 }}
+              whileInView={{ opacity: 1, y: 0 }}
+              viewport={{ once: true }}
+              transition={{ duration: 0.5, delay: 0.2 }}
+            >
+              {/* Title row: title left, image right */}
+              <div className="flex items-center justify-between gap-4 mb-4">
+                <h3 className="text-2xl font-bold text-black text-left">
+                  Dynamic Automation
+                </h3>
+                <div className="w-28 h-28 relative flex-shrink-0">
+                  <Image
+                    src="/layers.jpg"
+                    alt="Layers icon"
+                    fill
+                    className="object-contain"
+                  />
+                </div>
+              </div>
+              {/* Body text below */}
+              <p className="text-base text-gray-600 leading-relaxed text-left">
+                The API adapts. We use exact selectors, AI vision, and agentic re-learning to ensure APIs work even if the website changes its layout.
+              </p>
+            </motion.div>
+
+            {/* Feature 3: Monetize your workflow */}
+            <motion.div
+              className="bg-white rounded-2xl p-8 shadow-sm hover:shadow-md transition-shadow duration-300"
+              initial={{ opacity: 0, y: 20 }}
+              whileInView={{ opacity: 1, y: 0 }}
+              viewport={{ once: true }}
+              transition={{ duration: 0.5, delay: 0.3 }}
+            >
+              {/* Title row: title left, image right */}
+              <div className="flex items-center justify-between gap-4 mb-4">
+                <h3 className="text-2xl font-bold text-black text-left">
+                  Monetize Endpoints
+                </h3>
+                <div className="w-28 h-28 relative flex-shrink-0">
+                  <Image
+                    src="/coin.jpg"
+                    alt="USDC coin icon"
+                    fill
+                    className="object-contain"
+                  />
+                </div>
+              </div>
+              {/* Body text below */}
+              <p className="text-base text-gray-600 leading-relaxed text-left">
+                Instantly monetize your API with x402. Charge users per API call by simply providing a wallet address and picking an amount to charge.
+              </p>
+            </motion.div>
+          </div>
+        </div>
+      </section>
 
       {/* Footer */}
-      <footer className="py-6 text-center text-sm text-slate-400 relative">
-        Powered by <span style={{ fontFamily: 'var(--font-caprasimo)' }}>Slophub</span>
+      <footer className="py-12 px-6 mt-20">
+        <div className="max-w-7xl mx-auto text-center space-y-3">
+          <p className="text-sm text-gray-400">
+            © 2025 Dittod. All rights reserved.
+          </p>
+          <div className="flex items-center justify-center gap-4 text-sm">
+            <Link
+              href="/docs"
+              className="text-gray-500 hover:text-black transition-colors"
+            >
+              Documentation
+            </Link>
+            <span className="text-gray-300">|</span>
+            <a
+              href="https://twitter.com"
+              target="_blank"
+              rel="noopener noreferrer"
+              className="text-gray-500 hover:text-black transition-colors"
+            >
+              Twitter
+            </a>
+          </div>
+        </div>
       </footer>
-
-      {/* Hidden AuthButton for programmatic triggering */}
-      <div ref={authButtonRef} className="hidden">
-        <AuthButton />
-      </div>
     </main>
   );
 }

@@ -7,18 +7,20 @@ export const X402_CONFIG = {
 
 // Cost Configuration (in USDC - 6 decimals)
 export const COST_CONFIG = {
-  landingPageGeneration: 1.99, // $1.99 per landing page
-  maxPaymentAmount: 2.5,       // Max for x402-fetch wrapper (safety buffer above $1.99)
+  skillCreation: 1.99,         // $1.99 per skill creation
+  skillExecution: 0.01,        // $0.01 per skill execution
+  maxPaymentAmount: 2.5,       // Max for x402-fetch wrapper (safety buffer)
 };
 
 // Payment Configuration (for backend x402 protection)
 export const PAYMENT_CONFIG = {
-  landingPagePrice: '$1.99',
+  skillCreationPrice: '$1.99',
+  skillExecutionPrice: '$0.01',
   network: (process.env.NEXT_PUBLIC_NETWORK || 'base') as 'base' | 'base-sepolia',
   receivingAddress: process.env.NEXT_PUBLIC_RECEIVING_WALLET_ADDRESS as `0x${string}`,
   usdcContract: process.env.USDC_CONTRACT_ADDRESS || '0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913',
   facilitatorUrl: process.env.FACILITATOR_URL || 'https://x402.org/facilitator',
-  maxPaymentAmount: 2.5, // Max USDC user can authorize (safety buffer above $1.99)
+  maxPaymentAmount: 2.5, // Max USDC user can authorize (safety buffer)
 };
 
 // Validate required config on startup

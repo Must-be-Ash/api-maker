@@ -1,5 +1,5 @@
 export interface PaymentSettlement {
-  service: 'Landing Page Generation';
+  service: string;
   txHash: string;
   amount: number; // in USDC
   timestamp: number;
@@ -17,7 +17,7 @@ export function extractTxHashFromPaymentResponse(
 
 // Log payment with BaseScan link
 export function logPaymentSettlement(
-  service: 'Landing Page Generation',
+  service: string,
   txHash: string,
   amount: number
 ): PaymentSettlement {
@@ -37,7 +37,7 @@ export function logPaymentSettlement(
 
 // Log payment initiation
 export function logPaymentInitiation(
-  service: 'Landing Page Generation',
+  service: string,
   amount: number
 ): void {
   console.log(`💳 Initiating payment: ${service}`);

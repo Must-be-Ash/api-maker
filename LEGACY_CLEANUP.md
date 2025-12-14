@@ -1,29 +1,33 @@
-# Legacy blog-agent/Slophub artifacts to remove or update for the Skills System
+# Rebrand/Rewrite Targets (Slophub/Blog-Agent → Skills System)
 
-These are the remaining files, routes, scripts, and docs tied to the old Slophub landing-page/blog-agent product. They either need to be removed or rewritten to match the new browser-recording “Skills” direction from `skill-idea.md`.
+Only the places that need editing/rebranding for the new Skills system (no delete list here).
 
-## Product/docs still describing landing pages
-- `README.md` (Slophub landing page generator story, payments, gallery, etc.).
-- `README/WORKFLOW.md`, `README/x402_API_GUIDE.md`, `README/x402-example-call.js`, `README/logs/x402-call-*` (full landing workflow + payment examples/logs).
-- `docs/vercel-docs/micro-plan.md`, `docs/vercel-docs/micro-doc.md`, `docs/x402-docs/x402-plan.md` (microfrontends + Vercel routing for landing pages and blog-agent branding).
-- `docs/idea.md`, `docs/ideas2.md` (landing/blog automation ideas, not aligned with Skills recorder).
+## Product Copy & Docs (Keep, but rewrite/rebrand)
+- `README.md` – replace Slophub landing-page narrative with Skills recorder/executor story.
+- `README/WORKFLOW.md`, `README/x402_API_GUIDE.md`, `README/x402-example-call.js`, `README/logs/*` – rewrite to describe skill recording/execution flows (or archive in-place; do not delete).
+- `docs/vercel-docs/micro-plan.md`, `docs/vercel-docs/micro-doc.md`, `docs/x402-docs/x402-plan.md` – remove microfrontend/landing language; update if skills still use Vercel routing/payment.
+- `docs/idea*.md`, `docs/ideas2.md` – keep ideas; annotate/prune toward skills use cases.
 
-## Frontend routes/components from the old app
-- `app/layout.tsx`, `app/providers.tsx` (Slophub metadata, “AI Landing Page Generator” appName, Coinbase auth theme).
-- `app/page.tsx` (main landing-page generator UI with URL/campaign form, x402 payment flow, image upload).
-- `app/gallery/page.tsx`, `app/landing/[runId]/page.tsx`, `app/workflow/[runId]/page.tsx` (landing gallery, public landing render, workflow status page).
-- `app/not-found.tsx` (Slophub-branded 404), `app/test-iframe/page.tsx` (landing screenshot test), `app/test/[id]/page.tsx` (placeholder test route).
-- `components/Header.tsx`, `components/WalletDropdown.tsx`, `components/floating-cta.tsx` (Slophub branding + Coinbase wallet gating), `components/blog-preview.tsx` (renders V0-generated blog/landing TSX), `components/workflow-status-client.tsx`, `components/workflow-progress-bar.tsx`, `components/workflow-step-timeline.tsx` (landing workflow UI).
-- Public assets tied to the old brand: `public/logo*.png|svg`, `public/logo-w-t.*`, `public/og.png`, favicon set, etc.
+## App Shell & UI Branding
+- `app/layout.tsx` – update site metadata/OG tags from Slophub to Skills system.
+- `app/providers.tsx` – change `appName`, theme overrides, any copy tied to landing pages.
+- `app/not-found.tsx` – swap Slophub logo/text for Skills branding.
+- `components/Header.tsx`, `components/WalletDropdown.tsx`, `components/floating-cta.tsx` – update logos, names, links (no slophub.xyz), wallet prompts to fit Skills.
 
-## Legacy APIs, workflows, and payment plumbing
-- `app/api/workflows/untitled-4/route.ts` and `app/api/workflows/untitled-4/status/route.ts` (x402-gated landing-page workflow start/status).
-- `workflows/untitled-4.ts` (entire landing page generation pipeline).
-- Landing-specific workflow steps under `workflows/steps/`: `scrape-step.ts`, `search-step.ts`, `generate-text-step.ts`, `fal-image-generation-step.ts`, `claude-generate-html-step.ts`, `render-landing-page-html-step.ts`, `upload-assets-step.ts`, `download-and-rehost-images-step.ts`, `save-to-mongodb-step.ts`, `screenshot-step.ts`, `register-microfrontend-step.ts`, `add-to-microfrontends-group-step.ts`, `verify-microfrontend-group-membership-step.ts`, `commit-and-push-step.ts`, `deploy-to-vercel-step.ts`, `log-step-data.ts`, `create-chat-step.ts`.
-- `app/api/gallery/route.ts`, `app/api/debug-landing/route.ts`, `app/api/screenshot/route.ts`, `app/api/upload/route.ts`, `app/api/payment-debug/route.ts` (landing gallery/debug, screenshot capture, blob upload, payment test endpoints).
-- Payment/price config for landing pages: `lib/config.ts` (`COST_CONFIG`, `PAYMENT_CONFIG`), `lib/payment-logger.ts` (Landing Page Generation hardcoded), `lib/payment-verification.ts` helpers tuned to x402 flow.
-- `microfrontends.json` (blog-agent parent/fallback); coupled to `register-microfrontend-step.ts` and Vercel microfrontend plan docs.
+## Feature Pages to Rewrite (not delete, unless replacing)
+- `app/page.tsx` – main form is landing-page generator; needs full rewrite to Skills home/CTA.
+- `app/gallery/page.tsx`, `app/landing/[runId]/page.tsx`, `app/workflow/[runId]/page.tsx` – convert or replace with Skills equivalents (skill list, execution history, recording status).
+- `components/workflow-status-client.tsx`, `components/workflow-progress-bar.tsx`, `components/workflow-step-timeline.tsx` – rebrand UI and repurpose for skill runs if kept.
+- `components/blog-preview.tsx` – either repurpose for skill output preview or remove; currently branded to blog/landing previews.
 
-## Legacy scripts/data helpers
-- `scripts/update-thumbnails.ts`, `scripts/check-landing-page.ts`, `scripts/delete-workflows.ts` (all target `wrun_` landing runs, screenshots, and Mongo landingPageHtml fields).
-- Test/demo routes and assets above are also only for the old landing generator and can be dropped once Skills flow replaces them.
+## Assets
+- `public/logo*.png|svg`, `public/logo-w-t.*`, `public/og.png`, favicons/webmanifest – replace with Skills branding.
+
+## Payments/Config
+- `lib/config.ts` – remove landing-specific prices (`COST_CONFIG.landingPageGeneration`), update wording for Skills pricing.
+- `lib/payment-logger.ts` – change service labels from “Landing Page Generation” to Skills terminology.
+- `lib/payment-verification.ts` (if used) – ensure copy/examples match Skills endpoints.
+
+## API/Workflow Naming (if kept vs. deleted)
+- `app/api/payment-debug/route.ts` – rename description to Skills if retained.
+- `app/api/workflows/untitled-4/*`, `workflows/untitled-4.ts` and related steps – if repurposed instead of deleted, rename IDs/descriptions from landing pages to skills.

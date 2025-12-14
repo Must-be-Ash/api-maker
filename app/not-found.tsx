@@ -18,18 +18,11 @@ export default function NotFound() {
       <header className="relative py-4 px-6 border-b border-slate-200 bg-white">
         <div className="max-w-7xl mx-auto flex items-center justify-between">
           <Link href="/" className="inline-flex items-center gap-3 group">
-            <Image
-              src="/logo-ts.svg"
-              alt="Slophub"
-              width={50}
-              height={50}
-              className="object-contain"
-            />
             <span
               className="text-lg font-semibold text-slate-900 group-hover:text-slate-600 transition-colors"
               style={{ fontFamily: 'var(--font-caprasimo)' }}
             >
-              Slophub
+              Dittod
             </span>
           </Link>
         </div>
@@ -37,16 +30,6 @@ export default function NotFound() {
 
       <div className="flex-1 flex items-center justify-center px-6 py-12 relative">
         <div className="max-w-2xl w-full text-center">
-          {/* Logo */}
-          <div className="flex justify-center mb-8">
-            <Image
-              src="/logo-ts.png"
-              alt="Slophub"
-              width={120}
-              height={120}
-              className="object-contain"
-            />
-          </div>
 
           {/* 404 Number */}
           <h1
@@ -76,11 +59,11 @@ export default function NotFound() {
             </Link>
 
             <Link
-              href="/gallery"
+              href="/skills"
               className="inline-flex items-center gap-2 px-6 py-3 bg-white text-slate-900 font-medium rounded-xl border border-slate-200 hover:bg-slate-50 transition-colors"
             >
               <Search className="h-4 w-4" />
-              Browse Gallery
+              Browse Skills
             </Link>
           </div>
         </div>

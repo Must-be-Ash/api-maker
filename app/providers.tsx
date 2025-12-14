@@ -4,7 +4,7 @@ import { CDPReactProvider, type Theme } from '@coinbase/cdp-react';
 
 const CONFIG = {
   projectId: process.env.NEXT_PUBLIC_CDP_PROJECT_ID ?? '',
-  appName: 'AI Landing Page Generator',
+  appName: 'Dittod - Browser Automation API Creator',
   appLogoUrl: '/logo.svg',
   authMethods: ['email', 'oauth:x', 'oauth:google'] as any,  // Enable email, X/Twitter, and Google OAuth login
   ethereum: {

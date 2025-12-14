@@ -20,7 +20,7 @@ export default async function SkillsGalleryPage() {
         {/* Header */}
         <div className="flex justify-between items-center mb-12">
           <div className="space-y-2">
-            <h1 className="text-4xl font-bold text-slate-900">Skills Gallery</h1>
+            <h1 className="text-4xl font-bold text-slate-900">Gallery</h1>
             <p className="text-lg text-slate-600">
               Browse automation workflows created by the community
             </p>

@@ -20,16 +20,16 @@ export function Header() {
         <Link href="/" className="inline-flex items-center gap-3 group">
           <Image
             src="/logo-ts.svg"
-            alt="Slophub"
+            alt="Dittod"
             width={50}
             height={50}
             className="object-contain"
           />
-          <span 
-            className="hidden md:inline text-lg font-semibold text-slate-900 group-hover:text-slate-600 transition-colors" 
+          <span
+            className="hidden md:inline text-lg font-semibold text-slate-900 group-hover:text-slate-600 transition-colors"
             style={{ fontFamily: 'var(--font-caprasimo)' }}
           >
-            Slophub
+            Dittod
           </span>
         </Link>
 

@@ -7,7 +7,7 @@ import { TextShimmer } from '@/components/ui/text-shimmer';
 export function FloatingCTA() {
   return (
     <Link
-      href="https://slophub.xyz"
+      href="https://dittod.vercel.app"
       target="_blank"
       rel="noopener noreferrer"
       style={{
@@ -54,21 +54,21 @@ export function FloatingCTA() {
           {/* Logo icon */}
           <Image
             src="/logo-w-t.svg"
-            alt="Slophub"
+            alt="Dittod"
             width={20}
             height={20}
             style={{ flexShrink: 0, objectFit: 'contain', background: 'transparent' }}
             unoptimized
           />
 
-          {/* Text with highlighted slophub.xyz */}
+          {/* Text with highlighted dittod */}
           <span style={{ fontSize: '16px', fontWeight: 600, whiteSpace: 'nowrap', display: 'flex', alignItems: 'center', gap: '4px' }}>
             <span>created with</span>
             <TextShimmer
               duration={2}
               className="[--base-color:theme(colors.white)] [--base-gradient-color:theme(colors.blue.300)]"
             >
-              slophub.xyz
+              dittod
             </TextShimmer>
           </span>
         </div>

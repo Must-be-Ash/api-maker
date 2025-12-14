@@ -183,11 +183,11 @@ Keep the response concise but informative. Don't just list the data - present it
       // Add a link to the session recording if available
       if (skillResult.sessionUrl) {
         responseText += `\n\n🔗 [View full session recording](${skillResult.sessionUrl})`;
-      }
+    }
 
-      return NextResponse.json({
-        response: responseText
-      });
+    return NextResponse.json({
+      response: responseText
+    });
     } else {
       // Handle error case
       const errorText = `❌ Search failed.\n\n`;
