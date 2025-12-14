@@ -277,6 +277,8 @@ export async function finishRecordingStep(input: FinishRecordingInput): Promise<
       console.log('[finishRecordingStep] Reloaded recording with grouped actions:', {
         actionsCount: recording.recordedActions?.length || 0,
       });
+    } else {
+      console.warn('[finishRecordingStep] ⚠️ No actions captured during recording!');
     }
 
     // ✅ NEW: Capture page context BEFORE closing session
@@ -376,71 +378,28 @@ export async function finishRecordingStep(input: FinishRecordingInput): Promise<
     delete (global as any).activeRecorders[input.recordingId];
   } else {
     // 🔧 PRODUCTION FALLBACK: activeRecorder doesn't exist (different serverless function)
+    // ActionRecorder already saved actions to MongoDB when stopRecording() was called
     console.log('[finishRecordingStep] Active recorder not found in global (serverless mode)');
-    console.log('[finishRecordingStep] Attempting to reconnect to Browserbase session and retrieve actions...');
+    console.log('[finishRecordingStep] Actions should already be in MongoDB from recorder.stopRecording()');
 
     try {
-      // Dynamically import Stagehand
+      // Reconnect to Browserbase session for page context capture
       const { Stagehand } = await import("@browserbasehq/stagehand");
 
-      // Reconnect to the existing Browserbase session
       const stagehand = new Stagehand({
         env: "BROWSERBASE",
         apiKey: process.env.BROWSERBASE_API_KEY,
         projectId: process.env.BROWSERBASE_PROJECT_ID,
         verbose: 0,
         disablePino: true,
-        browserbaseSessionID: input.sessionId, // Reconnect to existing session
+        browserbaseSessionID: input.sessionId,
         model: "openai/gpt-4o",
       });
 
       await stagehand.init();
-      const page = stagehand.context.pages()[0];
 
-      console.log('[finishRecordingStep] Reconnected to Browserbase session');
-
-      // Retrieve all accumulated actions from browser
-      const pageActions = await page.evaluate(() => {
-        const actions = (window as any)._recordedActions || [];
-        (window as any)._recordedActions = []; // Clear after retrieval
-        return actions;
-      });
-
-      console.log('[finishRecordingStep] Retrieved', pageActions.length, 'actions from browser');
-
-      if (pageActions.length === 0) {
-        console.warn('[finishRecordingStep] ⚠️ WARNING: No actions captured during recording!');
-        console.warn('[finishRecordingStep] This likely means event listener injection failed in start-recording step.');
-        console.warn('[finishRecordingStep] Check start-recording logs for injection errors.');
-      }
-
-      if (pageActions && pageActions.length > 0) {
-        // Dynamically import action grouper
-        const { groupActions } = await import("@/lib/capture/action-grouper");
-
-        // Group raw actions into semantic actions
-        console.log('[finishRecordingStep] Grouping', pageActions.length, 'raw actions...');
-        const groupedActions = groupActions(pageActions);
-        console.log('[finishRecordingStep] Grouped into', groupedActions.length, 'semantic actions');
-
-        // Save grouped actions to database
-        await db.collection('recording_sessions').updateOne(
-          { recordingId: input.recordingId },
-          {
-            $set: {
-              recordedActions: groupedActions,
-              updatedAt: new Date().toISOString(),
-            },
-          }
-        );
-
-        // Reload recording with new actions
-        Object.assign(recording, {
-          recordedActions: groupedActions,
-        });
-
-        console.log('[finishRecordingStep] Saved grouped actions to database');
-      }
+      const pages = stagehand.context.pages();
+      const page = pages[pages.length - 1];
 
       // Capture page context (needed for schema generation)
       pageContext = await capturePageContext(page);

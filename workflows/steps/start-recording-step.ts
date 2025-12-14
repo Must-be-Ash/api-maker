@@ -15,6 +15,19 @@ export async function startRecordingStep(input: StartRecordingInput): Promise<St
   const recordingId = `rec_${Date.now()}_${Math.random().toString(36).substring(2, 11)}`;
 
   console.log('[startRecordingStep] Creating Browserbase session');
+  console.log('[startRecordingStep] Extension ID:', process.env.BROWSERBASE_EXTENSION_ID);
+
+  const sessionPayload = {
+    projectId: process.env.BROWSERBASE_PROJECT_ID,
+    keepAlive: true, // Enable keep-alive for long-running recording sessions
+    extensionId: process.env.BROWSERBASE_EXTENSION_ID, // Action recorder extension
+    browserSettings: {
+      recordSession: true,
+      logSession: true,
+    },
+  };
+
+  console.log('[startRecordingStep] Session payload:', JSON.stringify(sessionPayload, null, 2));
 
   // Create Browserbase session using fetch API
   const sessionResponse = await fetch('https://api.browserbase.com/v1/sessions', {
@@ -23,14 +36,7 @@ export async function startRecordingStep(input: StartRecordingInput): Promise<St
       'x-bb-api-key': process.env.BROWSERBASE_API_KEY!,
       'Content-Type': 'application/json',
     },
-    body: JSON.stringify({
-      projectId: process.env.BROWSERBASE_PROJECT_ID,
-      keepAlive: true, // Enable keep-alive for long-running recording sessions
-      browserSettings: {
-        recordSession: true,
-        logSession: true,
-      },
-    }),
+    body: JSON.stringify(sessionPayload),
   });
 
   if (!sessionResponse.ok) {
@@ -103,16 +109,11 @@ export async function startRecordingStep(input: StartRecordingInput): Promise<St
   // Dynamically import ActionRecorder (prevents bundling server-only code)
   const { ActionRecorder } = await import("@/lib/capture/action-recorder");
 
-  // Attach action recorder with context for addInitScript support
-  const recorder = new ActionRecorder(page, recordingId, context);
+  // Attach action recorder
+  const recorder = new ActionRecorder(page, recordingId);
+  await recorder.startRecording();
 
-  try {
-    await recorder.startRecording();
-    console.log('[startRecordingStep] ✅ Action recorder started with event listeners verified');
-  } catch (error) {
-    console.error('[startRecordingStep] ❌ Failed to start action recorder:', error);
-    throw new Error(`Action recording initialization failed: ${error}`);
-  }
+  console.log('[startRecordingStep] Action recorder started');
 
   // Dynamically import MongoDB helper
   const { connectDB } = await import("@/lib/mongodb");

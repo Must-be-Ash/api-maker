@@ -1,13 +1,11 @@
-ashnouruzi@C357PRGCH2 api-maker % rm -rf .next
-ashnouruzi@C357PRGCH2 api-maker % rm -rf .next
 ashnouruzi@C357PRGCH2 api-maker % pnpm dev
 
 > next-boilerplate@0.1.0 dev /Users/ashnouruzi/api-maker
 > next dev
 
-Discovering workflow directives 1390ms
-Created steps bundle 16ms
-Created intermediate workflow bundle 6ms
+Discovering workflow directives 1730ms
+Created steps bundle 20ms
+Created intermediate workflow bundle 7ms
 Creating webhook route
    ▲ Next.js 16.0.7 (Turbopack)
    - Local:         http://localhost:3000
@@ -15,78 +13,89 @@ Creating webhook route
    - Environments: .env.local
 
  ✓ Starting...
- ✓ Ready in 2.2s
-Discovering workflow directives 2159ms
-Created steps bundle 36ms
-Created intermediate workflow bundle 12ms
- GET /skills/record 200 in 3.4s (compile: 3.0s, render: 334ms)
-(node:59794) [DEP0169] DeprecationWarning: `url.parse()` behavior is not standardized and prone to errors that have security implications. Use the WHATWG URL API instead. CVEs are not issued for `url.parse()` vulnerabilities.
+ ✓ Ready in 2.6s
+Discovering workflow directives 2136ms
+Created steps bundle 14ms
+Created intermediate workflow bundle 9ms
+ ○ Compiling /skills/record ...
+ GET /skills/record 200 in 3.7s (compile: 3.4s, render: 310ms)
+(node:42332) [DEP0169] DeprecationWarning: `url.parse()` behavior is not standardized and prone to errors that have security implications. Use the WHATWG URL API instead. CVEs are not issued for `url.parse()` vulnerabilities.
 (Use `node --trace-deprecation ...` to show where the warning was created)
 [POST /api/skills/start-recording] Starting recording workflow {
   goal: 'google search',
   startUrl: 'https://www.google.com/',
   creatorAddress: '0x08bfec5133141cc704a34505d5e504503bf3168d'
 }
- POST /.well-known/workflow/v1/flow 200 in 164ms (compile: 149ms, render: 14ms)
+ POST /.well-known/workflow/v1/flow 200 in 161ms (compile: 146ms, render: 14ms)
 [startRecordingStep] Starting recording {
   goal: 'google search',
   startUrl: 'https://www.google.com/',
   creatorAddress: '0x08bfec5133141cc704a34505d5e504503bf3168d'
 }
 [startRecordingStep] Creating Browserbase session
+[startRecordingStep] Extension ID: b12a26d9-e4b8-47d9-84e8-507610fc3c25
+[startRecordingStep] Session payload: {
+  "projectId": "26b0ffe0-6897-4cf1-a66c-3a927c7f9456",
+  "keepAlive": true,
+  "extensionId": "b12a26d9-e4b8-47d9-84e8-507610fc3c25",
+  "browserSettings": {
+    "recordSession": true,
+    "logSession": true
+  }
+}
 [startRecordingStep] Browserbase response: {
-  id: '590c9c25-5e1f-4914-884e-36fdb8efd35f',
-  createdAt: '2025-12-14T21:07:32.377019+00:00',
-  updatedAt: '2025-12-14T21:07:32.377019+00:00',
+  id: '81f9a6f9-b4c0-446d-862c-8c0274789450',
+  createdAt: '2025-12-14T23:19:27.926465+00:00',
+  updatedAt: '2025-12-14T23:19:27.926465+00:00',
   projectId: '26b0ffe0-6897-4cf1-a66c-3a927c7f9456',
-  startedAt: '2025-12-14T21:07:32.366+00:00',
-  expiresAt: '2025-12-14T21:12:32.366+00:00',
+  startedAt: '2025-12-14T23:19:27.917+00:00',
+  expiresAt: '2025-12-14T23:24:27.917+00:00',
   status: 'RUNNING',
   proxyBytes: 0,
   keepAlive: true,
   region: 'us-west-2',
-  connectUrl: 'wss://connect.usw2.browserbase.com?signingKey=eyJhbGciOiJBMjU2S1ciLCJlbmMiOiJBMjU2R0NNIn0.4M1XEfYcqwj_N3YDFJ6dDEao77fYFifI5gh_3rpehGiY0LNLtMyBsw.FsNiCsrwyyyVqt6S.2_JhLbP_HgQLwKb_pEOLoNykVyiQzz5d7DliW5KvJ_wFfmyQRrWWdHNNs_BcMU83_bZ7yYCDG2lVlaWBCh7IvhZZY7Jhp1Om6rpiDzadIy1kVYDGx6x_49RGtNSSLZ0_Ss4iFacj0eYSqDl0-dD2b4NgAp2ymse6QOlCgdPP8AnCyinqpPlHleZ2ZjxQv3Mr8Jnkrz6-WsSfvHeLjMv2lVUrh55PNUANoBhppaCCUDtSem2acVDHxTLoyujLg7w7u5NUMgeJC2uxLr2aOQWqpJzvYb-arImyCM7exYh3TUbD3GrL10HYmmfNMuLk4DDGAjL0-KK1l15sgqUGmk-8fS8MDZbT__wVWYdMpBjf0eTCg6BBE6eGzs_6mvM8izXh9Qd0vLeLhBqbuFyNjmsVBCrY-85ruDTUl0dBVGObVu79WYur51Yys23bvApS5b8-.U3yDtQ__2awyCQBCY6j1zA',
+  connectUrl: 'wss://connect.usw2.browserbase.com?signingKey=eyJhbGciOiJBMjU2S1ciLCJlbmMiOiJBMjU2R0NNIn0.xs8M8NlJ3vF0q_A99EC9ZM1lZeHvCBIgd2zT44yPh_XHCMqQ6KIZGA.bwVfENf6R6SYBBHH.-R4xks-MmH3yjkBnTNIpVIVHEQGXprtYLegXPEdcNOi0l7NeMtqoTCJ2d_4A57QoXRozBmaP83F8kcOPRgAp72kf8STTM8FScadlVGkTgToghebuKJyQmTWo4qKC736yoxqX8z97dPkaAAOoJE6z6HXlppvghV8V25QkA0m1iP1kPNCV9UmD_Aiccy7FsmTTnzCJvhOQJf6sJXb-l7n_UTjbKvrR2phVlXcDxgPy30HgQrG-k940H7FQWnxgTmobv75LVOm_ANfEOO6cA15eCs4ThYiK1fVcejOtrOIecpN9BhCfzEqc-igWsQdSBA2eC7hVX265-QtJa_4Pj1Hsue9X6JcUrGEHyQGsPJ1WM7GjSgBES10N1HHFNvK73sx4KL5RFncJQSYTOMy9iafROkHHTUT6fBcExjTgzW_3IJkOYwEoEpt6LqbQv2GEJyMO.wo9Z9qtE0-wsIQcIhCXkGA',
   seleniumRemoteUrl: 'http://connect.usw2.browserbase.com/webdriver',
-  signingKey: 'eyJhbGciOiJBMjU2S1ciLCJlbmMiOiJBMjU2R0NNIn0.4M1XEfYcqwj_N3YDFJ6dDEao77fYFifI5gh_3rpehGiY0LNLtMyBsw.FsNiCsrwyyyVqt6S.2_JhLbP_HgQLwKb_pEOLoNykVyiQzz5d7DliW5KvJ_wFfmyQRrWWdHNNs_BcMU83_bZ7yYCDG2lVlaWBCh7IvhZZY7Jhp1Om6rpiDzadIy1kVYDGx6x_49RGtNSSLZ0_Ss4iFacj0eYSqDl0-dD2b4NgAp2ymse6QOlCgdPP8AnCyinqpPlHleZ2ZjxQv3Mr8Jnkrz6-WsSfvHeLjMv2lVUrh55PNUANoBhppaCCUDtSem2acVDHxTLoyujLg7w7u5NUMgeJC2uxLr2aOQWqpJzvYb-arImyCM7exYh3TUbD3GrL10HYmmfNMuLk4DDGAjL0-KK1l15sgqUGmk-8fS8MDZbT__wVWYdMpBjf0eTCg6BBE6eGzs_6mvM8izXh9Qd0vLeLhBqbuFyNjmsVBCrY-85ruDTUl0dBVGObVu79WYur51Yys23bvApS5b8-.U3yDtQ__2awyCQBCY6j1zA'
+  signingKey: 'eyJhbGciOiJBMjU2S1ciLCJlbmMiOiJBMjU2R0NNIn0.xs8M8NlJ3vF0q_A99EC9ZM1lZeHvCBIgd2zT44yPh_XHCMqQ6KIZGA.bwVfENf6R6SYBBHH.-R4xks-MmH3yjkBnTNIpVIVHEQGXprtYLegXPEdcNOi0l7NeMtqoTCJ2d_4A57QoXRozBmaP83F8kcOPRgAp72kf8STTM8FScadlVGkTgToghebuKJyQmTWo4qKC736yoxqX8z97dPkaAAOoJE6z6HXlppvghV8V25QkA0m1iP1kPNCV9UmD_Aiccy7FsmTTnzCJvhOQJf6sJXb-l7n_UTjbKvrR2phVlXcDxgPy30HgQrG-k940H7FQWnxgTmobv75LVOm_ANfEOO6cA15eCs4ThYiK1fVcejOtrOIecpN9BhCfzEqc-igWsQdSBA2eC7hVX265-QtJa_4Pj1Hsue9X6JcUrGEHyQGsPJ1WM7GjSgBES10N1HHFNvK73sx4KL5RFncJQSYTOMy9iafROkHHTUT6fBcExjTgzW_3IJkOYwEoEpt6LqbQv2GEJyMO.wo9Z9qtE0-wsIQcIhCXkGA'
 }
-[startRecordingStep] Browserbase session created: 590c9c25-5e1f-4914-884e-36fdb8efd35f
-[startRecordingStep] Live View URL: https://www.browserbase.com/devtools-fullscreen/inspector.html?wss=connect.browserbase.com/debug/590c9c25-5e1f-4914-884e-36fdb8efd35f/devtools/page/8522661E29B40D84C1CFFC54EE3407A6?debug=true
-[dotenv@17.2.3] injecting env (0) from .env -- tip: 🛠️  run anywhere with `dotenvx run -- yourcommand`
-[dotenv@17.2.3] injecting env (0) from .env -- tip: 🗂️ backup and recover secrets: https://dotenvx.com/ops
+[startRecordingStep] Browserbase session created: 81f9a6f9-b4c0-446d-862c-8c0274789450
+[startRecordingStep] Live View URL: https://www.browserbase.com/devtools-fullscreen/inspector.html?wss=connect.browserbase.com/debug/81f9a6f9-b4c0-446d-862c-8c0274789450/devtools/page/FD9AB3884B4958216A507F8E67F40A77?debug=true
+[dotenv@17.2.3] injecting env (0) from .env -- tip: 👥 sync secrets across teammates & machines: https://dotenvx.com/ops
+[dotenv@17.2.3] injecting env (0) from .env -- tip: ⚙️  suppress all logs with { quiet: true }
 [startRecordingStep] Stagehand initialized
 [startRecordingStep] Navigated to start URL: https://www.google.com/
 [ActionRecorder] Starting recording
 [ActionRecorder] Installing monitoring script (attempt 1/3)...
-[ActionRecorder] Setting up addInitScript for future navigations
 [ActionRecorder] Injecting script on current page
 [ActionRecorder] ✅ Monitoring script installed successfully
 [ActionRecorder] Event listeners will automatically persist across navigations
 [ActionRecorder] Event listener installation verified
 [ActionRecorder] Initial URL: https://www.google.com/
 [ActionRecorder] ✅ Started recording with persistent event listeners
-[startRecordingStep] ✅ Action recorder started with event listeners verified
+[startRecordingStep] Action recorder started
 [startRecordingStep] Recording session saved to database
- POST /.well-known/workflow/v1/step 200 in 7.7s (compile: 322ms, render: 7.4s)
- POST /.well-known/workflow/v1/flow 200 in 14ms (compile: 3ms, render: 11ms)
-[POST /api/skills/start-recording] Recording started: rec_1765746452135_6krs7w754
- POST /api/skills/start-recording 200 in 10.2s (compile: 2.0s, render: 8.2s)
+ POST /.well-known/workflow/v1/step 200 in 7.9s (compile: 337ms, render: 7.5s)
+ POST /.well-known/workflow/v1/flow 200 in 16ms (compile: 2ms, render: 13ms)
+[POST /api/skills/start-recording] Recording started: rec_1765754367577_6dyk31sa7
+ POST /api/skills/start-recording 200 in 10.3s (compile: 1987ms, render: 8.3s)
+[ActionRecorder] Retrieved 1 actions from page
+[ActionRecorder] Retrieved 6 actions from page
+[ActionRecorder] Retrieved 9 actions from page
 [ActionRecorder] Retrieved 5 actions from page
-[ActionRecorder] Retrieved 12 actions from page
-[ActionRecorder] Retrieved 4 actions from page
-[ActionRecorder] URL changed: https://www.google.com/ -> https://www.google.com/search?q=how+old+is+brad+pitt&sca_esv=4063a013568e4ff8&source=hp&ei=GSc_afyVErrK0PEPnKejuQo&iflsig=AOw8s4IAAAAAaT81KST_0vbv-B2w_0iAiTd13ccaIhUp&ved=0ahUKEwi8hueS_r2RAxU6JTQIHZzTKKcQ4dUDCBY&oq=how+old+is+brad+pitt&gs_lp=Egdnd3Mtd2l6IhRob3cgb2xkIGlzIGJyYWQgcGl0dDIIEAAYgAQYsQMyBRAAGIAEMgUQABiABDIFEAAYgAQyBRAAGIAEMgUQABiABDIFEAAYgAQyBRAAGIAEMgUQABiABDIFEAAYgARI9TNQiwhYuSdwAXgAkAEAmAF6oAGKCqoBBDE5LjG4AQzIAQD4AQGYAhWgAswLqAIKwgIKEAAYAxiPARjqAsICDhAuGIAEGLEDGMcBGNEDwgIOEAAYgAQYigUYsQMYgwHCAg4QLhiABBiKBRixAxiDAcICERAuGIAEGLEDGIMBGMcBGNEDwgILEAAYgAQYsQMYgwHCAgsQLhiABBixAxiDAcICCBAuGIAEGLEDwgIEEAAYA5gDC5IHBDIwLjGgB4-GAbIHBDE5LjG4B8ELwgcGMi0xNS42yAeLAYAIAQ&sclient=gws-wiz&sei=Jic_af7zFdit0PEPm8__kAY
+[ActionRecorder] URL changed: https://www.google.com/ -> https://www.google.com/search?q=how+old+is+brad+pitt%3F&sca_esv=295c40e6b26b4887&source=hp&ei=BUY_ae4lr9jQ8Q-b_en4Cw&iflsig=AOw8s4IAAAAAaT9UFX_PBWRDllfjbm2qnD1ycT8D5t7E&ved=0ahUKEwiuvKfRm76RAxUvLDQIHZt-Gr8Q4dUDCBY&oq=how+old+is+brad+pitt%3F&gs_lp=Egdnd3Mtd2l6IhVob3cgb2xkIGlzIGJyYWQgcGl0dD8yBRAAGIAEMgUQABiABDIFEAAYgAQyBRAAGIAEMgUQABiABDIFEAAYgAQyBRAAGIAEMgUQABiABDIFEAAYgAQyBRAAGIAESLQ9UIAGWLUwcAF4AJABAJgBgAGgAfQJqgEEMjAuMbgBDMgBAPgBAZgCFqACsguoAgrCAgoQABgDGI8BGOoCwgIOEC4YgAQYsQMYxwEY0QPCAg4QABiABBiKBRixAxiDAcICERAuGIAEGLEDGIMBGMcBGNEDwgIOEC4YgAQYigUYsQMYgwHCAggQABiABBixA8ICCxAuGIAEGLEDGIMBwgILEAAYgAQYsQMYgwHCAggQLhiABBixA8ICBBAAGAOYAwqSBwQyMS4xoAfyjQGyBwQyMC4xuAeoC8IHCDItMTguMy4xyAebAYAIAQ&sclient=gws-wiz&sei=EkY_aZXpJZ_G0PEPsrqSkAE
 [ActionRecorder] Event listeners will auto-persist via addInitScript
 [POST /api/skills/finish-recording] Finishing recording workflow {
-  recordingId: 'rec_1765746452135_6krs7w754',
-  sessionId: '590c9c25-5e1f-4914-884e-36fdb8efd35f',
+  recordingId: 'rec_1765754367577_6dyk31sa7',
+  sessionId: '81f9a6f9-b4c0-446d-862c-8c0274789450',
   creatorAddress: '0x08bfec5133141cc704a34505d5e504503bf3168d'
 }
- POST /.well-known/workflow/v1/flow 200 in 16ms (compile: 1359µs, render: 14ms)
+ POST /.well-known/workflow/v1/flow 200 in 12ms (compile: 1310µs, render: 11ms)
 [finishRecordingStep] Finishing recording {
-  recordingId: 'rec_1765746452135_6krs7w754',
-  sessionId: '590c9c25-5e1f-4914-884e-36fdb8efd35f',
+  recordingId: 'rec_1765754367577_6dyk31sa7',
+  sessionId: '81f9a6f9-b4c0-446d-862c-8c0274789450',
   creatorAddress: '0x08bfec5133141cc704a34505d5e504503bf3168d'
 }
-[finishRecordingStep] Loaded recording session: { recordingId: 'rec_1765746452135_6krs7w754', actionsCount: 22 }
+[finishRecordingStep] Loaded recording session: { recordingId: 'rec_1765754367577_6dyk31sa7', actionsCount: 22 }
 [ActionRecorder] Performing final action retrieval from browser...
 [ActionRecorder] No additional actions found in browser
 [ActionRecorder] Grouping 22 raw actions...
@@ -94,8 +103,8 @@ Created intermediate workflow bundle 12ms
 [finishRecordingStep] Stopped action recorder
 [finishRecordingStep] Reloaded recording with grouped actions: { actionsCount: 3 }
 [finishRecordingStep] Captured page context: {
-  url: 'https://www.google.com/search?q=how+old+is+brad+pitt&sca_esv=4063a013568e4ff8&source=hp&ei=GSc_afyVErrK0PEPnKejuQo&iflsig=AOw8s4IAAAAAaT81KST_0vbv-B2w_0iAiTd13ccaIhUp&ved=0ahUKEwi8hueS_r2RAxU6JTQIHZzTKKcQ4dUDCBY&oq=how+old+is+brad+pitt&gs_lp=Egdnd3Mtd2l6IhRob3cgb2xkIGlzIGJyYWQgcGl0dDIIEAAYgAQYsQMyBRAAGIAEMgUQABiABDIFEAAYgAQyBRAAGIAEMgUQABiABDIFEAAYgAQyBRAAGIAEMgUQABiABDIFEAAYgARI9TNQiwhYuSdwAXgAkAEAmAF6oAGKCqoBBDE5LjG4AQzIAQD4AQGYAhWgAswLqAIKwgIKEAAYAxiPARjqAsICDhAuGIAEGLEDGMcBGNEDwgIOEAAYgAQYigUYsQMYgwHCAg4QLhiABBiKBRixAxiDAcICERAuGIAEGLEDGIMBGMcBGNEDwgILEAAYgAQYsQMYgwHCAgsQLhiABBixAxiDAcICCBAuGIAEGLEDwgIEEAAYA5gDC5IHBDIwLjGgB4-GAbIHBDE5LjG4B8ELwgcGMi0xNS42yAeLAYAIAQ&sclient=gws-wiz&sei=Jic_af7zFdit0PEPm8__kAY',
-  title: 'how old is brad pitt - Google Search',
+  url: 'https://www.google.com/search?q=how+old+is+brad+pitt%3F&sca_esv=295c40e6b26b4887&source=hp&ei=BUY_ae4lr9jQ8Q-b_en4Cw&iflsig=AOw8s4IAAAAAaT9UFX_PBWRDllfjbm2qnD1ycT8D5t7E&ved=0ahUKEwiuvKfRm76RAxUvLDQIHZt-Gr8Q4dUDCBY&oq=how+old+is+brad+pitt%3F&gs_lp=Egdnd3Mtd2l6IhVob3cgb2xkIGlzIGJyYWQgcGl0dD8yBRAAGIAEMgUQABiABDIFEAAYgAQyBRAAGIAEMgUQABiABDIFEAAYgAQyBRAAGIAEMgUQABiABDIFEAAYgAQyBRAAGIAESLQ9UIAGWLUwcAF4AJABAJgBgAGgAfQJqgEEMjAuMbgBDMgBAPgBAZgCFqACsguoAgrCAgoQABgDGI8BGOoCwgIOEC4YgAQYsQMYxwEY0QPCAg4QABiABBiKBRixAxiDAcICERAuGIAEGLEDGIMBGMcBGNEDwgIOEC4YgAQYigUYsQMYgwHCAggQABiABBixA8ICCxAuGIAEGLEDGIMBwgILEAAYgAQYsQMYgwHCAggQLhiABBixA8ICBBAAGAOYAwqSBwQyMS4xoAfyjQGyBwQyMC4xuAeoC8IHCDItMTguMy4xyAebAYAIAQ&sclient=gws-wiz&sei=EkY_aZXpJZ_G0PEPsrqSkAE',
+  title: 'how old is brad pitt? - Google Search',
   headingCount: 5,
   hints: {
     hasPriceElements: false,
@@ -170,13 +179,13 @@ Created intermediate workflow bundle 12ms
 [finishRecordingStep] ✅ Using inferred goal (confidence >= 0.7)
 [Variable Detector Enhanced] Mapping result: {
   mappings: { 'how old is brad pitt': '%query%' },
-  explanation: "The captured value 'how old is brad pitt' is a text-input type and matches the context of a search query. The goal is to search Google for a specific query, and the variable in the goal is '%query%'. Therefore, the value maps directly to '%query%' based on its semantic meaning and context."
+  explanation: 'The captured value "how old is brad pitt" is a text input used in the context of a search query. The goal is to search Google for a specific query, which directly corresponds to the variable %query%. Therefore, the mapping is straightforward: the text input value maps to the %query% variable.'
 }
 [finishRecordingStep] Variable mapping (enhanced): { 'how old is brad pitt': '%query%' }
 [finishRecordingStep] Applied variable mapping to 1 actions
 [finishRecordingStep] Prepended initial navigation to: https://www.google.com/
 [filterRedundantNavigations] Keeping initial navigation: https://www.google.com/
-[filterRedundantNavigations] 🔄 Converting auto-navigation to submit after type (6.2s later)
+[filterRedundantNavigations] 🔄 Converting auto-navigation to submit after type (9.2s later)
 [filterRedundantNavigations] ✓ Created submit action: Press Enter to submit search
 [finishRecordingStep] Filtered actions: { before: 4, after: 4, removed: 0 }
 [Schema Generator] Analysis: {
@@ -206,17 +215,17 @@ Created intermediate workflow bundle 12ms
 [replayWorkflow] Executing action: act Press Enter to submit search
 [replayWorkflow] Action executed with exact selector
 [finishRecordingStep] Workflow validation successful
-[2025-12-14T21:08:15.425Z] ERROR: initiating shutdown → CDP transport closed: socket-close code=1006 reason=
-[2025-12-14T21:08:15.426Z] ERROR: closing resources → CDP transport closed: socket-close code=1006 reason=
-[2025-12-14T21:08:15.586Z] ERROR: Browserbase session status: COMPLETED
+[2025-12-14T23:20:11.863Z] ERROR: initiating shutdown → CDP transport closed: socket-close code=1006 reason=
+[2025-12-14T23:20:11.863Z] ERROR: closing resources → CDP transport closed: socket-close code=1006 reason=
+[2025-12-14T23:20:12.215Z] ERROR: Browserbase session status: COMPLETED
 [finishRecordingStep] Session close timed out after 10s, continuing anyway
-[finishRecordingStep] Skill saved to database: skill_1765746505021_vuve0q5ol
- POST /.well-known/workflow/v1/step 200 in 26.1s (compile: 1086µs, render: 26.1s)
- POST /.well-known/workflow/v1/flow 200 in 9ms (compile: 1383µs, render: 8ms)
-[POST /api/skills/finish-recording] Skill created: skill_1765746505021_vuve0q5ol
- POST /api/skills/finish-recording 200 in 27.7s (compile: 446ms, render: 27.2s)
- GET /skills/skill_1765746505021_vuve0q5ol 200 in 1567ms (compile: 1543ms, render: 24ms)
-[GET /api/skills/[skillId]] Fetching skill: skill_1765746505021_vuve0q5ol
-[GET /api/skills/[skillId]] Fetching skill: skill_1765746505021_vuve0q5ol
- GET /api/skills/skill_1765746505021_vuve0q5ol 200 in 1156ms (compile: 1130ms, render: 27ms)
- GET /api/skills/skill_1765746505021_vuve0q5ol 200 in 1299ms (compile: 1132ms, render: 167ms)
+[finishRecordingStep] Skill saved to database: skill_1765754421195_ot94whekg
+ POST /.well-known/workflow/v1/step 200 in 26.1s (compile: 1318µs, render: 26.1s)
+ POST /.well-known/workflow/v1/flow 200 in 8ms (compile: 938µs, render: 7ms)
+[POST /api/skills/finish-recording] Skill created: skill_1765754421195_ot94whekg
+ POST /api/skills/finish-recording 200 in 27.8s (compile: 466ms, render: 27.3s)
+ GET /skills/skill_1765754421195_ot94whekg 200 in 1621ms (compile: 1595ms, render: 27ms)
+[GET /api/skills/[skillId]] Fetching skill: skill_1765754421195_ot94whekg
+[GET /api/skills/[skillId]] Fetching skill: skill_1765754421195_ot94whekg
+ GET /api/skills/skill_1765754421195_ot94whekg 200 in 1180ms (compile: 1134ms, render: 46ms)
+ GET /api/skills/skill_1765754421195_ot94whekg 200 in 1395ms (compile: 1136ms, render: 260ms)
