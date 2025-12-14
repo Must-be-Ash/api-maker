@@ -2,12 +2,18 @@ import { start } from 'workflow/api';
 import { startRecording } from '@/workflows/start-recording';
 import type { StartRecordingInput } from '@/lib/types/skills';
 import { NextRequest } from 'next/server';
+import { validateSession } from '@/lib/auth/validate-session';
 
 /**
  * POST /api/skills/start-recording
  *
  * Starts a new skill recording session.
  * Creates a Browserbase session with Live View for manual demonstration.
+ *
+ * REQUIRES AUTHENTICATION
+ *
+ * Request Headers:
+ * - Authorization: Bearer <CDP_ACCESS_TOKEN> (required)
  *
  * Request Body:
  * - goal: string (required) - What the user wants to automate
@@ -22,6 +28,16 @@ import { NextRequest } from 'next/server';
  */
 export async function POST(request: NextRequest) {
   try {
+    // AUTHENTICATE USER
+    const session = await validateSession(request);
+
+    if (!session.isAuthenticated) {
+      return Response.json(
+        { error: 'Unauthorized', message: session.error },
+        { status: 401 }
+      );
+    }
+
     const body = await request.json();
     const { goal, startUrl } = body;
 
@@ -36,6 +52,7 @@ export async function POST(request: NextRequest) {
     const input: StartRecordingInput = {
       goal,
       startUrl,
+      creatorAddress: session.evmAddress, // SERVER-VERIFIED ADDRESS
     };
 
     console.log('[POST /api/skills/start-recording] Starting recording workflow', input);

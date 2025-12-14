@@ -1,5 +1,7 @@
 import { connectDB } from '@/lib/mongodb';
 import { NextRequest } from 'next/server';
+import { validateSession } from '@/lib/auth/validate-session';
+import { checkSkillOwnership } from '@/lib/auth/check-ownership';
 
 /**
  * GET /api/skills/[skillId]
@@ -60,10 +62,14 @@ export async function GET(
  * Updates a skill's properties (e.g., name, price).
  * Only the skill creator can edit the skill.
  *
+ * REQUIRES AUTHENTICATION
+ *
+ * Request Headers:
+ * - Authorization: Bearer <CDP_ACCESS_TOKEN> (required)
+ *
  * Request body:
  * - name?: string (new skill name)
  * - price?: number (new skill price)
- * - requestorAddress?: string (EVM wallet address of requestor for ownership validation)
  *
  * Response:
  * - Success message or 403 if unauthorized
@@ -75,6 +81,16 @@ export async function PATCH(
   try {
     const { skillId } = await params;
 
+    // AUTHENTICATE USER
+    const session = await validateSession(request);
+
+    if (!session.isAuthenticated) {
+      return Response.json(
+        { error: 'Unauthorized', message: session.error },
+        { status: 401 }
+      );
+    }
+
     // Validate skillId
     if (!skillId || typeof skillId !== 'string') {
       return Response.json(
@@ -84,7 +100,8 @@ export async function PATCH(
     }
 
     const body = await request.json();
-    const { name, price, requestorAddress } = body;
+    const { name, price } = body;
+    // REMOVED: requestorAddress (was spoofable!)
 
     // Fetch skill from MongoDB first to check ownership
     const db = await connectDB();
@@ -97,22 +114,15 @@ export async function PATCH(
       );
     }
 
-    // Check ownership: if skill has a creator, only they can edit
-    if (skill.creatorAddress) {
-      if (!requestorAddress) {
-        return Response.json(
-          { error: 'Unauthorized: Authentication required to edit this skill' },
-          { status: 401 }
-        );
-      }
-
-      // Case-insensitive address comparison
-      if (skill.creatorAddress.toLowerCase() !== requestorAddress.toLowerCase()) {
-        return Response.json(
-          { error: 'Unauthorized: Only the skill creator can edit this skill' },
-          { status: 403 }
-        );
-      }
+    // AUTHORIZE: Check ownership using SERVER-VERIFIED address
+    if (!checkSkillOwnership(session.evmAddress, skill.creatorAddress)) {
+      return Response.json(
+        {
+          error: 'Forbidden: Only the skill creator can edit this skill',
+          creator: skill.creatorAddress,
+        },
+        { status: 403 }
+      );
     }
 
     // Build update object

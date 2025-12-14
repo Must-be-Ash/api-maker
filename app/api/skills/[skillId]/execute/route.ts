@@ -3,11 +3,20 @@ import { executeSkill } from '@/workflows/execute-skill';
 import { connectDB } from '@/lib/mongodb';
 import type { ExecuteSkillInput } from '@/lib/types/skills';
 import { NextRequest } from 'next/server';
+import { validateSession } from '@/lib/auth/validate-session';
 
 /**
  * POST /api/skills/[skillId]/execute
  *
  * Executes a skill using the triple replay strategy.
+ *
+ * AUTHENTICATION: Optional (for tracking purposes)
+ * - Execution works with or without authentication
+ * - If authenticated, executor is tracked for analytics
+ * - If not authenticated, executor is logged as 'anonymous'
+ *
+ * Request Headers (Optional):
+ * - Authorization: Bearer <CDP_ACCESS_TOKEN> (for tracking who executed)
  *
  * Request Body:
  * - variables: Record<string, any> (optional) - Variables to substitute in the workflow
@@ -28,6 +37,10 @@ export async function POST(
   try {
     const { skillId } = await params;
 
+    // OPTIONAL AUTH: Check if user is authenticated (for analytics)
+    // Don't block execution if not authenticated (allows public API usage)
+    const session = await validateSession(request);
+
     // Validate skillId
     if (!skillId || typeof skillId !== 'string') {
       return Response.json(
@@ -42,6 +55,7 @@ export async function POST(
     const input: ExecuteSkillInput = {
       skillId,
       variables,
+      executorAddress: session.isAuthenticated ? session.evmAddress : null, // Track executor if authenticated
     };
 
     console.log('[POST /api/skills/[skillId]/execute] Executing skill', input);
@@ -58,12 +72,13 @@ export async function POST(
       success: result.success,
     });
 
-    // Log execution for analytics
+    // Log execution for analytics (with optional executor tracking)
     const db = await connectDB();
     await db.collection('skill_executions').insertOne({
       executionId: workflowResult.runId,
       skillId,
       variables,
+      executorAddress: session.isAuthenticated ? session.evmAddress : 'anonymous',
       ...result,
       createdAt: new Date().toISOString(),
     });

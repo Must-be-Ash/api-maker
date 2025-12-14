@@ -5,10 +5,13 @@ import { useRouter } from 'next/navigation';
 import { ArrowRight, Video, Sparkles, CheckCircle2, Loader2 } from 'lucide-react';
 import { Header } from '@/components/Header';
 import { useEvmAddress } from '@coinbase/cdp-hooks';
+import { useAccessToken } from '@/lib/hooks/use-access-token';
+import { authenticatedFetch } from '@/lib/api/authenticated-fetch';
 
 export default function RecordSkillPage() {
   const router = useRouter();
   const { evmAddress } = useEvmAddress();
+  const accessToken = useAccessToken();
   const [step, setStep] = useState<'describe' | 'recording' | 'validating' | 'review'>('describe');
   const [goal, setGoal] = useState('');
   const [startUrl, setStartUrl] = useState('');
@@ -28,20 +31,30 @@ export default function RecordSkillPage() {
       return;
     }
 
+    if (!accessToken) {
+      setError('Please sign in to create a skill');
+      return;
+    }
+
     setLoading(true);
     setError(null);
 
     try {
-      const response = await fetch('/api/skills/start-recording', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          goal: goal.trim(),
-          startUrl: startUrl.trim(),
-        }),
-      });
+      const response = await authenticatedFetch(
+        '/api/skills/start-recording',
+        accessToken,
+        {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({
+            goal: goal.trim(),
+            startUrl: startUrl.trim(),
+            // DON'T send creatorAddress - server will use verified address
+          }),
+        }
+      );
 
       if (!response.ok) {
         const errorData = await response.json();
@@ -78,21 +91,30 @@ export default function RecordSkillPage() {
   };
 
   const handleFinishRecording = async () => {
+    if (!accessToken) {
+      setError('Please sign in to finish recording');
+      return;
+    }
+
     setStep('validating');
     setError(null);
 
     try {
-      const response = await fetch('/api/skills/finish-recording', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          recordingId: recordingData.recordingId,
-          sessionId: recordingData.sessionId,
-          creatorAddress: evmAddress || null,
-        }),
-      });
+      const response = await authenticatedFetch(
+        '/api/skills/finish-recording',
+        accessToken,
+        {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({
+            recordingId: recordingData.recordingId,
+            sessionId: recordingData.sessionId,
+            // DON'T send creatorAddress - server will use verified address
+          }),
+        }
+      );
 
       if (!response.ok) {
         const errorData = await response.json();

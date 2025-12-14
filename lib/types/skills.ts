@@ -241,6 +241,7 @@ export interface ActResult {
 export interface StartRecordingInput {
   goal: string;
   startUrl?: string;
+  creatorAddress?: string; // Server-verified wallet address (set by API route)
 }
 
 /**
@@ -260,7 +261,7 @@ export interface StartRecordingOutput {
 export interface FinishRecordingInput {
   recordingId: string;
   sessionId: string;
-  creatorAddress?: string; // EVM wallet address of skill creator
+  creatorAddress?: string; // Server-verified wallet address (set by API route)
 }
 
 /**
@@ -293,6 +294,7 @@ export interface FinishRecordingOutput {
 export interface ExecuteSkillInput {
   skillId: string;
   variables?: Record<string, any>;
+  executorAddress?: string | null; // Wallet address of executor (optional, for analytics)
 }
 
 /**

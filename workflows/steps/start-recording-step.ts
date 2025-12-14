@@ -118,6 +118,7 @@ export async function startRecordingStep(input: StartRecordingInput): Promise<St
     liveViewUrl,
     goal: input.goal,
     startUrl: input.startUrl,
+    creatorAddress: input.creatorAddress || null, // Server-verified wallet address
     recordedActions: [],
     status: 'recording',
     createdAt: new Date().toISOString(),

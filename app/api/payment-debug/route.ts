@@ -6,7 +6,20 @@ import {
 } from '@/lib/payment-verification';
 import type { Resource } from 'x402/types';
 
+/**
+ * DEBUG ENDPOINT - DISABLED IN PRODUCTION
+ * This endpoint is for testing x402 payment verification.
+ * Only available in development environment.
+ */
 export async function POST(request: NextRequest) {
+  // SECURITY: Block in production
+  if (process.env.NODE_ENV === 'production') {
+    return NextResponse.json(
+      { error: 'Not found' },
+      { status: 404 }
+    );
+  }
+
   const paymentHeader = request.headers.get('X-PAYMENT');
   const requestUrl = `${new URL(request.url).origin}${new URL(request.url).pathname}` as Resource;
 

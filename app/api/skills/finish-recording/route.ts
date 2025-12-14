@@ -2,16 +2,22 @@ import { start } from 'workflow/api';
 import { finishRecording } from '@/workflows/finish-recording';
 import type { FinishRecordingInput } from '@/lib/types/skills';
 import { NextRequest } from 'next/server';
+import { validateSession } from '@/lib/auth/validate-session';
+import { connectDB } from '@/lib/mongodb';
 
 /**
  * POST /api/skills/finish-recording
  *
  * Finishes a recording session, validates the workflow, and creates a skill.
  *
+ * REQUIRES AUTHENTICATION
+ *
+ * Request Headers:
+ * - Authorization: Bearer <CDP_ACCESS_TOKEN> (required)
+ *
  * Request Body:
  * - recordingId: string (required) - ID of the recording session
  * - sessionId: string (required) - Browserbase session ID
- * - creatorAddress?: string (optional) - EVM wallet address of skill creator
  *
  * Response:
  * - skillId: string - Unique ID for the created skill
@@ -23,8 +29,18 @@ import { NextRequest } from 'next/server';
  */
 export async function POST(request: NextRequest) {
   try {
+    // AUTHENTICATE USER
+    const session = await validateSession(request);
+
+    if (!session.isAuthenticated) {
+      return Response.json(
+        { error: 'Unauthorized', message: session.error },
+        { status: 401 }
+      );
+    }
+
     const body = await request.json();
-    const { recordingId, sessionId, creatorAddress } = body;
+    const { recordingId, sessionId } = body;
 
     // Validate input
     if (!recordingId || typeof recordingId !== 'string') {
@@ -41,10 +57,31 @@ export async function POST(request: NextRequest) {
       );
     }
 
+    // AUTHORIZE: Verify user owns this recording session
+    const db = await connectDB();
+    const recording = await db.collection('recording_sessions').findOne({
+      recordingId,
+    });
+
+    if (!recording) {
+      return Response.json(
+        { error: 'Recording not found' },
+        { status: 404 }
+      );
+    }
+
+    // Check ownership (recording must have been started by this user)
+    if (recording.creatorAddress && recording.creatorAddress.toLowerCase() !== session.evmAddress) {
+      return Response.json(
+        { error: 'Forbidden: You do not own this recording session' },
+        { status: 403 }
+      );
+    }
+
     const input: FinishRecordingInput = {
       recordingId,
       sessionId,
-      creatorAddress: creatorAddress || null,
+      creatorAddress: session.evmAddress, // Use server-verified address
     };
 
     console.log('[POST /api/skills/finish-recording] Finishing recording workflow', input);

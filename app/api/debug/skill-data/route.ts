@@ -1,7 +1,20 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { connectDB } from '@/lib/mongodb';
 
+/**
+ * DEBUG ENDPOINT - DISABLED IN PRODUCTION
+ * This endpoint exposes skill internal structure for debugging purposes.
+ * Only available in development environment.
+ */
 export async function GET(request: NextRequest) {
+  // SECURITY: Block in production
+  if (process.env.NODE_ENV === 'production') {
+    return NextResponse.json(
+      { error: 'Not found' },
+      { status: 404 }
+    );
+  }
+
   const skillId = request.nextUrl.searchParams.get('skillId') || 'skill_1765315026786_lcr498kum';
 
   try {

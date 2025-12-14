@@ -5,6 +5,8 @@ import { useParams } from 'next/navigation';
 import { Header } from '@/components/Header';
 import { SkillTester } from '@/components/SkillTester';
 import { useEvmAddress } from '@coinbase/cdp-hooks';
+import { useAccessToken } from '@/lib/hooks/use-access-token';
+import { authenticatedFetch } from '@/lib/api/authenticated-fetch';
 import {
   Loader2,
   CheckCircle2,
@@ -51,6 +53,7 @@ export default function SkillDetailsPage() {
   const params = useParams();
   const skillId = params.skillId as string;
   const { evmAddress } = useEvmAddress();
+  const accessToken = useAccessToken();
 
   const [skill, setSkill] = useState<Skill | null>(null);
   const [loading, setLoading] = useState(true);
@@ -152,17 +155,26 @@ export default function SkillDetailsPage() {
   const saveSkillName = async () => {
     if (!skill || !editedName.trim()) return;
 
+    if (!accessToken) {
+      alert('Please sign in to edit skills');
+      return;
+    }
+
     try {
-      const response = await fetch(`/api/skills/${skillId}`, {
-        method: 'PATCH',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          name: editedName.trim(),
-          requestorAddress: evmAddress,
-        }),
-      });
+      const response = await authenticatedFetch(
+        `/api/skills/${skillId}`,
+        accessToken,
+        {
+          method: 'PATCH',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({
+            name: editedName.trim(),
+            // REMOVED: requestorAddress (server-verified now!)
+          }),
+        }
+      );
 
       if (!response.ok) {
         const error = await response.json();
@@ -200,16 +212,25 @@ export default function SkillDetailsPage() {
       return;
     }
 
+    if (!accessToken) {
+      alert('Please sign in to edit skills');
+      return;
+    }
+
     try {
-      const response = await fetch(`/api/skills/${skillId}`, {
-        method: 'PATCH',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          price: newPrice,
-          requestorAddress: evmAddress,
-        }),
+      const response = await authenticatedFetch(
+        `/api/skills/${skillId}`,
+        accessToken,
+        {
+          method: 'PATCH',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({
+            price: newPrice,
+            // REMOVED: requestorAddress (server-verified now!)
+          }),
+        }
       });
 
       if (!response.ok) {
