@@ -48,8 +48,10 @@ Thumbs.db
 # Documentation
 docs/workflow-docs/
 
-# Log files and debugging
-log.md
-logs_result.json
-*.log.md
-*_logs.json
+# Scripts
+scripts/
+
+# Tests
+tests/
+test-results/
+
