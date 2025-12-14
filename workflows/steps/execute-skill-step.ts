@@ -141,7 +141,7 @@ export async function executeSkillStep(input: ExecuteSkillInput): Promise<Execut
     env: "BROWSERBASE",
     apiKey: process.env.BROWSERBASE_API_KEY,
     projectId: process.env.BROWSERBASE_PROJECT_ID,
-    verbose: 1,
+    verbose: 0, // Disable verbose logging in production (pino-pretty not available in Vercel)
     model: "openai/gpt-4o", // Use OpenAI GPT-4o for AI operations (v3 API)
   });
 
