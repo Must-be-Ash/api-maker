@@ -23,9 +23,17 @@ export class ActionRecorder {
 
   /**
    * Inject monitoring script into the page to capture user actions
+   * Includes retry logic to handle timing issues in serverless environments
    */
   private async injectMonitoringScript() {
-    await this.page.evaluate(() => {
+    const MAX_RETRIES = 3;
+    const RETRY_DELAY = 1000; // 1 second
+
+    for (let attempt = 1; attempt <= MAX_RETRIES; attempt++) {
+      try {
+        console.log(`[ActionRecorder] Injecting monitoring script (attempt ${attempt}/${MAX_RETRIES})...`);
+
+        await this.page.evaluate(() => {
       // Initialize or reset the recorded actions array
       (window as any)._recordedActions = (window as any)._recordedActions || [];
 
@@ -919,8 +927,35 @@ export class ActionRecorder {
         console.log('[ActionRecorder] Captured submit:', action);
       }, true);
 
-      console.log('[ActionRecorder] Event listeners attached successfully');
-    });
+          console.log('[ActionRecorder] Event listeners attached successfully');
+        });
+
+        // ✅ Verify injection succeeded by checking for _recordedActions
+        const injectionSucceeded = await this.page.evaluate(() => {
+          return typeof (window as any)._recordedActions !== 'undefined';
+        });
+
+        if (injectionSucceeded) {
+          console.log('[ActionRecorder] ✅ Monitoring script injected successfully');
+          return; // Success!
+        } else {
+          console.warn(`[ActionRecorder] ⚠️ Injection attempt ${attempt} failed: _recordedActions not found`);
+          if (attempt < MAX_RETRIES) {
+            await new Promise(resolve => setTimeout(resolve, RETRY_DELAY));
+          }
+        }
+      } catch (error) {
+        console.error(`[ActionRecorder] ❌ Injection attempt ${attempt} failed:`, error);
+        if (attempt < MAX_RETRIES) {
+          await new Promise(resolve => setTimeout(resolve, RETRY_DELAY));
+        } else {
+          // Last attempt failed - throw error to surface the issue
+          throw new Error(`Failed to inject monitoring script after ${MAX_RETRIES} attempts: ${error}`);
+        }
+      }
+    }
+
+    throw new Error(`Failed to inject monitoring script: _recordedActions not initialized after ${MAX_RETRIES} attempts`);
   }
 
   /**
@@ -931,17 +966,34 @@ export class ActionRecorder {
 
     console.log('[ActionRecorder] Starting recording');
 
-    // Inject the monitoring script into the current page
-    await this.injectMonitoringScript();
+    try {
+      // Inject the monitoring script into the current page
+      await this.injectMonitoringScript(); // Now throws on failure
 
-    // Initialize last URL for navigation tracking
-    this.lastUrl = this.page.url();
-    console.log('[ActionRecorder] Initial URL:', this.lastUrl);
+      // ✅ Verify injection by testing retrieval immediately
+      const testActions = await this.page.evaluate(() => {
+        return (window as any)._recordedActions || null;
+      });
 
-    // Poll for captured actions and URL changes
-    this.startPolling();
+      if (testActions === null) {
+        throw new Error('Event listeners injection failed: _recordedActions is null');
+      }
 
-    console.log('[ActionRecorder] Started recording');
+      console.log('[ActionRecorder] Event listener injection verified');
+
+      // Initialize last URL for navigation tracking
+      this.lastUrl = this.page.url();
+      console.log('[ActionRecorder] Initial URL:', this.lastUrl);
+
+      // Poll for captured actions and URL changes
+      this.startPolling();
+
+      console.log('[ActionRecorder] ✅ Started recording with event listeners active');
+    } catch (error) {
+      this.recording = false;
+      console.error('[ActionRecorder] ❌ Failed to start recording:', error);
+      throw error; // Re-throw to fail the workflow step
+    }
   }
 
   /**

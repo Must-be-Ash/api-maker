@@ -104,9 +104,14 @@ export async function startRecordingStep(input: StartRecordingInput): Promise<St
 
   // Attach action recorder
   const recorder = new ActionRecorder(page, recordingId);
-  await recorder.startRecording();
 
-  console.log('[startRecordingStep] Action recorder started');
+  try {
+    await recorder.startRecording();
+    console.log('[startRecordingStep] ✅ Action recorder started with event listeners verified');
+  } catch (error) {
+    console.error('[startRecordingStep] ❌ Failed to start action recorder:', error);
+    throw new Error(`Action recording initialization failed: ${error}`);
+  }
 
   // Dynamically import MongoDB helper
   const { connectDB } = await import("@/lib/mongodb");

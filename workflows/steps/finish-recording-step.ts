@@ -408,6 +408,12 @@ export async function finishRecordingStep(input: FinishRecordingInput): Promise<
 
       console.log('[finishRecordingStep] Retrieved', pageActions.length, 'actions from browser');
 
+      if (pageActions.length === 0) {
+        console.warn('[finishRecordingStep] ⚠️ WARNING: No actions captured during recording!');
+        console.warn('[finishRecordingStep] This likely means event listener injection failed in start-recording step.');
+        console.warn('[finishRecordingStep] Check start-recording logs for injection errors.');
+      }
+
       if (pageActions && pageActions.length > 0) {
         // Dynamically import action grouper
         const { groupActions } = await import("@/lib/capture/action-grouper");
