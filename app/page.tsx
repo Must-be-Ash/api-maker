@@ -3,16 +3,16 @@
 import Image from 'next/image';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useIsSignedIn } from '@coinbase/cdp-hooks';
-import { useRouter, useSearchParams } from 'next/navigation';
-import { useEffect, useState } from 'react';
+import { useRouter } from 'next/navigation';
+import { useEffect, useState, Suspense } from 'react';
 import { CustomAuthButton } from '@/components/CustomAuthButton';
 import { MobileHero } from '@/components/MobileHero';
 import { Play, X } from 'lucide-react';
+import { AuthPromptHandler } from '@/components/AuthPromptHandler';
 
 export default function LandingPage() {
   const { isSignedIn } = useIsSignedIn();
   const router = useRouter();
-  const searchParams = useSearchParams();
   const [showAuthPrompt, setShowAuthPrompt] = useState(false);
   const [showVideo, setShowVideo] = useState(false);
 
@@ -37,17 +37,14 @@ export default function LandingPage() {
     }
   }, [isSignedIn, router]);
 
-  // Show auth prompt if redirected from protected route
-  useEffect(() => {
-    if (searchParams.get('auth') === 'required') {
-      setShowAuthPrompt(true);
-      const timeout = setTimeout(() => setShowAuthPrompt(false), 5000);
-      return () => clearTimeout(timeout);
-    }
-  }, [searchParams]);
 
   return (
     <main className="min-h-screen bg-[#F8F8F9] relative overflow-x-hidden">
+      {/* Handle auth query parameter */}
+      <Suspense fallback={null}>
+        <AuthPromptHandler onShowPrompt={setShowAuthPrompt} />
+      </Suspense>
+
       {/* Auth prompt banner */}
       {showAuthPrompt && (
         <div className="fixed top-4 left-1/2 transform -translate-x-1/2 z-50">
