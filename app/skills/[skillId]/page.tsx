@@ -513,7 +513,7 @@ export default function SkillDetailsPage() {
         </div>
 
         {/* Recording Session */}
-        <div className="bg-white border border-slate-200 rounded-xl p-6 space-y-3">
+        {/* <div className="bg-white border border-slate-200 rounded-xl p-6 space-y-3">
           <h2 className="text-xl font-bold text-slate-900">Recording Session</h2>
           <a
             href={skill.recordingSessionUrl}
@@ -524,7 +524,7 @@ export default function SkillDetailsPage() {
             View Session Replay
             <ExternalLink className="h-4 w-4" />
           </a>
-        </div>
+        </div> */}
 
         {/* Test Section */}
         <SkillTester

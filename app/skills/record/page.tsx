@@ -23,6 +23,11 @@ export default function RecordSkillPage() {
       return;
     }
 
+    if (!startUrl.trim()) {
+      setError('Please provide a starting URL');
+      return;
+    }
+
     setLoading(true);
     setError(null);
 
@@ -34,7 +39,7 @@ export default function RecordSkillPage() {
         },
         body: JSON.stringify({
           goal: goal.trim(),
-          startUrl: startUrl.trim() || undefined,
+          startUrl: startUrl.trim(),
         }),
       });
 
@@ -123,7 +128,7 @@ export default function RecordSkillPage() {
             <div className="text-center space-y-4">
               <div className="inline-flex items-center gap-2 px-4 py-2 bg-blue-50 text-blue-700 rounded-full text-sm font-medium">
                 <Sparkles className="h-4 w-4" />
-                Show, Don't Tell
+                Record Skill
               </div>
               <h1 className="text-4xl font-bold text-slate-900">
                 Create a New Skill
@@ -154,14 +159,17 @@ export default function RecordSkillPage() {
 
               <div>
                 <label className="block text-sm font-semibold text-slate-900 mb-3">
-                  Starting URL (optional)
+                  Starting URL *
                 </label>
                 <input
                   type="url"
                   className="w-full border border-slate-300 rounded-xl p-4 text-slate-900 focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all"
                   placeholder="https://amazon.com"
                   value={startUrl}
-                  onChange={(e) => setStartUrl(e.target.value)}
+                  onChange={(e) => {
+                    setStartUrl(e.target.value);
+                    setError(null);
+                  }}
                 />
                 <p className="text-sm text-slate-500 mt-2">
                   The browser will start here. You can navigate anywhere during recording.
@@ -176,7 +184,7 @@ export default function RecordSkillPage() {
 
               <button
                 onClick={handleStartRecording}
-                disabled={!goal.trim() || loading}
+                disabled={!goal.trim() || !startUrl.trim() || loading}
                 className="w-full bg-blue-600 text-white rounded-xl p-4 font-semibold text-lg hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed transition-all flex items-center justify-center gap-2 group"
               >
                 {loading ? (

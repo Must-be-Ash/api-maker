@@ -1,30 +1,39 @@
 'use client';
 
-import Link from 'next/link';
 import Image from 'next/image';
-import { motion } from 'framer-motion';
+import { motion, AnimatePresence } from 'framer-motion';
 import { useIsSignedIn } from '@coinbase/cdp-hooks';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { useEffect, useState } from 'react';
 import { CustomAuthButton } from '@/components/CustomAuthButton';
+import { MobileHero } from '@/components/MobileHero';
+import { Play, X } from 'lucide-react';
 
 export default function LandingPage() {
   const { isSignedIn } = useIsSignedIn();
   const router = useRouter();
   const searchParams = useSearchParams();
   const [showAuthPrompt, setShowAuthPrompt] = useState(false);
+  const [showVideo, setShowVideo] = useState(false);
 
-  // Redirect authenticated users to /skills
+  // Redirect authenticated users only after fresh login or protected route access
   useEffect(() => {
     if (isSignedIn) {
+      // Check if we should redirect (set by auth button click or protected route)
       const redirectPath = sessionStorage.getItem('redirectAfterAuth');
+      const shouldRedirect = sessionStorage.getItem('shouldRedirectAfterAuth');
 
       if (redirectPath) {
+        // User was trying to access a protected route
         sessionStorage.removeItem('redirectAfterAuth');
+        sessionStorage.removeItem('shouldRedirectAfterAuth');
         router.push(redirectPath);
-      } else {
+      } else if (shouldRedirect === 'true') {
+        // User just logged in from landing page auth button
+        sessionStorage.removeItem('shouldRedirectAfterAuth');
         router.push('/skills');
       }
+      // If neither flag is set, user manually navigated here - let them stay
     }
   }, [isSignedIn, router]);
 
@@ -51,19 +60,23 @@ export default function LandingPage() {
         </div>
       )}
 
-      {/* Hero Section with Navigation */}
-      <section className="relative pt-12 pb-20 px-6">
+      {/* Mobile Hero - shown only on mobile */}
+      <div className="lg:hidden">
+        <MobileHero onPlayDemo={() => setShowVideo(true)} />
+      </div>
+
+      {/* Desktop Hero Section - hidden on mobile */}
+      <section className="relative pt-12 pb-20 px-6 hidden lg:block">
         <div className="max-w-7xl mx-auto">
-          {/* Hero container - image spans full width, text overlays left side */}
           <div className="relative">
-            {/* Hero Visual - full width */}
+            {/* Hero Visual */}
             <motion.div
               className="relative w-full"
               initial={{ opacity: 0, scale: 0.95 }}
               animate={{ opacity: 1, scale: 1 }}
               transition={{ duration: 0.8, delay: 0.2, ease: [0.22, 1, 0.36, 1] }}
             >
-              <div className="relative w-full aspect-[16/9] lg:aspect-[2/1]">
+              <div className="relative w-full aspect-[2/1]">
                 <Image
                   src="/landing-asset.jpg"
                   alt="Browser automation visual showing JSON, CSV extraction"
@@ -76,7 +89,7 @@ export default function LandingPage() {
 
             {/* Text Content - positioned over the left side of the image */}
             <motion.div
-              className="absolute inset-y-0 left-0 flex flex-col justify-center text-left max-w-xl lg:max-w-2xl"
+              className="absolute inset-y-0 left-0 flex flex-col justify-center text-left max-w-2xl"
               initial={{ opacity: 0, y: 20 }}
               animate={{ opacity: 1, y: 0 }}
               transition={{ duration: 0.6, ease: [0.22, 1, 0.36, 1] }}
@@ -91,25 +104,104 @@ export default function LandingPage() {
                     height={32}
                     className="rounded-lg"
                   />
-                  <span className="text-3xl md:text-4xl font-bold text-black tracking-tight">Dittod</span>
+                  <span className="text-4xl font-bold text-black tracking-tight">Dittod</span>
                 </div>
               </nav>
 
-              <h1 className="text-4xl md:text-5xl lg:text-6xl xl:text-7xl font-bold text-black mb-6 leading-tight tracking-tight text-left">
+              <h1 className="text-5xl xl:text-6xl 2xl:text-7xl font-bold text-black mb-6 leading-tight tracking-tight text-left">
                 Turn any browser session into an API
               </h1>
 
-              <p className="text-base md:text-lg lg:text-xl text-gray-600 mb-8 leading-relaxed text-left">
-                Describe what you want, demonstrate it once in a live browser, and we'll generate a reusable API you can call with different inputs. Think of it as showing Ai how to do something, there's no coding.
+              <p className="text-lg xl:text-xl text-gray-600 mb-8 leading-relaxed text-left">
+                Describe what you want, demonstrate it once in a live browser, and we'll generate a reusable API you can call with different inputs. Think of it as showing Ai how to do something without coding.
               </p>
 
-              <div className="text-left">
+              {/* Buttons */}
+              <div className="flex items-center gap-4">
                 <CustomAuthButton />
+                <button
+                  onClick={() => setShowVideo(true)}
+                  className="relative inline-flex items-center justify-center gap-2 px-8 py-4 rounded-full font-medium text-[#333333] transition-all duration-200 border-0 cursor-pointer shadow-[0_8px_32px_rgba(0,0,0,0.15),0_2px_8px_rgba(0,0,0,0.1),inset_0_1px_0_rgba(255,255,255,0.8)] hover:shadow-[0_4px_16px_rgba(0,0,0,0.2),inset_0_2px_4px_rgba(0,0,0,0.1)] active:shadow-[0_2px_8px_rgba(0,0,0,0.2),inset_0_3px_6px_rgba(0,0,0,0.15)] hover:scale-[0.98] active:scale-[0.96]"
+                  style={{
+                    background: 'linear-gradient(145deg, #f5f5f5 0%, #e8e8e8 50%, #dedede 100%)'
+                  }}
+                >
+                  <Play className="w-4 h-4 fill-[#333333]" />
+                  <span className="relative">Play Demo</span>
+
+                  {/* Subtle inner highlight */}
+                  <div className="absolute inset-0 rounded-full bg-gradient-to-b from-white/60 to-transparent opacity-80 pointer-events-none" />
+
+                  {/* Bottom shadow accent */}
+                  <div className="absolute -bottom-1 left-1/2 transform -translate-x-1/2 w-[90%] h-1 bg-black/10 rounded-full blur-sm" />
+                </button>
               </div>
             </motion.div>
           </div>
         </div>
       </section>
+
+      {/* Video Modal */}
+      <AnimatePresence>
+        {showVideo && (
+          <motion.div
+            className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm"
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            onClick={() => setShowVideo(false)}
+          >
+            <motion.div
+              className="relative w-full max-w-4xl bg-white rounded-2xl shadow-2xl overflow-hidden"
+              initial={{ scale: 0.9, opacity: 0 }}
+              animate={{ scale: 1, opacity: 1 }}
+              exit={{ scale: 0.9, opacity: 0 }}
+              transition={{ type: 'spring', damping: 25, stiffness: 300 }}
+              onClick={(e) => e.stopPropagation()}
+            >
+              {/* Close button */}
+              <button
+                onClick={() => setShowVideo(false)}
+                className="absolute top-4 right-4 z-10 p-2 rounded-full bg-black/10 hover:bg-black/20 transition-colors"
+              >
+                <X className="w-5 h-5 text-white" />
+              </button>
+
+              {/* Video container */}
+              <div className="relative w-full aspect-video bg-slate-900">
+                <iframe
+                  src="https://www.youtube.com/embed/Y8ZI1uc6iBM?autoplay=1&rel=0"
+                  title="Dittod Demo"
+                  allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
+                  allowFullScreen
+                  className="absolute inset-0 w-full h-full"
+                />
+              </div>
+
+              {/* Bottom bar */}
+              <div className="px-6 py-4 bg-gradient-to-r from-slate-50 to-white border-t border-slate-100">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <h3 className="font-semibold text-slate-900">See Dittod in Action</h3>
+                    <p className="text-sm text-slate-500">Watch how to create your first API</p>
+                  </div>
+                  <button
+                    onClick={() => setShowVideo(false)}
+                    className="relative inline-flex items-center justify-center px-6 py-3 rounded-full font-medium text-white transition-all duration-200 border-0 cursor-pointer shadow-[0_8px_32px_rgba(0,0,0,0.3),0_2px_8px_rgba(0,0,0,0.2),inset_0_1px_0_rgba(255,255,255,0.1)] hover:shadow-[0_4px_16px_rgba(0,0,0,0.4),inset_0_2px_4px_rgba(0,0,0,0.3)] active:shadow-[0_2px_8px_rgba(0,0,0,0.4),inset_0_3px_6px_rgba(0,0,0,0.4)] hover:scale-[0.98] active:scale-[0.96]"
+                    style={{
+                      background: 'linear-gradient(145deg, #4a4a4a 0%, #3a3a3a 50%, #2a2a2a 100%)'
+                    }}
+                  >
+                    <span className="relative z-10">Close</span>
+                    <div className="absolute inset-0 rounded-full bg-gradient-to-b from-white/10 to-transparent opacity-60 pointer-events-none" />
+                    <div className="absolute -bottom-1 left-1/2 transform -translate-x-1/2 w-[90%] h-1 bg-black/20 rounded-full blur-sm" />
+                  </button>
+                </div>
+              </div>
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
 
       {/* Feature Section */}
       <section className="py-16 px-6">
@@ -203,28 +295,11 @@ export default function LandingPage() {
       </section>
 
       {/* Footer */}
-      <footer className="py-12 px-6 mt-20">
+      <footer className="py-8 px-6 mt-8">
         <div className="max-w-7xl mx-auto text-center space-y-3">
           <p className="text-sm text-gray-400">
             © 2025 Dittod. All rights reserved.
           </p>
-          <div className="flex items-center justify-center gap-4 text-sm">
-            <Link
-              href="/docs"
-              className="text-gray-500 hover:text-black transition-colors"
-            >
-              Documentation
-            </Link>
-            <span className="text-gray-300">|</span>
-            <a
-              href="https://twitter.com"
-              target="_blank"
-              rel="noopener noreferrer"
-              className="text-gray-500 hover:text-black transition-colors"
-            >
-              Twitter
-            </a>
-          </div>
         </div>
       </footer>
     </main>

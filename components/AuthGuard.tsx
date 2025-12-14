@@ -21,6 +21,7 @@ export function AuthGuard({ children, requireAuth = false }: AuthGuardProps) {
     if (requireAuth && !isSignedIn) {
       // Store intended destination before redirecting
       sessionStorage.setItem('redirectAfterAuth', pathname);
+      sessionStorage.setItem('shouldRedirectAfterAuth', 'true');
       router.push('/?auth=required');
     }
   }, [isSignedIn, isInitialized, requireAuth, pathname, router]);

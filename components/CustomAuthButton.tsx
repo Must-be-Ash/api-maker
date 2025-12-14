@@ -2,17 +2,33 @@
 
 import { useRef } from 'react';
 import { AuthButton } from '@coinbase/cdp-react/components/AuthButton';
+import { useIsSignedIn } from '@coinbase/cdp-hooks';
+import { useRouter } from 'next/navigation';
 
 export function CustomAuthButton() {
   const authButtonRef = useRef<HTMLDivElement>(null);
+  const { isSignedIn } = useIsSignedIn();
+  const router = useRouter();
 
   const handleClick = () => {
+    // If already signed in, just redirect to /skills
+    if (isSignedIn) {
+      router.push('/skills');
+      return;
+    }
+
+    // Not signed in - set flag and open auth modal
+    sessionStorage.setItem('shouldRedirectAfterAuth', 'true');
+
     // Find and click the actual CDP AuthButton
     const button = authButtonRef.current?.querySelector('button');
     if (button) {
       button.click();
     }
   };
+
+  // Dynamic button text based on auth state
+  const buttonText = isSignedIn ? 'Go to Dashboard' : 'Get Started for Free';
 
   return (
     <>
@@ -29,7 +45,7 @@ export function CustomAuthButton() {
           background: 'linear-gradient(145deg, #4a4a4a 0%, #3a3a3a 50%, #2a2a2a 100%)'
         }}
       >
-        <span className="relative">Get Started for Free</span>
+        <span className="relative">{buttonText}</span>
 
         {/* Subtle inner highlight */}
         <div className="absolute inset-0 rounded-full bg-gradient-to-b from-white/10 to-transparent opacity-60 pointer-events-none" />
