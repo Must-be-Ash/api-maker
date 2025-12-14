@@ -12,28 +12,24 @@ import { groupActions } from './action-grouper';
 export class ActionRecorder {
   private actions: RecordedAction[] = [];
   private page: any; // Use any to support both Playwright and Stagehand Page types
+  private context: any; // Stagehand context for addInitScript
   private recording: boolean = false;
   private recordingId: string;
   private lastUrl: string = '';
 
-  constructor(page: any, recordingId: string) {
+  constructor(page: any, recordingId: string, context?: any) {
     this.page = page;
     this.recordingId = recordingId;
+    this.context = context; // Optional for backward compatibility
   }
 
   /**
-   * Inject monitoring script into the page to capture user actions
-   * Includes retry logic to handle timing issues in serverless environments
+   * Get the monitoring script function for event listener injection
+   * This function will be used with page.addInitScript() to automatically
+   * run on every page navigation, ensuring event listeners persist across navigations
    */
-  private async injectMonitoringScript() {
-    const MAX_RETRIES = 3;
-    const RETRY_DELAY = 1000; // 1 second
-
-    for (let attempt = 1; attempt <= MAX_RETRIES; attempt++) {
-      try {
-        console.log(`[ActionRecorder] Injecting monitoring script (attempt ${attempt}/${MAX_RETRIES})...`);
-
-        await this.page.evaluate(() => {
+  private getMonitoringScriptFunction() {
+    return () => {
       // Initialize or reset the recorded actions array
       (window as any)._recordedActions = (window as any)._recordedActions || [];
 
@@ -928,38 +924,64 @@ export class ActionRecorder {
       }, true);
 
           console.log('[ActionRecorder] Event listeners attached successfully');
-        });
+    };
+  }
 
-        // ✅ Verify injection succeeded by checking for _recordedActions
+  /**
+   * Install monitoring script using hybrid approach:
+   * 1. Use addInitScript() for future navigations
+   * 2. Manual injection on current page
+   */
+  private async installMonitoringScript() {
+    const MAX_RETRIES = 3;
+    const RETRY_DELAY = 1000; // 1 second
+
+    for (let attempt = 1; attempt <= MAX_RETRIES; attempt++) {
+      try {
+        console.log(`[ActionRecorder] Installing monitoring script (attempt ${attempt}/${MAX_RETRIES})...`);
+
+        // Step 1: Set up addInitScript for future navigations
+        if (this.context && typeof this.context.addInitScript === 'function') {
+          console.log('[ActionRecorder] Setting up addInitScript for future navigations');
+          await this.context.addInitScript(this.getMonitoringScriptFunction());
+        }
+
+        // Step 2: Manually inject on the current page (since it's already loaded)
+        console.log('[ActionRecorder] Injecting script on current page');
+        await this.page.evaluate(this.getMonitoringScriptFunction());
+
+        // ✅ Verify installation succeeded by checking for _recordedActions
         const injectionSucceeded = await this.page.evaluate(() => {
           return typeof (window as any)._recordedActions !== 'undefined';
         });
 
         if (injectionSucceeded) {
-          console.log('[ActionRecorder] ✅ Monitoring script injected successfully');
+          console.log('[ActionRecorder] ✅ Monitoring script installed successfully');
+          console.log('[ActionRecorder] Event listeners will automatically persist across navigations');
           return; // Success!
         } else {
-          console.warn(`[ActionRecorder] ⚠️ Injection attempt ${attempt} failed: _recordedActions not found`);
+          console.warn(`[ActionRecorder] ⚠️ Installation attempt ${attempt} failed: _recordedActions not found`);
           if (attempt < MAX_RETRIES) {
             await new Promise(resolve => setTimeout(resolve, RETRY_DELAY));
           }
         }
       } catch (error) {
-        console.error(`[ActionRecorder] ❌ Injection attempt ${attempt} failed:`, error);
+        console.error(`[ActionRecorder] ❌ Installation attempt ${attempt} failed:`, error);
         if (attempt < MAX_RETRIES) {
           await new Promise(resolve => setTimeout(resolve, RETRY_DELAY));
         } else {
           // Last attempt failed - throw error to surface the issue
-          throw new Error(`Failed to inject monitoring script after ${MAX_RETRIES} attempts: ${error}`);
+          throw new Error(`Failed to install monitoring script after ${MAX_RETRIES} attempts: ${error}`);
         }
       }
     }
 
-    throw new Error(`Failed to inject monitoring script: _recordedActions not initialized after ${MAX_RETRIES} attempts`);
+    throw new Error(`Failed to install monitoring script: _recordedActions not initialized after ${MAX_RETRIES} attempts`);
   }
 
   /**
-   * Start recording user actions by injecting monitoring script
+   * Start recording user actions by installing monitoring script with addInitScript
+   * The script will automatically persist across all navigations
    */
   async startRecording() {
     this.recording = true;
@@ -967,28 +989,28 @@ export class ActionRecorder {
     console.log('[ActionRecorder] Starting recording');
 
     try {
-      // Inject the monitoring script into the current page
-      await this.injectMonitoringScript(); // Now throws on failure
+      // Install the monitoring script using addInitScript (persists across navigations)
+      await this.installMonitoringScript();
 
-      // ✅ Verify injection by testing retrieval immediately
+      // ✅ Verify installation by testing retrieval immediately
       const testActions = await this.page.evaluate(() => {
         return (window as any)._recordedActions || null;
       });
 
       if (testActions === null) {
-        throw new Error('Event listeners injection failed: _recordedActions is null');
+        throw new Error('Event listeners installation failed: _recordedActions is null');
       }
 
-      console.log('[ActionRecorder] Event listener injection verified');
+      console.log('[ActionRecorder] Event listener installation verified');
 
       // Initialize last URL for navigation tracking
       this.lastUrl = this.page.url();
       console.log('[ActionRecorder] Initial URL:', this.lastUrl);
 
-      // Poll for captured actions and URL changes
+      // Poll for captured actions (no longer needs to re-inject on navigation)
       this.startPolling();
 
-      console.log('[ActionRecorder] ✅ Started recording with event listeners active');
+      console.log('[ActionRecorder] ✅ Started recording with persistent event listeners');
     } catch (error) {
       this.recording = false;
       console.error('[ActionRecorder] ❌ Failed to start recording:', error);
@@ -1021,6 +1043,7 @@ export class ActionRecorder {
         const currentUrl = this.page.url();
         if (currentUrl !== this.lastUrl) {
           console.log('[ActionRecorder] URL changed:', this.lastUrl, '->', currentUrl);
+          console.log('[ActionRecorder] Event listeners will auto-persist via addInitScript');
 
           // Record navigation action
           const action: RecordedAction = {
@@ -1037,13 +1060,7 @@ export class ActionRecorder {
           // Update last URL
           this.lastUrl = currentUrl;
 
-          // Re-inject monitoring script on the new page
-          try {
-            console.log('[ActionRecorder] Re-injecting script after navigation');
-            await this.injectMonitoringScript();
-          } catch (error) {
-            console.log('[ActionRecorder] Error re-injecting script:', error);
-          }
+          // No need to re-inject - addInitScript handles this automatically!
         }
 
         // Retrieve actions captured in the page

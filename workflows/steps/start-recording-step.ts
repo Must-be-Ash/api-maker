@@ -86,6 +86,7 @@ export async function startRecordingStep(input: StartRecordingInput): Promise<St
   });
 
   await stagehand.init();
+  const context = stagehand.context;
   const page = stagehand.context.pages()[0];
 
   console.log('[startRecordingStep] Stagehand initialized');
@@ -102,8 +103,8 @@ export async function startRecordingStep(input: StartRecordingInput): Promise<St
   // Dynamically import ActionRecorder (prevents bundling server-only code)
   const { ActionRecorder } = await import("@/lib/capture/action-recorder");
 
-  // Attach action recorder
-  const recorder = new ActionRecorder(page, recordingId);
+  // Attach action recorder with context for addInitScript support
+  const recorder = new ActionRecorder(page, recordingId, context);
 
   try {
     await recorder.startRecording();
