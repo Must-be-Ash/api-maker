@@ -3,11 +3,54 @@
 import Link from 'next/link';
 import Image from 'next/image';
 import { motion } from 'framer-motion';
+import { useIsSignedIn } from '@coinbase/cdp-hooks';
+import { useRouter, useSearchParams } from 'next/navigation';
+import { useEffect, useState } from 'react';
+import { CustomAuthButton } from '@/components/CustomAuthButton';
 
 export default function LandingPage() {
+  const { isSignedIn } = useIsSignedIn();
+  const router = useRouter();
+  const searchParams = useSearchParams();
+  const [showAuthPrompt, setShowAuthPrompt] = useState(false);
+
+  // Redirect authenticated users to /skills
+  useEffect(() => {
+    if (isSignedIn) {
+      const redirectPath = sessionStorage.getItem('redirectAfterAuth');
+
+      if (redirectPath) {
+        sessionStorage.removeItem('redirectAfterAuth');
+        router.push(redirectPath);
+      } else {
+        router.push('/skills');
+      }
+    }
+  }, [isSignedIn, router]);
+
+  // Show auth prompt if redirected from protected route
+  useEffect(() => {
+    if (searchParams.get('auth') === 'required') {
+      setShowAuthPrompt(true);
+      const timeout = setTimeout(() => setShowAuthPrompt(false), 5000);
+      return () => clearTimeout(timeout);
+    }
+  }, [searchParams]);
 
   return (
     <main className="min-h-screen bg-[#F8F8F9] relative overflow-x-hidden">
+      {/* Auth prompt banner */}
+      {showAuthPrompt && (
+        <div className="fixed top-4 left-1/2 transform -translate-x-1/2 z-50">
+          <div className="bg-blue-600 text-white px-6 py-3 rounded-full shadow-lg flex items-center gap-2">
+            <svg className="w-5 h-5" fill="currentColor" viewBox="0 0 20 20">
+              <path fillRule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7-4a1 1 0 11-2 0 1 1 0 012 0zM9 9a1 1 0 000 2v3a1 1 0 001 1h1a1 1 0 100-2v-3a1 1 0 00-1-1H9z" clipRule="evenodd" />
+            </svg>
+            <span className="font-medium">Please sign in to continue</span>
+          </div>
+        </div>
+      )}
+
       {/* Hero Section with Navigation */}
       <section className="relative pt-12 pb-20 px-6">
         <div className="max-w-7xl mx-auto">
@@ -33,7 +76,7 @@ export default function LandingPage() {
 
             {/* Text Content - positioned over the left side of the image */}
             <motion.div
-              className="absolute inset-y-0 left-0 flex flex-col justify-center text-left max-w-xl lg:max-w-2xl z-10"
+              className="absolute inset-y-0 left-0 flex flex-col justify-center text-left max-w-xl lg:max-w-2xl"
               initial={{ opacity: 0, y: 20 }}
               animate={{ opacity: 1, y: 0 }}
               transition={{ duration: 0.6, ease: [0.22, 1, 0.36, 1] }}
@@ -61,21 +104,7 @@ export default function LandingPage() {
               </p>
 
               <div className="text-left">
-                <Link
-                  href="/skills/record"
-                  className="relative inline-flex items-center justify-center px-8 py-4 rounded-full font-medium text-white transition-all duration-200 border-0 cursor-pointer shadow-[0_8px_32px_rgba(0,0,0,0.3),0_2px_8px_rgba(0,0,0,0.2),inset_0_1px_0_rgba(255,255,255,0.1)] hover:shadow-[0_4px_16px_rgba(0,0,0,0.4),inset_0_2px_4px_rgba(0,0,0,0.3)] active:shadow-[0_2px_8px_rgba(0,0,0,0.4),inset_0_3px_6px_rgba(0,0,0,0.4)] hover:scale-[0.98] active:scale-[0.96]"
-                  style={{
-                    background: 'linear-gradient(145deg, #4a4a4a 0%, #3a3a3a 50%, #2a2a2a 100%)'
-                  }}
-                >
-                  <span className="relative z-10">Get Started for Free</span>
-
-                  {/* Subtle inner highlight */}
-                  <div className="absolute inset-0 rounded-full bg-gradient-to-b from-white/10 to-transparent opacity-60 pointer-events-none" />
-
-                  {/* Bottom shadow accent */}
-                  <div className="absolute -bottom-1 left-1/2 transform -translate-x-1/2 w-[90%] h-1 bg-black/20 rounded-full blur-sm" />
-                </Link>
+                <CustomAuthButton />
               </div>
             </motion.div>
           </div>
