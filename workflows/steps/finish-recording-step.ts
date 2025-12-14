@@ -401,6 +401,45 @@ export async function finishRecordingStep(input: FinishRecordingInput): Promise<
       const pages = stagehand.context.pages();
       const page = pages[pages.length - 1];
 
+      // CRITICAL FIX: In production, ActionRecorder polling does not run (serverless freezes)
+      // Retrieve actions directly from browser where they were captured by monitoring script
+      console.log('[finishRecordingStep] Retrieving actions from browser (serverless polling did not run)');
+
+      const pageActions = await page.evaluate(() => {
+        const actions = (window as any)._recordedActions || [];
+        (window as any)._recordedActions = []; // Clear after retrieval
+        return actions;
+      });
+
+      console.log('[finishRecordingStep] Retrieved', pageActions.length, 'actions from browser');
+
+      if (pageActions && pageActions.length > 0) {
+        // Group raw actions into semantic actions
+        const { groupActions } = await import("@/lib/capture/action-grouper");
+
+        console.log('[finishRecordingStep] Grouping', pageActions.length, 'raw actions...');
+        const groupedActions = groupActions(pageActions);
+        console.log('[finishRecordingStep] Grouped into', groupedActions.length, 'semantic actions');
+
+        // Save grouped actions to database
+        await db.collection('recording_sessions').updateOne(
+          { recordingId: input.recordingId },
+          {
+            $set: {
+              recordedActions: groupedActions,
+              updatedAt: new Date().toISOString(),
+            },
+          }
+        );
+
+        // Reload recording with new actions
+        Object.assign(recording, {
+          recordedActions: groupedActions,
+        });
+
+        console.log('[finishRecordingStep] Saved grouped actions to database');
+      }
+
       // Capture page context (needed for schema generation)
       pageContext = await capturePageContext(page);
       console.log('[finishRecordingStep] Captured page context:', {
