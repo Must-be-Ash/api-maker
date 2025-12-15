@@ -108,21 +108,40 @@ export default function SkillDetailsPage() {
   const generateCurlCommand = () => {
     if (!skill) return '';
 
-    // Extract variable names from variableMapping
+    // First, extract ALL variables from the goal string
+    const goalVariables = new Set<string>();
+    const variablePattern = /%(\w+)%/g;
+    let match;
+    while ((match = variablePattern.exec(skill.goal)) !== null) {
+      goalVariables.add(match[1]);
+    }
+
+    // Build the variables object with example values
     const variables: Record<string, string> = {};
+
+    // Create reverse mapping from variableMapping
+    const placeholderToExample: Record<string, string> = {};
     if (skill.variableMapping && Object.keys(skill.variableMapping).length > 0) {
-      // variableMapping is like { "San Francisco": "%city%" }
-      // We need to extract "city" and provide example values
       Object.entries(skill.variableMapping).forEach(([exampleValue, placeholder]) => {
-        // Extract variable name from placeholder (e.g., "%city%" -> "city")
-        const varName = placeholder.replace(/%/g, '');
-        variables[varName] = exampleValue;
+        placeholderToExample[placeholder] = exampleValue;
       });
     }
 
+    // For each variable in the goal, provide an example value
+    goalVariables.forEach((varName) => {
+      const placeholder = `%${varName}%`;
+      if (placeholderToExample[placeholder]) {
+        // Use the example from variableMapping
+        variables[varName] = placeholderToExample[placeholder];
+      } else {
+        // Provide a sensible placeholder
+        variables[varName] = `your_${varName}`;
+      }
+    });
+
     // Use the current origin (works in both dev and production)
-    const baseUrl = typeof window !== 'undefined' 
-      ? window.location.origin 
+    const baseUrl = typeof window !== 'undefined'
+      ? window.location.origin
       : (process.env.NEXT_PUBLIC_URL || 'https://dittod.vercel.app');
 
     const curlCommand = `curl -X POST ${baseUrl}/api/skills/${skillId}/execute \\
