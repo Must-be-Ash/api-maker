@@ -106,11 +106,18 @@ export async function startRecordingStep(input: StartRecordingInput): Promise<St
     console.log('[startRecordingStep] Navigated to start URL:', input.startUrl);
   }
 
+  // Clear any previous recording data from localStorage (prevents stale data from old sessions)
+  await page.evaluate((recId: string) => {
+    const storageKey = '_recordedActions_' + recId;
+    localStorage.removeItem(storageKey);
+    console.log('[startRecordingStep] Cleared previous recording data');
+  }, recordingId);
+
   // Dynamically import ActionRecorder (prevents bundling server-only code)
   const { ActionRecorder } = await import("@/lib/capture/action-recorder");
 
-  // Attach action recorder
-  const recorder = new ActionRecorder(page, recordingId);
+  // Attach action recorder (pass context for addInitScript support)
+  const recorder = new ActionRecorder(page, recordingId, context);
   await recorder.startRecording();
 
   console.log('[startRecordingStep] Action recorder started');

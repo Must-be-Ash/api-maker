@@ -1,272 +1,418 @@
- Fix Action Recording: Extension Captures But Retrieval Returns 0
+ Fix Action Recording in Production: addInitScript Context Lost on Reconnection
 
+ Summary
+
+ Root Cause: When finish-recording reconnects to the Browserbase session in a new serverless
+ function, it creates a NEW Stagehand instance. The addInitScript() context from the original
+ instance is lost, so window._recordedActions doesn't exist.
+
+ Solution: Persist actions to localStorage in the browser as they're captured. On reconnection,
+ retrieve from localStorage instead of window._recordedActions.
+
+ Files to Modify:
+ 1. /lib/capture/action-recorder.ts - Add localStorage persistence
+ 2. /workflows/steps/finish-recording-step.ts - Retrieve from localStorage
+ 3. /workflows/steps/start-recording-step.ts - Clear localStorage on start
+
+ Estimated Time: 45 minutes (20 min implementation, 25 min testing)
+
+ ---
  Problem Statement
 
- The Browserbase Chrome extension IS successfully capturing user actions (proven by session logs
-  showing clicks and inputs), but page.evaluate() returns 0 actions when we try to retrieve
- them. This is a context isolation or navigation reset issue, NOT an injection failure.
+ Local works perfectly: ActionRecorder polling retrieves actions every 2s, 23 raw actions → 4
+ semantic actions ✅
 
- Evidence
+ Production fails: page.evaluate() returns 0 actions when reconnecting to Browserbase session ❌
 
- Browserbase Session Logs (Prove Extension Works)
+ This is a Stagehand reconnection context loss issue in Vercel serverless, NOT an injection or
+ navigation problem.
 
- [Extension] Content script injector running ✅
- [ActionRecorder] Initialized _recordedActions array ✅ (Context ID: 1)
- [ActionRecorder] Extension event listeners attached successfully ✅
- [ActionRecorder] Captured click: ✅ (Context ID: 1) - MULTIPLE
- [ActionRecorder] Captured input: ✅ (Context ID: 1) - MULTIPLE
+ Evidence from Logs
 
- Application Logs (Retrieval Fails)
+ Local (Works) - log-local.md
 
- [finishRecordingStep] Total pages in context: 1
- [finishRecordingStep] Using page: https://www.google.com/search?q=how+old+is+brad+pitt...
- [finishRecordingStep] Retrieved 0 actions from browser ❌
+ Line 77-79: [ActionRecorder] Retrieved 1 actions from page
+             [ActionRecorder] Retrieved 10 actions from page
+             [ActionRecorder] Retrieved 10 actions from page
 
- Key Insight: Debug console.log() calls inside page.evaluate() do NOT appear in application logs
-  - they go to the browser DevTools console, not Node.js stdout. This means we have NO
- visibility into what's happening inside the browser when we retrieve actions.
+ Line 95:    [finishRecordingStep] Loaded recording session: { actionsCount: 23 }
+ Line 96-97: [ActionRecorder] Performing final action retrieval from browser...
+             [ActionRecorder] No additional actions found in browser
 
- Root Cause Hypotheses
+ Line 98-99: [ActionRecorder] Grouping 23 raw actions...
+             [ActionRecorder] Grouped into 4 semantic actions
 
- Hypothesis 1: Navigation Resets the Array
+ Why it works: setInterval polling runs continuously in the same Node process, retrieves actions
+  from browser repeatedly before serverless freezes.
 
- Evidence from /extension/monitoring-script.js line 15-17:
- window._recordedActions = window._recordedActions || [];
+ Production (Fails) - log-prod.md
 
- This initializes on EVERY page load. When Google Search navigates from google.com to
- google.com/search?q=..., the page reloads and the array is reset:
+ Line 211-218: [ActionRecorder] Starting recording
+               [ActionRecorder] Installing monitoring script (attempt 1/3)...
+               [ActionRecorder] ✅ Monitoring script installed successfully
+               [ActionRecorder] ✅ Started recording with persistent event listeners
 
- 1. User loads google.com → Extension creates window._recordedActions = []
- 2. User types query → Actions captured: [click, input, input, input, ...]
- 3. Form submits, navigates to google.com/search?q=... → NEW PAGE LOAD
- 4. Extension re-injects → window._recordedActions = [] (RESET!)
- 5. Post-navigation actions accumulate in new array
- 6. We retrieve and get either 0 (if no post-navigation actions) or only post-navigation actions
-  (losing pre-navigation)
+ Line 72-73:   [finishRecordingStep] Retrieving actions from browser (serverless polling did not
+  run)
+               [finishRecordingStep] Retrieved 0 actions from browser  ❌
 
- Hypothesis 2: Timing - Extension Hasn't Re-Injected Yet
+ Line 129-130: [finishRecordingStep] Loaded recording session: { actionsCount: 0 }
+               [finishRecordingStep] Active recorder not found in global (serverless mode)
 
- When finish-recording-step reconnects to the Browserbase session:
- 1. New Stagehand instance created
- 2. page.evaluate() called immediately
- 3. But extension may not have re-injected yet after navigation
- 4. window._recordedActions is undefined or hasn't been populated
+ Why it fails:
+ 1. start-recording runs in serverless function A → installs monitoring script → function
+ freezes (polling never runs)
+ 2. User performs actions → monitoring script captures them to window._recordedActions
+ 3. finish-recording runs in serverless function B → reconnects to session with NEW Stagehand
+ instance
+ 4. The init script context is NOT preserved across reconnections
+ 5. window._recordedActions is undefined or empty → retrieval gets 0 actions
 
- Hypothesis 3: Frame/Context Isolation
+ Root Cause Analysis
 
- The extension injects via content script which creates a <script> tag. If:
- - The extension runs in an iframe context
- - Or there's a cross-origin isolation issue
- - Then page.evaluate() may be reading from a different context than where actions are stored
+ The Core Issue: addInitScript Context Loss
 
- Solution: Two-Phase Approach
+ From /lib/capture/action-recorder.ts line 946:
+ // Install monitoring script via Stagehand's context.addInitScript()
+ await this.context.addInitScript(this.getMonitoringScriptFunction());
 
- Phase 1: Add Diagnostics + Retry Logic (Quick Fix)
+ What happens:
 
- Goal: Get visibility and handle timing issues
+ In Local Development (Single Node Process):
+ 1. start-recording calls addInitScript() on Stagehand instance
+ 2. Monitoring script injects, event listeners capture actions to window._recordedActions
+ 3. Polling (setInterval) runs every 2s, retrieves actions, saves to MongoDB
+ 4. stop-recording calls final retrieval → gets remaining actions
+ 5. ✅ Works perfectly
 
- Phase 2: Persist Across Navigation (Permanent Fix)
+ In Production (Serverless - Different Functions):
+ 1. Function A (start-recording):
+   - Creates Stagehand instance, calls addInitScript()
+   - Monitoring script injects successfully
+   - Function returns → container freezes
+   - Polling never runs (setInterval cleared)
+ 2. User performs actions:
+   - Browser captures actions to window._recordedActions
+   - BUT actions never polled/saved to MongoDB
+ 3. Function B (finish-recording - DIFFERENT container):
+   - Creates NEW Stagehand instance via reconnection:
+   const stagehand = new Stagehand({
+   browserbaseSessionID: input.sessionId  // Reconnect
+ });
+   - CRITICAL: The new instance does NOT have the init script context
+   - The init script was bound to the FIRST instance, not the session
+   - page.evaluate() returns empty because:
+       - Script context was lost on reconnection, OR
+     - Actions were already cleared by previous polling (but polling never ran)
 
- Goal: Prevent array reset on navigation
+ The Architectural Assumption That Failed:
+
+ Assumed: addInitScript() makes the monitoring script "stick" with the Browserbase session,
+ persisting across reconnections.
+
+ Reality: addInitScript() is bound to the Playwright/Stagehand context instance, not the
+ Browserbase session itself. When you reconnect via browserbaseSessionID, you get a fresh CDP
+ connection with a fresh context.
+
+ Solution Options Analysis
+
+ Since addInitScript() context is lost when reconnecting to the Browserbase session in
+ production, we have four possible approaches:
+
+ Option 1: Re-inject Monitoring Script on Reconnection (RECOMMENDED)
+
+ Approach: In finish-recording-step.ts, after reconnecting to the session, re-call
+ addInitScript() with the monitoring script BEFORE attempting retrieval.
+
+ Pros:
+ - Minimal code changes (reuse existing ActionRecorder monitoring script)
+ - No persistence layer needed
+ - Works with existing ActionRecorder architecture
+
+ Cons:
+ - CRITICAL ISSUE: Re-injecting AFTER user actions means we'll miss already-captured actions
+ - The monitoring script needs to already be capturing while user performs actions
+ - This only works if actions are persisted somewhere the new script can access them
+
+ Verdict: ❌ Won't work - we need the script running DURING user actions, not after
+
+ Option 2: Browser-Side Persistence (localStorage/sessionStorage)
+
+ Approach: Modify monitoring script to persist actions to localStorage or sessionStorage as
+ they're captured. On reconnection, either:
+ - Re-inject script which loads from storage, OR
+ - Directly retrieve from storage via page.evaluate()
+
+ Pros:
+ - Actions survive script context loss
+ - No server-side infrastructure needed
+ - Works across navigation events
+
+ Cons:
+ - Requires modifying monitoring script
+ - Requires rebuilding/uploading Browserbase extension (if using extension)
+ - sessionStorage cleared on tab close (but that's fine for our use case)
+
+ Implementation:
+ // In monitoring script - on action capture:
+ window._recordedActions.push(action);
+ localStorage.setItem('_recordedActions', JSON.stringify(window._recordedActions));
+
+ // In finish-recording-step.ts - on retrieval:
+ const actions = await page.evaluate(() => {
+   return JSON.parse(localStorage.getItem('_recordedActions') || '[]');
+ });
+
+ Verdict: ✅ RECOMMENDED - Simple, reliable, survives context loss
+
+ Option 3: Real-Time MongoDB Persistence
+
+ Approach: Modify monitoring script to POST captured actions to a MongoDB API endpoint in
+ real-time as they occur.
+
+ Pros:
+ - Actions immediately persisted to database
+ - No browser storage limits
+ - Works even if browser crashes
+
+ Cons:
+ - Requires CORS-enabled API endpoint
+ - Network overhead on every action
+ - More complex implementation
+ - Need to handle authentication/authorization for POST endpoint
+
+ Verdict: ❌ Overkill - too complex for this use case
+
+ Option 4: Use Browserbase Native Recording
+
+ Approach: Use Browserbase's built-in session recording API instead of custom action tracking.
+
+ Pros:
+ - Professionally maintained
+ - No custom script injection needed
+ - Works across reconnections
+
+ Cons:
+ - Unknown if it captures semantic actions (clicks, inputs, navigation)
+ - May only provide video/screenshots
+ - Would require complete rewrite of action extraction logic
+
+ Verdict: ⏸️ Worth investigating but likely not suitable for our semantic action needs
+
+ ---
+ Recommended Solution: Browser-Side localStorage Persistence
+
+ Why: Simplest solution that directly addresses the root cause. Actions persist in browser
+ storage, survive script context loss, and can be retrieved even after Stagehand reconnection.
 
  ---
  Implementation Plan
 
- File 1: /workflows/steps/finish-recording-step.ts
+ File 1: /lib/capture/action-recorder.ts
 
- Change 1: Add Console Listener for Visibility
+ Change 1: Add localStorage Persistence to Monitoring Script
 
- Add at the top of the function (before any page.evaluate() calls):
+ Locate the getMonitoringScriptFunction() method (around line 50-900) and update the
+ initialization section:
 
- // Set up console listener to capture browser logs
- page.on('console', (message) => {
-   const text = message.text();
-   if (text.includes('[finishRecordingStep EVAL]') || text.includes('_recordedActions')) {
-     console.log(`[BROWSER CONSOLE] ${text}`);
-   }
- });
-
- Why: This captures console output from inside page.evaluate() so we can see what's actually
- happening in the browser.
-
- Change 2: Add Retry Logic with Delays
-
- Replace the current retrieval code (around lines 279-287 and 446-454) with:
-
- async function retrieveActionsWithRetry(page: Page, maxRetries = 10, delayMs = 500) {
-   for (let attempt = 1; attempt <= maxRetries; attempt++) {
-     const actions = await page.evaluate(() => {
-       console.log('[finishRecordingStep EVAL] Attempt', attempt);
-       console.log('[finishRecordingStep EVAL] _recordedActions exists:', typeof (window as
- any)._recordedActions);
-       console.log('[finishRecordingStep EVAL] _recordedActions length:', (window as
- any)._recordedActions?.length);
-
-       const actions = (window as any)._recordedActions || [];
-       (window as any)._recordedActions = []; // Clear after retrieval
-       return actions;
-     });
-
-     if (actions.length > 0) {
-       console.log(`[finishRecordingStep] ✅ Retrieved ${actions.length} actions on attempt 
- ${attempt}`);
-       return actions;
-     }
-
-     if (attempt < maxRetries) {
-       console.log(`[finishRecordingStep] ⏱️ No actions yet, waiting ${delayMs}ms... (attempt 
- ${attempt}/${maxRetries})`);
-       await new Promise(resolve => setTimeout(resolve, delayMs));
-     }
-   }
-
-   console.warn('[finishRecordingStep] ⚠️ No actions found after', maxRetries, 'attempts');
-   return [];
- }
-
- // Use it:
- const pageActions = await retrieveActionsWithRetry(page);
- console.log('[finishRecordingStep] Retrieved', pageActions.length, 'actions from browser');
-
- Why:
- - Retries handle timing issues (extension hasn't re-injected yet)
- - Console logs inside evaluate() will now appear in app logs via our listener
- - We'll see exactly what _recordedActions contains at each attempt
-
- Change 3: Update Both Code Paths
-
- Apply the console listener and retry logic to:
- 1. Line ~279: When activeRecorder exists
- 2. Line ~446: In the production fallback (reconnection path)
-
- ---
- File 2: /extension/monitoring-script.js (Phase 2 - If Needed)
-
- Change: Use sessionStorage to Persist Across Navigation
-
- Replace line 15-17:
-
- // OLD:
+ Find (around line 15-17 of the monitoring script):
  window._recordedActions = window._recordedActions || [];
 
- NEW:
- // Load existing actions from sessionStorage (survives navigation)
- const existingActions = JSON.parse(sessionStorage.getItem('_recordedActions') || '[]');
- window._recordedActions = existingActions;
+ Replace with:
+ // Load existing actions from localStorage (survives script context loss)
+ const persistedActions = JSON.parse(localStorage.getItem('_recordedActions_' + recordingId) ||
+ '[]');
+ window._recordedActions = persistedActions;
+ console.log('[ActionRecorder] Initialized with', persistedActions.length, 'persisted actions');
 
- console.log('[ActionRecorder] Initialized _recordedActions array with', existingActions.length,
-  'existing actions');
+ Note: Use recordingId in the localStorage key to prevent conflicts between multiple recordings.
 
- Update action capture code (around lines 861, 882, 901) to persist:
+ Change 2: Persist on Every Action Capture
 
- // After every push:
- window._recordedActions.push(action);
- sessionStorage.setItem('_recordedActions', JSON.stringify(window._recordedActions));
+ Find the three locations where actions are pushed to window._recordedActions:
+ - Line ~861: Click events
+ - Line ~882: Input events
+ - Line ~901: Navigation events
 
- Why: sessionStorage persists across same-tab navigations but is cleared when tab closes. This
- is perfect for our use case.
+ After each window._recordedActions.push(action), add:
+ localStorage.setItem('_recordedActions_' + recordingId,
+ JSON.stringify(window._recordedActions));
+
+ Change 3: Pass recordingId to Monitoring Script
+
+ Modify getMonitoringScriptFunction() to be parameterized with recordingId.
+
+ Option A (Simpler): Modify the function to use this.recordingId directly within the function
+ body:
+
+ In getMonitoringScriptFunction() at line 30-31, change it to return a string instead of a
+ function:
+
+ private getMonitoringScriptFunction() {
+   const recordingId = this.recordingId;
+   return function() {
+     // Now 'recordingId' is available in the closure
+     const persistedActions = JSON.parse(localStorage.getItem('_recordedActions_' + recordingId)
+  || '[]');
+     // ... rest of monitoring script
+   };
+ }
+
+ Option B (More explicit): Convert to string and inject recordingId:
+
+ In installMonitoringScript() at line 946, replace:
+ await this.context.addInitScript(this.getMonitoringScriptFunction());
+
+ With:
+ const recordingId = this.recordingId;
+ await this.context.addInitScript(() => {
+   const recId = recordingId; // Capture in closure
+   // ... paste full monitoring script with recId variable available
+ });
+
+ Recommended: Use Option A - modify getMonitoringScriptFunction() to capture this.recordingId in
+  the closure, making it available to the returned function.
+
+ File 2: /workflows/steps/finish-recording-step.ts
+
+ Change 1: Update Production Fallback to Read from localStorage
+
+ Locate the production fallback code (around lines 386-412).
+
+ Find (around line 406-412):
+ const pageActions = await page.evaluate(() => {
+   const actions = (window as any)._recordedActions || [];
+   (window as any)._recordedActions = [];
+   return actions;
+ });
+
+ Replace with:
+ // PRODUCTION FIX: Retrieve from localStorage (survives Stagehand reconnection)
+ const pageActions = await page.evaluate((recId: string) => {
+   const storageKey = '_recordedActions_' + recId;
+   const actions = JSON.parse(localStorage.getItem(storageKey) || '[]');
+
+   console.log('[finishRecordingStep] Retrieved', actions.length, 'actions from localStorage');
+
+   // Clear after retrieval
+   localStorage.removeItem(storageKey);
+
+   return actions;
+ }, recordingId);
+
+ console.log('[finishRecordingStep] Retrieved', pageActions.length, 'actions from browser');
+
+ Change 2: Apply Same Fix to Local Path (for consistency)
+
+ Find the local path retrieval (around line 279-287) and apply the same localStorage-based
+ retrieval:
+
+ const pageActions = await page.evaluate((recId: string) => {
+   const storageKey = '_recordedActions_' + recId;
+   const actions = JSON.parse(localStorage.getItem(storageKey) || '[]');
+   localStorage.removeItem(storageKey);
+   return actions;
+ }, recordingId);
+
+ This ensures both paths work identically.
+
+ File 3: /workflows/steps/start-recording-step.ts
+
+ Change: Clear Previous localStorage on Start
+
+ Add cleanup after navigation but before starting recorder (between lines 106-113):
+
+ Add after line 106 (after console.log('[startRecordingStep] Navigated to start URL:', 
+ input.startUrl);):
+
+ // Clear any previous recording data from localStorage (prevents stale data from old sessions)
+ await page.evaluate((recId: string) => {
+   const storageKey = '_recordedActions_' + recId;
+   localStorage.removeItem(storageKey);
+   console.log('[startRecordingStep] Cleared previous recording data');
+ }, recordingId);
+
+ Note: This ensures a clean slate before ActionRecorder starts capturing new actions.
 
  ---
  Testing Plan
 
- Step 1: Test Phase 1 Changes (Diagnostic)
+ Step 1: Local Testing
 
- 1. Deploy changes to finish-recording-step.ts (console listener + retry logic)
+ 1. Make all changes above
+ 2. Run local development server
+ 3. Create a new skill recording with Google Search
+ 4. Perform actions (search for "brad pitt age")
+ 5. Check terminal logs for:
+ [ActionRecorder] Initialized with 0 persisted actions
+ [finishRecordingStep] Retrieved 23 actions from localStorage
+ [ActionRecorder] Grouping 23 raw actions...
+ [ActionRecorder] Grouped into 4 semantic actions
+
+ Expected: Should work exactly as before, but using localStorage instead of
+ window._recordedActions
+
+ Step 2: Production Testing
+
+ 1. Deploy to Vercel
  2. Create a new skill recording with Google Search
- 3. Check logs for:
- [BROWSER CONSOLE] [finishRecordingStep EVAL] _recordedActions exists: object
- [BROWSER CONSOLE] [finishRecordingStep EVAL] _recordedActions length: 15
- [finishRecordingStep] ✅ Retrieved 15 actions on attempt 1
+ 3. Perform actions (search for "brad pitt age")
+ 4. Check Vercel logs for:
+ [ActionRecorder] Initialized with 0 persisted actions
+ [finishRecordingStep] Retrieved 15 actions from localStorage
+ [finishRecordingStep] Extracted semantic values: [{ value: "brad pitt age", type: "text-input"
+ }]
+ [finishRecordingStep] workflowSteps: 4
 
- If we see length > 0: The issue was timing - retry logic fixed it ✅
-
- If we still see length = 0: Navigation reset is confirmed - need Phase 2 ❌
-
- Step 2: Test Phase 2 Changes (If Needed)
-
- 1. Update extension/monitoring-script.js with sessionStorage
- 2. Rebuild extension zip:
- cd extension
- zip -r ../action-recorder-extension.zip . -x "*.backup" -x "*.broken"
- 3. Upload new extension:
- npx tsx scripts/upload-extension.ts
- 4. Restart dev server to load new extension ID
- 5. Test Google Search recording again
- 6. Check logs for:
- [ActionRecorder] Initialized _recordedActions array with 8 existing actions
- [finishRecordingStep] Retrieved 15 actions from browser
-
- Expected: Actions captured before AND after navigation are both preserved ✅
+ Expected: Actions persist across serverless function boundary ✅
 
  ---
  Expected Behavior After Fix
 
- Before Fix
+ Before Fix (Production)
 
+ [ActionRecorder] ✅ Started recording with persistent event listeners
  [finishRecordingStep] Retrieved 0 actions from browser ❌
  [finishRecordingStep] workflowSteps: 1 (only navigation)
 
- After Phase 1 (If Timing Issue)
+ After Fix (Production)
 
- [BROWSER CONSOLE] [finishRecordingStep EVAL] _recordedActions exists: object
- [BROWSER CONSOLE] [finishRecordingStep EVAL] _recordedActions length: 0
- [finishRecordingStep] ⏱️ No actions yet, waiting 500ms... (attempt 1/10)
- [BROWSER CONSOLE] [finishRecordingStep EVAL] _recordedActions length: 15
- [finishRecordingStep] ✅ Retrieved 15 actions on attempt 3
- [finishRecordingStep] workflowSteps: 4 ✅
-
- After Phase 2 (If Navigation Reset)
-
- [ActionRecorder] Initialized _recordedActions array with 8 existing actions
- [finishRecordingStep] Retrieved 15 actions from browser ✅
- [finishRecordingStep] Extracted semantic values: [{ value: "brad pitt age", type: "text-input" 
- }] ✅
- [finishRecordingStep] workflowSteps: 4 ✅
+ [ActionRecorder] Initialized with 0 persisted actions
+ [ActionRecorder] ✅ Started recording with persistent event listeners
+ [finishRecordingStep] Retrieved 15 actions from localStorage ✅
+ [finishRecordingStep] Extracted semantic values: [{ value: "brad pitt age", type: "text-input"
+ }]
+ [finishRecordingStep] workflowSteps: 4
 
  ---
  Files to Modify
 
- Phase 1 (Diagnostic + Quick Fix)
-
- 1. /Users/ashnouruzi/api-maker/workflows/steps/finish-recording-step.ts
-   - Add console listener (1 line)
-   - Add retrieveActionsWithRetry() function (~30 lines)
-   - Replace 2 retrieval call sites
-
- Phase 2 (If Needed - Permanent Fix)
-
- 2. /Users/ashnouruzi/api-maker/extension/monitoring-script.js
-   - Update initialization to load from sessionStorage (lines 15-17)
-   - Update 3 action push locations to persist to sessionStorage
- 3. Extension rebuild + upload (via scripts)
-
- ---
- Alternative Considered: Use Stagehand's context.addInitScript()
-
- Instead of Browserbase extension, inject directly via Stagehand API:
-
- await stagehand.context.addInitScript(() => {
-   window._recordedActions = JSON.parse(sessionStorage.getItem('_recordedActions') || '[]');
-   // ... all 900 lines of event listener code ...
-   sessionStorage.setItem('_recordedActions', JSON.stringify(window._recordedActions));
- });
-
- Pros:
- - Full control, no extension complexity
- - Guaranteed to persist across navigation (Stagehand handles this)
- - No upload/rebuild cycle
-
- Cons:
- - Requires inlining 900+ lines of monitoring code into workflow
- - Harder to maintain/debug
-
- Decision: Defer to Phase 3 if Phase 1 + 2 don't work.
+ 1. /Users/ashnouruzi/api-maker/lib/capture/action-recorder.ts
+   - Add localStorage persistence to monitoring script initialization
+   - Persist actions on every capture (3 locations)
+   - Pass recordingId to monitoring script via eval wrapper
+ 2. /Users/ashnouruzi/api-maker/workflows/steps/finish-recording-step.ts
+   - Update production fallback to retrieve from localStorage
+   - Update local path to use localStorage (for consistency)
+ 3. /Users/ashnouruzi/api-maker/workflows/steps/start-recording-step.ts
+   - Clear previous localStorage data on recording start
 
  ---
  Success Criteria
 
+ - ✅ Actions persist across Stagehand reconnection in production
  - ✅ Actions captured BEFORE navigation are preserved
  - ✅ Actions captured AFTER navigation are included
  - ✅ Variables detected from user input (e.g., "brad pitt age")
  - ✅ Skill created with 3-4 workflow steps (not just 1 navigation)
- - ✅ Logs show actual browser state via console listener
+ - ✅ Production logs show: "Retrieved X actions from localStorage" (X > 0)
+
+ ---
+ Risk Analysis
+
+ Low Risk: This change only affects the storage mechanism, not the action capture logic. The
+ monitoring script's event listeners remain unchanged. If localStorage fails for any reason, it
+ will simply return an empty array (same as current behavior).
+
+ Rollback Plan: If this doesn't work, revert changes and investigate Option 4 (Browserbase
+ native recording API).

@@ -30,8 +30,14 @@ export class ActionRecorder {
    */
   private getMonitoringScriptFunction() {
     return () => {
-      // Initialize or reset the recorded actions array
-      (window as any)._recordedActions = (window as any)._recordedActions || [];
+      // recordingId is injected as a global variable by installMonitoringScript()
+      const recordingId = (window as any).__recordingId__;
+      const storageKey = '_recordedActions_' + recordingId;
+
+      // Load existing actions from localStorage (survives script context loss across serverless function boundaries)
+      const persistedActions = JSON.parse(localStorage.getItem(storageKey) || '[]');
+      (window as any)._recordedActions = persistedActions;
+      console.log('[ActionRecorder] Initialized with', persistedActions.length, 'persisted actions');
 
       // Skip if already injected (check for marker)
       if ((window as any)._actionRecorderInjected) {
@@ -883,6 +889,7 @@ export class ActionRecorder {
         }, 200); // 200ms delay for DOM updates
 
         (window as any)._recordedActions.push(action);
+        localStorage.setItem(storageKey, JSON.stringify((window as any)._recordedActions));
         console.log('[ActionRecorder] Captured click:', action);
       }, true);
 
@@ -904,6 +911,7 @@ export class ActionRecorder {
         };
 
         (window as any)._recordedActions.push(action);
+        localStorage.setItem(storageKey, JSON.stringify((window as any)._recordedActions));
         console.log('[ActionRecorder] Captured input:', action);
       }, true);
 
@@ -920,6 +928,7 @@ export class ActionRecorder {
         };
 
         (window as any)._recordedActions.push(action);
+        localStorage.setItem(storageKey, JSON.stringify((window as any)._recordedActions));
         console.log('[ActionRecorder] Captured submit:', action);
       }, true);
 
@@ -943,11 +952,21 @@ export class ActionRecorder {
         // Step 1: Set up addInitScript for future navigations
         if (this.context && typeof this.context.addInitScript === 'function') {
           console.log('[ActionRecorder] Setting up addInitScript for future navigations');
+          // Inject recordingId as a global first
+          await this.context.addInitScript((recId: string) => {
+            (window as any).__recordingId__ = recId;
+          }, this.recordingId);
+          // Then inject the monitoring script
           await this.context.addInitScript(this.getMonitoringScriptFunction());
         }
 
         // Step 2: Manually inject on the current page (since it's already loaded)
         console.log('[ActionRecorder] Injecting script on current page');
+        // Inject recordingId first
+        await this.page.evaluate((recId: string) => {
+          (window as any).__recordingId__ = recId;
+        }, this.recordingId);
+        // Then inject the monitoring script
         await this.page.evaluate(this.getMonitoringScriptFunction());
 
         // ✅ Verify installation succeeded by checking for _recordedActions

@@ -402,14 +402,20 @@ export async function finishRecordingStep(input: FinishRecordingInput): Promise<
       const page = pages[pages.length - 1];
 
       // CRITICAL FIX: In production, ActionRecorder polling does not run (serverless freezes)
-      // Retrieve actions directly from browser where they were captured by monitoring script
+      // Retrieve actions from localStorage (survives Stagehand reconnection across serverless functions)
       console.log('[finishRecordingStep] Retrieving actions from browser (serverless polling did not run)');
 
-      const pageActions = await page.evaluate(() => {
-        const actions = (window as any)._recordedActions || [];
-        (window as any)._recordedActions = []; // Clear after retrieval
+      const pageActions = await page.evaluate((recId: string) => {
+        const storageKey = '_recordedActions_' + recId;
+        const actions = JSON.parse(localStorage.getItem(storageKey) || '[]');
+
+        console.log('[finishRecordingStep] Retrieved', actions.length, 'actions from localStorage');
+
+        // Clear after retrieval to prevent stale data
+        localStorage.removeItem(storageKey);
+
         return actions;
-      });
+      }, input.recordingId);
 
       console.log('[finishRecordingStep] Retrieved', pageActions.length, 'actions from browser');
 
