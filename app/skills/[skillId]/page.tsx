@@ -120,7 +120,12 @@ export default function SkillDetailsPage() {
       });
     }
 
-    const curlCommand = `curl -X POST http://localhost:3000/api/skills/${skillId}/execute \\
+    // Use the current origin (works in both dev and production)
+    const baseUrl = typeof window !== 'undefined' 
+      ? window.location.origin 
+      : (process.env.NEXT_PUBLIC_URL || 'https://dittod.vercel.app');
+
+    const curlCommand = `curl -X POST ${baseUrl}/api/skills/${skillId}/execute \\
   -H "Content-Type: application/json" \\
   -d '{
     "variables": ${JSON.stringify(variables, null, 6).replace(/\n/g, '\n    ')}
