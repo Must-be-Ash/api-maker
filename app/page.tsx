@@ -261,7 +261,7 @@ export default function LandingPage() {
               {/* Video container */}
               <div className="relative w-full aspect-video bg-slate-900">
                 <iframe
-                  src="https://www.youtube.com/embed/Y8ZI1uc6iBM?autoplay=1&rel=0"
+                  src="https://www.youtube.com/embed/g9g9qa-NV_A?si=1DE0zt9u-J-wN49g"
                   title="Dittod Demo"
                   allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
                   allowFullScreen
