@@ -10,19 +10,34 @@ import {
   Sparkles,
   Clock,
   Zap,
+  Wallet,
 } from 'lucide-react';
+import { useCurrentUser, useIsSignedIn } from '@coinbase/cdp-hooks';
+import { AuthButton } from '@coinbase/cdp-react';
+import { getCurrentUser, toViemAccount } from '@coinbase/cdp-core';
+import { wrapFetchWithPayment } from 'x402-fetch';
+import { createWalletClient, http, publicActions } from 'viem';
+import { base } from 'viem/chains';
 
 interface SkillTesterProps {
   skillId: string;
   goal: string;
   variableMapping?: Record<string, string>;
+  price?: number;
 }
 
-export function SkillTester({ skillId, goal, variableMapping }: SkillTesterProps) {
+export function SkillTester({ skillId, goal, variableMapping, price = 0.01 }: SkillTesterProps) {
   const [variables, setVariables] = useState<Record<string, string>>({});
   const [testing, setTesting] = useState(false);
   const [result, setResult] = useState<any>(null);
   const [error, setError] = useState<string | null>(null);
+
+  // CDP embedded wallet hooks
+  const { currentUser } = useCurrentUser();
+  const { isSignedIn } = useIsSignedIn();
+
+  // Get the EOA address (the one actually used for x402 payments)
+  const eoaAddress = currentUser?.evmAccounts?.[0];
 
   // Extract variable names from goal
   const variableNames = extractVariables(goal);
@@ -37,6 +52,12 @@ export function SkillTester({ skillId, goal, variableMapping }: SkillTesterProps
   }, [goal]);
 
   const handleTest = async () => {
+    // Check if user is signed in
+    if (!isSignedIn || !currentUser) {
+      setError('Please sign in to test this skill');
+      return;
+    }
+
     // Validate all variables have values
     const emptyVars = variableNames.filter((name) => !variables[name]?.trim());
     if (emptyVars.length > 0) {
@@ -49,7 +70,42 @@ export function SkillTester({ skillId, goal, variableMapping }: SkillTesterProps
     setError(null);
 
     try {
-      const response = await fetch(`/api/skills/${skillId}/execute`, {
+      console.log('[SkillTester] Setting up x402 payment wrapper');
+
+      // Step 1: Get CDP user account (EOA)
+      const user = await getCurrentUser();
+      if (!user || !user.evmAccounts || user.evmAccounts.length === 0) {
+        throw new Error('No wallet found. Please sign in again.');
+      }
+
+      // Use the EOA for x402 payment signing
+      const eoaAddress = user.evmAccounts[0];
+      console.log('[SkillTester] Using EOA:', eoaAddress);
+
+      // Convert EOA to viem account for signing x402 payments
+      const viemAccount = await toViemAccount(eoaAddress);
+      console.log('[SkillTester] Viem account created:', viemAccount.address);
+
+      // Step 2: Create viem wallet client for signing
+      const walletClient = createWalletClient({
+        account: viemAccount,
+        chain: base,
+        transport: http('https://mainnet.base.org'),
+      }).extend(publicActions);
+      console.log('[SkillTester] Created wallet client on Base network');
+
+      // Step 3: Wrap fetch with x402 payment capability
+      // Max payment amount in atomic units (USDC has 6 decimals)
+      const maxPaymentAmount = BigInt(Math.ceil(price * 10 ** 6)); // Convert to 6 decimals
+      const fetchFunc = wrapFetchWithPayment(
+        fetch,
+        walletClient as any,
+        maxPaymentAmount
+      ) as typeof fetch;
+      console.log('[SkillTester] Wrapped fetch with payment capability, max amount:', maxPaymentAmount.toString());
+
+      // Step 4: Make API call with payment wrapper
+      const response = await fetchFunc(`/api/skills/${skillId}/execute`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -57,16 +113,46 @@ export function SkillTester({ skillId, goal, variableMapping }: SkillTesterProps
         body: JSON.stringify({ variables }),
       });
 
+      console.log('[SkillTester] Response status:', response.status);
+
+      // Handle 402 Payment Required
+      if (response.status === 402) {
+        console.warn('[SkillTester] Payment required (402), x402-fetch will handle automatically');
+        // The x402-fetch wrapper will retry with payment
+        return;
+      }
+
       if (!response.ok) {
         const errorData = await response.json();
         throw new Error(errorData.error || 'Failed to execute skill');
       }
 
       const data = await response.json();
+      console.log('[SkillTester] Skill executed successfully');
       setResult(data);
+
+      // Check for payment settlement info
+      const paymentResponseHeader = response.headers.get('X-PAYMENT-RESPONSE');
+      if (paymentResponseHeader) {
+        console.log('[SkillTester] Payment settled:', paymentResponseHeader);
+      }
+
     } catch (err) {
-      console.error('Execution failed:', err);
-      const errorMessage = err instanceof Error ? err.message : 'Execution failed';
+      console.error('[SkillTester] Execution failed:', err);
+
+      let errorMessage = 'An unknown error occurred';
+      if (err instanceof Error) {
+        if (err.message.includes('402') || err.message.includes('Payment')) {
+          errorMessage = `Payment failed. Please ensure you have sufficient USDC balance ($${price.toFixed(2)}) on Base network.`;
+        } else if (err.message.includes('rejected')) {
+          errorMessage = 'Payment was rejected by your wallet';
+        } else if (err.message.includes('Insufficient funds') || err.message.includes('insufficient_funds')) {
+          errorMessage = `Insufficient USDC balance. You need at least $${price.toFixed(2)} USDC on Base mainnet. Please fund your wallet.`;
+        } else {
+          errorMessage = err.message;
+        }
+      }
+
       setError(errorMessage);
       setResult({
         success: false,
@@ -115,6 +201,50 @@ export function SkillTester({ skillId, goal, variableMapping }: SkillTesterProps
         <Sparkles className="h-6 w-6 text-blue-600" />
         <h2 className="text-xl font-bold text-slate-900">Test This Skill</h2>
       </div>
+
+      {/* Wallet Connection */}
+      {!isSignedIn && (
+        <div className="bg-blue-50 border border-blue-200 rounded-lg p-4 space-y-3">
+          <div className="flex items-start gap-3">
+            <Wallet className="h-5 w-5 text-blue-600 mt-0.5" />
+            <div className="flex-1 space-y-2">
+              <p className="text-sm font-medium text-blue-900">
+                Wallet Connection Required
+              </p>
+              <p className="text-sm text-blue-700">
+                Sign in with your Coinbase account to test this skill. Cost: ${price.toFixed(2)} USDC on Base mainnet
+              </p>
+            </div>
+          </div>
+          <AuthButton />
+        </div>
+      )}
+
+      {/* Connected Wallet Info */}
+      {isSignedIn && eoaAddress && (
+        <div className="bg-green-50 border border-green-200 rounded-lg p-4">
+          <div className="flex items-center gap-3 mb-2">
+            <CheckCircle2 className="h-5 w-5 text-green-600" />
+            <p className="text-sm font-medium text-green-900">
+              Wallet Connected (EOA)
+            </p>
+          </div>
+          <div className="pl-8 space-y-1">
+            <p className="text-xs text-green-700">
+              <span className="font-medium">Address:</span>{' '}
+              <span className="font-mono">
+                {eoaAddress}
+              </span>
+            </p>
+            <p className="text-xs text-green-700">
+              <span className="font-medium">Network:</span> Base Mainnet
+            </p>
+            <p className="text-xs text-green-700">
+              <span className="font-medium">Cost:</span> ${price.toFixed(2)} USDC
+            </p>
+          </div>
+        </div>
+      )}
 
       {/* Variable Inputs */}
       {variableNames.length > 0 ? (
@@ -170,18 +300,23 @@ export function SkillTester({ skillId, goal, variableMapping }: SkillTesterProps
       {/* Test Button */}
       <button
         onClick={handleTest}
-        disabled={testing}
+        disabled={!isSignedIn || testing}
         className="w-full bg-blue-600 text-white px-8 py-4 rounded-xl font-semibold text-lg hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed transition-all flex items-center justify-center gap-2 shadow-lg shadow-blue-600/20 hover:shadow-xl hover:shadow-blue-600/30"
       >
         {testing ? (
           <>
             <Loader2 className="h-5 w-5 animate-spin" />
-            Testing Skill...
+            Processing payment & executing...
+          </>
+        ) : !isSignedIn ? (
+          <>
+            <Wallet className="h-5 w-5" />
+            Sign In to Test
           </>
         ) : (
           <>
             <Play className="h-5 w-5" />
-            Test Skill
+            Test Skill (${price.toFixed(2)} USDC)
           </>
         )}
       </button>

@@ -27,7 +27,8 @@ export async function POST(request: NextRequest) {
     '$0.001', // Small amount for testing
     'base',
     requestUrl,
-    'Payment debug test'
+    'Payment debug test',
+    process.env.NEXT_PUBLIC_RECEIVING_WALLET_ADDRESS as `0x${string}` // Debug endpoint uses platform wallet
   );
 
   const verificationResult = await verifyPayment(paymentHeader, paymentRequirements);

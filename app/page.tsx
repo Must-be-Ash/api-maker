@@ -88,7 +88,7 @@ export default function LandingPage() {
 
             {/* Text Content - positioned over the left side of the image */}
             <motion.div
-              className="absolute inset-y-0 left-0 flex flex-col justify-center text-left max-w-md"
+              className="absolute inset-y-0 left-0 flex flex-col justify-center text-left max-w-md z-0"
               initial={{ opacity: 0, y: 20 }}
               animate={{ opacity: 1, y: 0 }}
               transition={{ duration: 0.6, ease: [0.22, 1, 0.36, 1] }}

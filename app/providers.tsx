@@ -8,7 +8,7 @@ const CONFIG = {
   appLogoUrl: '/logo.svg',
   authMethods: ['email', 'oauth:x', 'oauth:google'] as any,  // Enable email, X/Twitter, and Google OAuth login
   ethereum: {
-    createOnLogin: "eoa" as const,  // EOA wallet only (not smart account)
+    createOnLogin: "eoa" as const,  // Create EOA wallet for x402 payments
   },
   solana: {
     // No Solana wallet

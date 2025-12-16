@@ -1,6 +1,6 @@
 'use client';
 
-import { useEvmAddress, useIsSignedIn, useSignOut } from '@coinbase/cdp-hooks';
+import { useCurrentUser, useIsSignedIn, useSignOut } from '@coinbase/cdp-hooks';
 import { RefreshCw, Wallet, Copy, Check, ChevronDown, LogOut } from 'lucide-react';
 import { useEffect, useState, useRef } from 'react';
 import type { MouseEvent as ReactMouseEvent } from 'react';
@@ -12,8 +12,11 @@ const USDC_DECIMALS = 6;
 
 export function WalletDropdown() {
   const { isSignedIn } = useIsSignedIn();
-  const { evmAddress } = useEvmAddress();
+  const { currentUser } = useCurrentUser();
   const { signOut } = useSignOut();
+
+  // Get the EOA address (the one actually used for x402 payments)
+  const eoaAddress = currentUser?.evmAccounts?.[0];
   const [balance, setBalance] = useState<number | null>(null);
   const [loading, setLoading] = useState(false);
   const [copied, setCopied] = useState(false);
@@ -27,10 +30,10 @@ export function WalletDropdown() {
   }, [copied]);
 
   useEffect(() => {
-    if (isSignedIn && evmAddress) {
+    if (isSignedIn && eoaAddress) {
       fetchBalance();
     }
-  }, [isSignedIn, evmAddress]);
+  }, [isSignedIn, eoaAddress]);
 
   useEffect(() => {
     const handleClickOutside = (event: MouseEvent) => {
@@ -49,7 +52,7 @@ export function WalletDropdown() {
   }, [isOpen]);
 
   const fetchBalance = async () => {
-    if (!evmAddress) return;
+    if (!eoaAddress) return;
 
     setLoading(true);
     try {
@@ -70,7 +73,7 @@ export function WalletDropdown() {
           },
         ],
         functionName: 'balanceOf',
-        args: [evmAddress as `0x${string}`],
+        args: [eoaAddress as `0x${string}`],
       });
 
       const formattedBalance = parseFloat(formatUnits(balanceResult, USDC_DECIMALS));
@@ -89,10 +92,10 @@ export function WalletDropdown() {
 
   const handleCopyAddress = async (e: ReactMouseEvent<HTMLButtonElement>) => {
     e.stopPropagation();
-    if (!evmAddress) return;
+    if (!eoaAddress) return;
 
     try {
-      await navigator.clipboard.writeText(evmAddress);
+      await navigator.clipboard.writeText(eoaAddress);
       setCopied(true);
     } catch (error) {
       console.error('Failed to copy address:', error);
@@ -109,7 +112,7 @@ export function WalletDropdown() {
     signOut();
   };
 
-  if (!isSignedIn || !evmAddress) {
+  if (!isSignedIn || !eoaAddress) {
     return null;
   }
 
@@ -186,7 +189,7 @@ export function WalletDropdown() {
                 title="Click to copy full address"
               >
                 <span className="font-mono text-xs text-slate-900 truncate">
-                  {truncateAddress(evmAddress)}
+                  {truncateAddress(eoaAddress)}
                 </span>
                 {copied ? (
                   <Check className="w-4 h-4 text-green-600 flex-shrink-0" />

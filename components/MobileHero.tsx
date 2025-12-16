@@ -22,7 +22,7 @@ export function MobileHero({ onPlayDemo }: MobileHeroProps) {
   };
 
   return (
-    <section className="pt-8 pb-12 px-5">
+    <section className="pt-8 pb-12 px-5 relative z-0">
       {/* Hidden CDP AuthButton */}
       <div ref={authButtonRef} className="hidden">
         <AuthButton />
@@ -59,16 +59,16 @@ export function MobileHero({ onPlayDemo }: MobileHeroProps) {
         </p>
 
         {/* Buttons - mobile sized, centered */}
-        <div className="flex flex-col items-center gap-4">
+        <div className="flex flex-col items-center gap-4 relative z-0">
           {/* Primary CTA */}
           <button
             onClick={handleAuthClick}
-            className="relative inline-flex items-center justify-center px-10 py-4 rounded-full font-medium text-white text-base transition-all duration-200 border-0 cursor-pointer shadow-[0_6px_24px_rgba(0,0,0,0.25),0_2px_6px_rgba(0,0,0,0.15),inset_0_1px_0_rgba(255,255,255,0.1)] active:shadow-[0_2px_8px_rgba(0,0,0,0.3),inset_0_2px_4px_rgba(0,0,0,0.3)] active:scale-[0.98]"
+            className="relative z-0 inline-flex items-center justify-center px-10 py-4 rounded-full font-medium text-white text-base transition-all duration-200 border-0 cursor-pointer shadow-[0_6px_24px_rgba(0,0,0,0.25),0_2px_6px_rgba(0,0,0,0.15),inset_0_1px_0_rgba(255,255,255,0.1)] active:shadow-[0_2px_8px_rgba(0,0,0,0.3),inset_0_2px_4px_rgba(0,0,0,0.3)] active:scale-[0.98]"
             style={{
               background: 'linear-gradient(145deg, #4a4a4a 0%, #3a3a3a 50%, #2a2a2a 100%)'
             }}
           >
-            <span className="relative z-10">Get Started for Free</span>
+            <span className="relative z-0">Get Started for Free</span>
             <div className="absolute inset-0 rounded-full bg-gradient-to-b from-white/10 to-transparent opacity-60 pointer-events-none" />
           </button>
           

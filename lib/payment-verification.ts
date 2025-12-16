@@ -17,7 +17,8 @@ export function createPaymentRequirements(
   price: string, // e.g. "$0.01"
   network: Network,
   resource: Resource,
-  description: string
+  description: string,
+  payTo: `0x${string}` // Dynamic payment destination (skill creator's wallet)
 ): PaymentRequirements {
   const atomicAmountForAsset = processPriceToAtomicAmount(price, network);
 
@@ -40,7 +41,7 @@ export function createPaymentRequirements(
     resource,
     description,
     mimeType: 'application/json',
-    payTo: process.env.NEXT_PUBLIC_RECEIVING_WALLET_ADDRESS as `0x${string}`,
+    payTo, // Dynamic payTo based on skill creator
     maxTimeoutSeconds: 120,
     asset: asset.address,
     outputSchema: undefined,
