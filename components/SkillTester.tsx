@@ -31,6 +31,7 @@ export function SkillTester({ skillId, goal, variableMapping, price = 0.01 }: Sk
   const [testing, setTesting] = useState(false);
   const [result, setResult] = useState<any>(null);
   const [error, setError] = useState<string | null>(null);
+  const [txHash, setTxHash] = useState<string | null>(null);
 
   // CDP embedded wallet hooks
   const { currentUser } = useCurrentUser();
@@ -68,6 +69,7 @@ export function SkillTester({ skillId, goal, variableMapping, price = 0.01 }: Sk
     setTesting(true);
     setResult(null);
     setError(null);
+    setTxHash(null);
 
     try {
       console.log('[SkillTester] Setting up x402 payment wrapper');
@@ -131,10 +133,10 @@ export function SkillTester({ skillId, goal, variableMapping, price = 0.01 }: Sk
       console.log('[SkillTester] Skill executed successfully');
       setResult(data);
 
-      // Check for payment settlement info
-      const paymentResponseHeader = response.headers.get('X-PAYMENT-RESPONSE');
-      if (paymentResponseHeader) {
-        console.log('[SkillTester] Payment settled:', paymentResponseHeader);
+      // Extract payment info from response
+      if (data.payment?.txHash) {
+        setTxHash(data.payment.txHash);
+        console.log('[SkillTester] Payment settled with tx:', data.payment.txHash);
       }
 
     } catch (err) {
@@ -220,31 +222,6 @@ export function SkillTester({ skillId, goal, variableMapping, price = 0.01 }: Sk
         </div>
       )}
 
-      {/* Connected Wallet Info */}
-      {isSignedIn && eoaAddress && (
-        <div className="bg-green-50 border border-green-200 rounded-lg p-4">
-          <div className="flex items-center gap-3 mb-2">
-            <CheckCircle2 className="h-5 w-5 text-green-600" />
-            <p className="text-sm font-medium text-green-900">
-              Wallet Connected (EOA)
-            </p>
-          </div>
-          <div className="pl-8 space-y-1">
-            <p className="text-xs text-green-700">
-              <span className="font-medium">Address:</span>{' '}
-              <span className="font-mono">
-                {eoaAddress}
-              </span>
-            </p>
-            <p className="text-xs text-green-700">
-              <span className="font-medium">Network:</span> Base Mainnet
-            </p>
-            <p className="text-xs text-green-700">
-              <span className="font-medium">Cost:</span> ${price.toFixed(2)} USDC
-            </p>
-          </div>
-        </div>
-      )}
 
       {/* Variable Inputs */}
       {variableNames.length > 0 ? (
@@ -347,6 +324,33 @@ export function SkillTester({ skillId, goal, variableMapping, price = 0.01 }: Sk
               </span>
             </div>
           </div>
+
+          {/* Payment Success */}
+          {result.success && txHash && (
+            <div className="bg-green-50 border border-green-200 rounded-lg p-4">
+              <div className="flex items-center gap-2 mb-2">
+                <CheckCircle2 className="h-5 w-5 text-green-600" />
+                <span className="text-sm font-semibold text-green-900">Payment Successful</span>
+              </div>
+              <div className="pl-7 space-y-1">
+                <p className="text-xs text-green-700">
+                  <span className="font-medium">Transaction Hash:</span>
+                </p>
+                <a
+                  href={`https://basescan.org/tx/${txHash}`}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="inline-flex items-center gap-2 text-xs font-mono text-green-700 hover:text-green-900 hover:underline"
+                >
+                  <span>{txHash.slice(0, 10)}...{txHash.slice(-8)}</span>
+                  <ExternalLink className="h-3 w-3" />
+                </a>
+                <p className="text-xs text-green-600 mt-1">
+                  ${price.toFixed(2)} USDC paid on Base
+                </p>
+              </div>
+            </div>
+          )}
 
           {/* Metrics */}
           <div className="grid grid-cols-3 gap-4">

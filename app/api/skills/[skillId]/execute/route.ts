@@ -125,14 +125,13 @@ export async function POST(
 
     console.log('[x402] ✓ Payment verified from:', verificationResult.payer);
 
-    // ========== STEP 7: SETTLE PAYMENT ASYNCHRONOUSLY ==========
-    settlePayment(paymentHeader!, paymentRequirements).then(result => {
-      if (result.success) {
-        console.log('[x402] ✓ Payment settled:', result.txHash);
-      } else {
-        console.error('[x402] ✗ Settlement failed:', result.error);
-      }
-    });
+    // ========== STEP 7: SETTLE PAYMENT SYNCHRONOUSLY ==========
+    const settlementResult = await settlePayment(paymentHeader!, paymentRequirements);
+    if (settlementResult.success) {
+      console.log('[x402] ✓ Payment settled:', settlementResult.txHash);
+    } else {
+      console.error('[x402] ✗ Settlement failed:', settlementResult.error);
+    }
 
     // ========== STEP 8: EXECUTE WORKFLOW ==========
     const body = await request.json();
@@ -171,11 +170,12 @@ export async function POST(
       createdAt: new Date().toISOString(),
     });
 
-    // ========== STEP 10: RETURN RESULT WITH PAYMENT HEADERS ==========
-    return NextResponse.json(result, {
-      headers: {
-        'X-PAYMENT-RESPONSE': createPaymentResponseHeader('pending'),
-        'Access-Control-Expose-Headers': 'X-PAYMENT-RESPONSE',
+    // ========== STEP 10: RETURN RESULT WITH PAYMENT INFO ==========
+    return NextResponse.json({
+      ...result,
+      payment: {
+        txHash: settlementResult.txHash,
+        settled: settlementResult.success,
       },
     });
 
