@@ -40,20 +40,20 @@ export default async function SkillsGalleryPage() {
               <Link
                 key={skill.skillId}
                 href={`/skills/${skill.skillId}`}
-                className="group bg-white border border-slate-200 rounded-2xl p-6 hover:shadow-xl hover:border-blue-200 transition-all"
+                className="group bg-white border border-slate-200 rounded-2xl p-6 hover:shadow-xl hover:border-blue-200 transition-all flex flex-col h-full"
               >
                 {/* Skill Header */}
-                <div className="space-y-3 mb-4">
+                <div className="space-y-3 mb-4 flex-shrink-0">
                   <h3 className="font-bold text-xl text-slate-900 group-hover:text-blue-600 transition-colors line-clamp-2">
                     {skill.name}
                   </h3>
-                  <p className="text-sm text-slate-600 line-clamp-2">
+                  <p className="text-sm text-slate-600 line-clamp-2 min-h-[2.5rem]">
                     {skill.goal}
                   </p>
                 </div>
 
                 {/* Metrics */}
-                <div className="flex items-center justify-between text-xs text-slate-500 mb-4 py-3 border-t border-slate-100">
+                <div className="flex items-center justify-between text-xs text-slate-500 mb-4 py-3 border-t border-slate-100 flex-shrink-0">
                   <div className="flex items-center gap-1">
                     <Layers className="h-3.5 w-3.5" />
                     <span className="font-medium text-slate-700">{skill.metrics.operations}</span>
@@ -81,8 +81,11 @@ export default async function SkillsGalleryPage() {
                   </div>
                 </div>
 
-                {/* View Details */}
-                <div className="flex items-center justify-between pt-3 border-t border-slate-100">
+                {/* Spacer to push bottom content down */}
+                <div className="flex-1" />
+
+                {/* View Details - Always at bottom */}
+                <div className="flex items-center justify-between pt-3 border-t border-slate-100 mt-auto flex-shrink-0">
                   <span className="text-xs text-slate-400">
                     Created {new Date(skill.createdAt).toLocaleDateString()}
                   </span>
