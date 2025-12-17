@@ -149,7 +149,7 @@ export function SkillTester({ skillId, goal, variableMapping, price = 0.01 }: Sk
         } else if (err.message.includes('rejected')) {
           errorMessage = 'Payment was rejected by your wallet';
         } else if (err.message.includes('Insufficient funds') || err.message.includes('insufficient_funds')) {
-          errorMessage = `Insufficient USDC balance. You need at least $${price.toFixed(2)} USDC on Base mainnet. Please fund your wallet.`;
+          errorMessage = 'Insufficient funds';
         } else {
           errorMessage = err.message;
         }
