@@ -27,35 +27,51 @@ export async function POST(request: Request) {
 
     console.log('[POST /api/chat] Received messages:', JSON.stringify(messages, null, 2));
 
-    // Tool 1: List available skills
+    // Load skills from database ONCE at the start
+    let cachedSkills: any[] = [];
+    try {
+      const { connectDB } = await import('@/lib/mongodb');
+      const db = await connectDB();
+      const skillsFromDb = await db.collection('skills')
+        .find({})
+        .project({
+          skillId: 1,
+          name: 1,
+          goal: 1,
+          price: 1,
+          variables: 1,
+          successfulRun: 1,
+          _id: 0
+        })
+        .sort({ createdAt: -1 })
+        .toArray();
+
+      cachedSkills = skillsFromDb.map((skill: any) => ({
+        skillId: skill.skillId,
+        name: skill.name,
+        goal: skill.goal,
+        price: skill.price,
+        variables: skill.variables || [],
+        successfulRun: skill.successfulRun,
+      }));
+
+      console.log('[POST /api/chat] Loaded skills from database:', cachedSkills.length);
+    } catch (error) {
+      console.error('[POST /api/chat] Failed to load skills:', error);
+    }
+
+    // Tool 1: List available skills (returns cached skills)
     const listSkillsTool = tool({
       description: 'List all available browser automation skills with their details, goals, and required variables',
       inputSchema: z.object({}),
       execute: async () => {
         console.log('[listSkills] Tool called');
-        // Fetch skills from our new GET endpoint
-        const baseUrl = process.env.NEXT_PUBLIC_APP_URL || process.env.NEXT_PUBLIC_URL || 'http://localhost:3000';
-        const response = await fetch(`${baseUrl}/api/skills`, {
-          cache: 'no-store', // Always get fresh data
-        });
-
-        if (!response.ok) {
-          return { error: 'Failed to fetch skills' };
-        }
-
-        const { skills } = await response.json();
-
-        return {
-          skills: skills.map((skill: any) => ({
-            skillId: skill.skillId,
-            name: skill.name,
-            goal: skill.goal,
-            price: skill.price,
-            variables: skill.variables || [],
-            successfulRun: skill.successfulRun,
-          })),
-          count: skills.length,
+        const result = {
+          skills: cachedSkills,
+          count: cachedSkills.length,
         };
+        console.log('[listSkills] Returning result:', JSON.stringify(result, null, 2));
+        return result;
       },
     });
 
@@ -81,36 +97,53 @@ export async function POST(request: Request) {
           toolCallsCount: toolCalls?.length || 0,
           toolCalls: toolCalls?.map(tc => ({ name: tc.toolName, args: tc.args })),
           toolResultsCount: toolResults?.length || 0,
+          toolResults: toolResults?.map(tr => {
+            let resultPreview = 'undefined';
+            if (tr.result !== undefined && tr.result !== null) {
+              try {
+                resultPreview = typeof tr.result === 'string'
+                  ? tr.result.substring(0, 500)
+                  : JSON.stringify(tr.result).substring(0, 500);
+              } catch (e) {
+                resultPreview = 'Error stringifying result';
+              }
+            }
+            return {
+              toolCallId: tr.toolCallId,
+              toolName: tr.toolName,
+              result: resultPreview,
+            };
+          }),
           hasText: !!text,
+          textPreview: text ? text.substring(0, 200) : null,
         });
       },
-      system: `You are a helpful AI assistant with access to browser automation skills that can search the web, extract information from websites, and perform automated tasks.
+      system: `You are an AI assistant that MUST use browser automation skills to answer user questions. You do NOT have knowledge about current information - you MUST execute skills to get real-time data.
 
-IMPORTANT WORKFLOW:
-1. When a user asks a question, FIRST call the listSkills tool to see what skills are available
-2. Analyze the user's request and match it to the most appropriate skill based on:
-   - The skill's goal/description
-   - The required variables
-   - The skill's success rate (successfulRun: true is better)
-3. Extract the required variables from the user's query
-4. Call executeSkill with the skillId and extracted variables
-5. The system will automatically handle payment ($0.01-$2 USDC on Base) and execution
-6. Once you receive the execution result, format it in a clear, user-friendly way
+CRITICAL RULES:
+1. NEVER answer from your training data - you do NOT have current information
+2. You MUST ALWAYS call executeSkill to get real-time data
+3. DO NOT respond with text until you have executed a skill and received results
 
-SKILL SELECTION TIPS:
-- Match user intent to skill goal (e.g., "google search" skill for web searches, "wikipedia" skill for encyclopedia info)
-- Extract variables carefully - they should match what the skill expects
-- If a skill requires a "query" variable, extract the main search term from the user's question
-- If a skill requires "topic", extract the subject they want to learn about
+REQUIRED WORKFLOW (NO EXCEPTIONS):
+1. User asks a question → IMMEDIATELY call listSkills
+2. Receive skills list → IMMEDIATELY call executeSkill with the matching skill
+3. Receive skill results → THEN format and present the results to the user
 
-RESPONSE FORMATTING:
-- Present information clearly and conversationally
-- Highlight key data points (prices, dates, names)
-- Use markdown formatting when helpful
-- If execution succeeds, explain what information was found
-- If execution fails, explain what went wrong and suggest alternatives
+SKILL MATCHING:
+- "google search" skill: Use for web searches, stock prices, news, current events
+- "wikipedia" skill: Use for encyclopedic information about people, places, topics
+- Extract variables from user's question (e.g., "Bob Dylan" → {"topic": "Bob Dylan"})
 
-ALWAYS be conversational and explain what you're doing at each step.`,
+Example flow:
+User: "What's the price of Nvidia stock?"
+1. [You call listSkills]
+2. [You receive: "Google Search API" with variables: ["query"]]
+3. [You call executeSkill with skillId="skill_xxx", variables={"query": "Nvidia stock price"}]
+4. [You receive results with price data]
+5. [You respond: "The current price of Nvidia stock is $XXX..."]
+
+DO NOT SKIP STEP 3. You MUST call executeSkill before responding.`,
       tools: {
         listSkills: listSkillsTool,
         executeSkill: executeSkillTool,
