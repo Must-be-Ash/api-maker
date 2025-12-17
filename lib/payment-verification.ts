@@ -151,6 +151,55 @@ export async function settlePayment(
   }
 }
 
+/**
+ * Settle payment with automatic retry on transient failures
+ * Retries up to 3 times with exponential backoff: 1s, 2s, 4s
+ */
+export async function settlePaymentWithRetry(
+  paymentHeader: string,
+  paymentRequirements: PaymentRequirements,
+  maxRetries: number = 3
+): Promise<{
+  success: boolean;
+  txHash?: string;
+  error?: string;
+  attempts: number;
+}> {
+  let lastError: string = '';
+
+  for (let attempt = 1; attempt <= maxRetries; attempt++) {
+    console.log(`[x402] Settlement attempt ${attempt}/${maxRetries}`);
+
+    const result = await settlePayment(paymentHeader, paymentRequirements);
+
+    if (result.success) {
+      console.log(`[x402] ✓ Settlement succeeded on attempt ${attempt}`);
+      return {
+        success: true,
+        txHash: result.txHash,
+        attempts: attempt,
+      };
+    }
+
+    lastError = result.error || 'Unknown settlement error';
+    console.error(`[x402] ✗ Attempt ${attempt} failed:`, lastError);
+
+    // Don't wait after the last attempt
+    if (attempt < maxRetries) {
+      const delayMs = Math.pow(2, attempt - 1) * 1000; // 1s, 2s, 4s
+      console.log(`[x402] Retrying in ${delayMs}ms...`);
+      await new Promise(resolve => setTimeout(resolve, delayMs));
+    }
+  }
+
+  console.error(`[x402] ✗ All ${maxRetries} settlement attempts failed`);
+  return {
+    success: false,
+    error: lastError,
+    attempts: maxRetries,
+  };
+}
+
 export function create402Response(
   paymentRequirements: PaymentRequirements,
   error?: string,

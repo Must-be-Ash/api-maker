@@ -8,7 +8,7 @@ import type { Resource } from 'x402/types';
 import {
   createPaymentRequirements,
   verifyPayment,
-  settlePayment,
+  settlePaymentWithRetry,
   create402Response,
   createPaymentResponseHeader,
 } from '@/lib/payment-verification';
@@ -125,13 +125,23 @@ export async function POST(
 
     console.log('[x402] ✓ Payment verified from:', verificationResult.payer);
 
-    // ========== STEP 7: SETTLE PAYMENT SYNCHRONOUSLY ==========
-    const settlementResult = await settlePayment(paymentHeader!, paymentRequirements);
-    if (settlementResult.success) {
-      console.log('[x402] ✓ Payment settled:', settlementResult.txHash);
-    } else {
-      console.error('[x402] ✗ Settlement failed:', settlementResult.error);
+    // ========== STEP 7: SETTLE PAYMENT WITH RETRY ==========
+    const settlementResult = await settlePaymentWithRetry(paymentHeader!, paymentRequirements);
+
+    if (!settlementResult.success) {
+      console.error(`[x402] ✗ Settlement failed after ${settlementResult.attempts} attempts:`, settlementResult.error);
+      return NextResponse.json(
+        {
+          success: false,
+          error: 'Payment settlement failed',
+          details: settlementResult.error,
+          message: 'Payment was verified but could not be settled. Please try again or contact support.',
+        },
+        { status: 500 }
+      );
     }
+
+    console.log(`[x402] ✓ Payment settled on attempt ${settlementResult.attempts}:`, settlementResult.txHash);
 
     // ========== STEP 8: EXECUTE WORKFLOW ==========
     const body = await request.json();
