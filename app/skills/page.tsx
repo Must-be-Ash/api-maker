@@ -3,6 +3,8 @@ import Link from 'next/link';
 import { Header } from '@/components/Header';
 import { Clock, Layers, CheckCircle2, AlertCircle, ArrowRight } from 'lucide-react';
 
+export const dynamic = 'force-dynamic';
+
 export default async function SkillsGalleryPage() {
   const db = await connectDB();
   const skills = await db
