@@ -625,8 +625,12 @@ export async function finishRecordingStep(input: FinishRecordingInput): Promise<
       let newValue = action.value;
       let wasReplaced = false;
 
+      // Sort mappings by length (longest first) to avoid substring conflicts
+      // Example: Replace "nintendo switch 2" before "nint" to prevent corruption
+      const sortedMappings = Object.entries(variableMapping).sort((a, b) => b[0].length - a[0].length);
+
       // Replace each mapped value within the action's value
-      Object.entries(variableMapping).forEach(([originalText, placeholder]) => {
+      sortedMappings.forEach(([originalText, placeholder]) => {
         if (newValue.includes(originalText)) {
           // Escape special regex characters in originalText
           const escapedText = originalText.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
@@ -639,7 +643,8 @@ export async function finishRecordingStep(input: FinishRecordingInput): Promise<
         // ALSO UPDATE semanticValue if it exists (Bug fix: ensure workflow instructions use placeholders)
         let newSemanticValue = action.semanticValue;
         if (action.semanticValue !== undefined && action.semanticValue !== null) {
-          Object.entries(variableMapping).forEach(([originalText, placeholder]) => {
+          // Use the same sorted mappings to avoid substring conflicts
+          sortedMappings.forEach(([originalText, placeholder]) => {
             const semanticStr = String(newSemanticValue);
             if (semanticStr.includes(originalText)) {
               // Escape special regex characters in originalText

@@ -3,9 +3,9 @@ ashnouruzi@C357PRGCH2 api-maker % pnpm dev
 > next-boilerplate@0.1.0 dev /Users/ashnouruzi/api-maker
 > next dev
 
-Discovering workflow directives 1393ms
-Created steps bundle 16ms
-Created intermediate workflow bundle 7ms
+Discovering workflow directives 1805ms
+Created steps bundle 21ms
+Created intermediate workflow bundle 12ms
 Creating webhook route
    ▲ Next.js 16.0.7 (Turbopack)
    - Local:         http://localhost:3000
@@ -13,18 +13,71 @@ Creating webhook route
    - Environments: .env.local
 
  ✓ Starting...
- ✓ Ready in 2.2s
- GET /skills/record 200 in 2.8s (compile: 2.5s, render: 257ms)
-(node:71997) [DEP0169] DeprecationWarning: `url.parse()` behavior is not standardized and prone to errors that have security implications. Use the WHATWG URL API instead. CVEs are not issued for `url.parse()` vulnerabilities.
+ ✓ Ready in 2.6s
+motion() is deprecated. Use motion.create() instead.
+ GET / 200 in 3.3s (compile: 3.0s, render: 332ms)
+ GET /skills 200 in 1768ms (compile: 1170ms, render: 598ms)
+ GET /skills/skill_1766002362007_extxjq6ga 200 in 1799ms (compile: 1781ms, render: 18ms)
+[GET /api/skills/[skillId]] Fetching skill: skill_1766002362007_extxjq6ga
+ GET /api/skills/skill_1766002362007_extxjq6ga 200 in 3.4s (compile: 3.4s, render: 34ms)
+[GET /api/skills/[skillId]] Fetching skill: skill_1766002362007_extxjq6ga
+ GET /api/skills/skill_1766002362007_extxjq6ga 200 in 33ms (compile: 9ms, render: 25ms)
+Rebuilt steps bundle 51ms
+Rebuilt workflow bundle 20ms
+Rebuilt steps bundle 42ms
+Rebuilt workflow bundle 19ms
+ ✓ Compiled in 184ms
+[GET /api/skills/[skillId]] Fetching skill: skill_1766002362007_extxjq6ga
+ GET /api/skills/skill_1766002362007_extxjq6ga 200 in 38ms (compile: 11ms, render: 26ms)
+Rebuilt steps bundle 42ms
+Rebuilt workflow bundle 15ms
+ ✓ Compiled in 55ms
+Rebuilt steps bundle 22ms
+Rebuilt workflow bundle 13ms
+ GET /skills/skill_1766002362007_extxjq6ga 200 in 500ms (compile: 80ms, render: 420ms)
+[GET /api/skills/[skillId]] Fetching skill: skill_1766002362007_extxjq6ga
+[GET /api/skills/[skillId]] Fetching skill: skill_1766002362007_extxjq6ga
+ GET /api/skills/skill_1766002362007_extxjq6ga 200 in 48ms (compile: 16ms, render: 33ms)
+ GET /api/skills/skill_1766002362007_extxjq6ga 200 in 197ms (compile: 10ms, render: 187ms)
+(node:2932) [DEP0169] DeprecationWarning: `url.parse()` behavior is not standardized and prone to errors that have security implications. Use the WHATWG URL API instead. CVEs are not issued for `url.parse()` vulnerabilities.
 (Use `node --trace-deprecation ...` to show where the warning was created)
+[PATCH /api/skills/[skillId]] Updating skill: skill_1766002362007_extxjq6ga { updatedAt: '2025-12-17T21:38:39.154Z', name: 'Weather API' }
+ PATCH /api/skills/skill_1766002362007_extxjq6ga 200 in 255ms (compile: 8ms, render: 247ms)
+ GET /skills 200 in 65ms (compile: 8ms, render: 57ms)
+ GET /skills/skill_1766001052448_2bq9oledp 200 in 17ms (compile: 8ms, render: 9ms)
+[GET /api/skills/[skillId]] Fetching skill: skill_1766001052448_2bq9oledp
+[GET /api/skills/[skillId]] Fetching skill: skill_1766001052448_2bq9oledp
+ GET /api/skills/skill_1766001052448_2bq9oledp 200 in 27ms (compile: 7ms, render: 20ms)
+ GET /api/skills/skill_1766001052448_2bq9oledp 200 in 35ms (compile: 12ms, render: 23ms)
+ GET /skills/skill_1765999943404_jjgdmv1ni 200 in 15ms (compile: 7ms, render: 8ms)
+[GET /api/skills/[skillId]] Fetching skill: skill_1765999943404_jjgdmv1ni
+[GET /api/skills/[skillId]] Fetching skill: skill_1765999943404_jjgdmv1ni
+ GET /api/skills/skill_1765999943404_jjgdmv1ni 200 in 31ms (compile: 9ms, render: 23ms)
+ GET /api/skills/skill_1765999943404_jjgdmv1ni 200 in 25ms (compile: 4ms, render: 20ms)
+ GET /skills/skill_1766001052448_2bq9oledp 200 in 15ms (compile: 6ms, render: 9ms)
+[GET /api/skills/[skillId]] Fetching skill: skill_1766001052448_2bq9oledp
+[GET /api/skills/[skillId]] Fetching skill: skill_1766001052448_2bq9oledp
+ GET /api/skills/skill_1766001052448_2bq9oledp 200 in 32ms (compile: 7ms, render: 25ms)
+ GET /api/skills/skill_1766001052448_2bq9oledp 200 in 27ms (compile: 6ms, render: 21ms)
+ GET /?auth=required 200 in 15ms (compile: 6ms, render: 9ms)
+ GET /?auth=required&code=4%2F0ATX87lO3DSQHHXlVRRiSS5BG5Ngguw7gIhT_jAaNdoKXn4qvxX_HkdkMxNcR259lV6qpWA&flow_id=775b8141-b9f7-4a69-9f35-38205eee2689&provider_type=google 200 in 34ms (compile: 6ms, render: 29ms)
+ GET /skills/skill_1766001052448_2bq9oledp 200 in 23ms (compile: 10ms, render: 13ms)
+[GET /api/skills/[skillId]] Fetching skill: skill_1766001052448_2bq9oledp
+ GET /api/skills/skill_1766001052448_2bq9oledp 200 in 31ms (compile: 8ms, render: 23ms)
+[GET /api/skills/[skillId]] Fetching skill: skill_1766001052448_2bq9oledp
+ GET /api/skills/skill_1766001052448_2bq9oledp 200 in 33ms (compile: 10ms, render: 23ms)
+[DELETE /api/skills/[skillId]] Deleting skill: skill_1766001052448_2bq9oledp by creator: 0x08bfec5133141cc704a34505d5e504503bf3168d
+ DELETE /api/skills/skill_1766001052448_2bq9oledp 200 in 222ms (compile: 6ms, render: 216ms)
+ GET /skills 200 in 75ms (compile: 7ms, render: 68ms)
+ GET /skills/record 200 in 781ms (compile: 763ms, render: 18ms)
 [POST /api/skills/start-recording] Starting recording workflow {
-  goal: 'product price search on Amazon',
+  goal: 'Amazon Product Price Search',
   startUrl: 'https://www.amazon.com/',
   creatorAddress: '0x08bfec5133141cc704a34505d5e504503bf3168d'
 }
- POST /.well-known/workflow/v1/flow 200 in 171ms (compile: 158ms, render: 13ms)
+ POST /.well-known/workflow/v1/flow 200 in 152ms (compile: 141ms, render: 12ms)
 [startRecordingStep] Starting recording {
-  goal: 'product price search on Amazon',
+  goal: 'Amazon Product Price Search',
   startUrl: 'https://www.amazon.com/',
   creatorAddress: '0x08bfec5133141cc704a34505d5e504503bf3168d'
 }
@@ -40,24 +93,24 @@ Creating webhook route
   }
 }
 [startRecordingStep] Browserbase response: {
-  id: '4c3f6dc9-7f01-4c2f-a46a-a23d876a7903',
-  createdAt: '2025-12-17T19:49:24.437173+00:00',
-  updatedAt: '2025-12-17T19:49:24.437173+00:00',
+  id: 'f29140cf-df10-4459-8432-420a3b621c15',
+  createdAt: '2025-12-17T21:39:56.726731+00:00',
+  updatedAt: '2025-12-17T21:39:56.726731+00:00',
   projectId: '26b0ffe0-6897-4cf1-a66c-3a927c7f9456',
-  startedAt: '2025-12-17T19:49:24.425+00:00',
-  expiresAt: '2025-12-17T19:54:24.425+00:00',
+  startedAt: '2025-12-17T21:39:56.716+00:00',
+  expiresAt: '2025-12-17T21:44:56.716+00:00',
   status: 'RUNNING',
   proxyBytes: 0,
   keepAlive: true,
   region: 'us-west-2',
-  connectUrl: 'wss://connect.usw2.browserbase.com/?signingKey=eyJhbGciOiJBMjU2S1ciLCJlbmMiOiJBMjU2R0NNIn0.LG34eS92Q-sfAnPk4pxgv10P-Ot-j6jyoZhuI4CPf6zqWw-anlnIDA.BR99b3Ou58t8mkrl.xn0g-PxuBXJ_zr36eQQU8SOYsGuWiwO64Od9vLShAKug6TWL2Sd8lXvmw5buBQdX7lepz6fnUKYDTGI8Q_a_z6morDVjCsTIoAaj_FmqutZu62Go3HjFdcV4Xa9hIKxLurqaoXyhIAQjhBXqVneDbrMfTeJn4Q2TMa10YxfXE6gyDEumZZYDrOBVyBVYUU_OnNK-Q3ewOKhMYvNnqQEAYUGtHuE6QLn2nKLuYycVmzvd0e3FmTiq3WZQ28vcBc9tNNlzDhxkNfmWeqd0JjnqXwzEjnX1laeOrf7xxTx5M2Q6iR0U1feB24NBc5jq3s2hDNlzOGBJSSZFWhPq2IMQeLPG2JrcXc3PuC35hY_tM48zNumPCTIJV6MMgwdINCH2HnF7J3iT-QwhJFTJFQllqfQtiiY7oPAq90HW7h3WsQnQRyya5-yhaguGuodrycOy.kJM5wqOpXQzFz3fBYFpV4Q',
+  connectUrl: 'wss://connect.usw2.browserbase.com/?signingKey=eyJhbGciOiJBMjU2S1ciLCJlbmMiOiJBMjU2R0NNIn0.S0DSTRt0GddyCFWcvBnbwtnwqt9u0YQjQLmtGOkxnuJzblZK9806zw.5Z-Qtd-CDYGt9ASH.b1TX47j-OqYTQzL9Spm59Jo2yXzRWtlUqkeLEKblpG3c9kHtPZ3TBtPdGsoYxCpWW5rWoZFQiGoooCr-Q_qJN4iIlQ87aHrTn-I_yHJDvlqftFpTw92kxXOI0EMyIKOWUXHxBjxmM9mtcAQHSL8hrwhvx-o5NBMeCxpf_EQWn3hpGKokUikzJvLAta6QlRwouD_i92sxGVRPLIgPOFv61IhAtmrVYDyGNO1ctkUWEisjOsDDXq7OC1iFGr4pCPbAopQMkt1wurOEnNQuFcCJ7_87f9sGlCP0w_GERc7qe8eJWEaK3EmpDI6o3pQCGmcQALdBGeUe_35m8_xTJXFd7JFL3hETRUZJqOwxmFbw-UNy2EzX1iJMb9C8szv0ekJSnbdeXbomcnQVH67Yj-HDM9VPFYRBn28ZCUA4jq-BrO49WQi-MUxFoiuasA3SMaSC.G9TtCPU_1C_IoeJ2qcNwdw',
   seleniumRemoteUrl: 'http://connect.usw2.browserbase.com/webdriver',
-  signingKey: 'eyJhbGciOiJBMjU2S1ciLCJlbmMiOiJBMjU2R0NNIn0.LG34eS92Q-sfAnPk4pxgv10P-Ot-j6jyoZhuI4CPf6zqWw-anlnIDA.BR99b3Ou58t8mkrl.xn0g-PxuBXJ_zr36eQQU8SOYsGuWiwO64Od9vLShAKug6TWL2Sd8lXvmw5buBQdX7lepz6fnUKYDTGI8Q_a_z6morDVjCsTIoAaj_FmqutZu62Go3HjFdcV4Xa9hIKxLurqaoXyhIAQjhBXqVneDbrMfTeJn4Q2TMa10YxfXE6gyDEumZZYDrOBVyBVYUU_OnNK-Q3ewOKhMYvNnqQEAYUGtHuE6QLn2nKLuYycVmzvd0e3FmTiq3WZQ28vcBc9tNNlzDhxkNfmWeqd0JjnqXwzEjnX1laeOrf7xxTx5M2Q6iR0U1feB24NBc5jq3s2hDNlzOGBJSSZFWhPq2IMQeLPG2JrcXc3PuC35hY_tM48zNumPCTIJV6MMgwdINCH2HnF7J3iT-QwhJFTJFQllqfQtiiY7oPAq90HW7h3WsQnQRyya5-yhaguGuodrycOy.kJM5wqOpXQzFz3fBYFpV4Q'
+  signingKey: 'eyJhbGciOiJBMjU2S1ciLCJlbmMiOiJBMjU2R0NNIn0.S0DSTRt0GddyCFWcvBnbwtnwqt9u0YQjQLmtGOkxnuJzblZK9806zw.5Z-Qtd-CDYGt9ASH.b1TX47j-OqYTQzL9Spm59Jo2yXzRWtlUqkeLEKblpG3c9kHtPZ3TBtPdGsoYxCpWW5rWoZFQiGoooCr-Q_qJN4iIlQ87aHrTn-I_yHJDvlqftFpTw92kxXOI0EMyIKOWUXHxBjxmM9mtcAQHSL8hrwhvx-o5NBMeCxpf_EQWn3hpGKokUikzJvLAta6QlRwouD_i92sxGVRPLIgPOFv61IhAtmrVYDyGNO1ctkUWEisjOsDDXq7OC1iFGr4pCPbAopQMkt1wurOEnNQuFcCJ7_87f9sGlCP0w_GERc7qe8eJWEaK3EmpDI6o3pQCGmcQALdBGeUe_35m8_xTJXFd7JFL3hETRUZJqOwxmFbw-UNy2EzX1iJMb9C8szv0ekJSnbdeXbomcnQVH67Yj-HDM9VPFYRBn28ZCUA4jq-BrO49WQi-MUxFoiuasA3SMaSC.G9TtCPU_1C_IoeJ2qcNwdw'
 }
-[startRecordingStep] Browserbase session created: 4c3f6dc9-7f01-4c2f-a46a-a23d876a7903
-[startRecordingStep] Live View URL: https://www.browserbase.com/devtools-fullscreen/inspector.html?wss=connect.browserbase.com/debug/4c3f6dc9-7f01-4c2f-a46a-a23d876a7903/devtools/page/3A395616A42EE33835D274D782ABFAE0?debug=true
+[startRecordingStep] Browserbase session created: f29140cf-df10-4459-8432-420a3b621c15
+[startRecordingStep] Live View URL: https://www.browserbase.com/devtools-fullscreen/inspector.html?wss=connect.browserbase.com/debug/f29140cf-df10-4459-8432-420a3b621c15/devtools/page/67EDE1E6C546A0114FCA5427E186628C?debug=true
 [dotenv@17.2.3] injecting env (0) from .env -- tip: 🔐 prevent building .env in docker: https://dotenvx.com/prebuild
-[dotenv@17.2.3] injecting env (0) from .env -- tip: 🛠️  run anywhere with `dotenvx run -- yourcommand`
+[dotenv@17.2.3] injecting env (0) from .env -- tip: 🔐 encrypt with Dotenvx: https://dotenvx.com
 [startRecordingStep] Stagehand initialized
 [startRecordingStep] Navigated to start URL: https://www.amazon.com/
 [ActionRecorder] Starting recording
@@ -71,41 +124,39 @@ Creating webhook route
 [ActionRecorder] ✅ Started recording with persistent event listeners
 [startRecordingStep] Action recorder started
 [startRecordingStep] Recording session saved to database
- POST /.well-known/workflow/v1/step 200 in 9.8s (compile: 325ms, render: 9.5s)
- POST /.well-known/workflow/v1/flow 200 in 13ms (compile: 2ms, render: 11ms)
-[POST /api/skills/start-recording] Recording started: rec_1766000963826_bwqc0tvvr
- POST /api/skills/start-recording 200 in 12.0s (compile: 1529ms, render: 10.5s)
+ POST /.well-known/workflow/v1/step 200 in 9.4s (compile: 330ms, render: 9.1s)
+ POST /.well-known/workflow/v1/flow 200 in 15ms (compile: 3ms, render: 12ms)
+[POST /api/skills/start-recording] Recording started: rec_1766007596138_eaejd5hl2
+ POST /api/skills/start-recording 200 in 11.7s (compile: 965ms, render: 10.8s)
+[ActionRecorder] Retrieved 1 actions from page
 [ActionRecorder] Retrieved 1 actions from page
 [ActionRecorder] Retrieved 3 actions from page
+[ActionRecorder] Retrieved 5 actions from page
 [ActionRecorder] Retrieved 1 actions from page
-[ActionRecorder] Retrieved 3 actions from page
-[ActionRecorder] Retrieved 3 actions from page
-[ActionRecorder] Retrieved 3 actions from page
-[ActionRecorder] Retrieved 4 actions from page
-[ActionRecorder] URL changed: https://www.amazon.com/ -> https://www.amazon.com/s?k=nintendo%20switch%202&i=aps&ref=nb_sb_ss_p13n-expert-pd-ops-ranker_1_17&crid=11JMEXE5JO4BO&sprefix=nintendo%20switch%202%2Caps%2C242
-[ActionRecorder] Event listeners will auto-persist via addInitScript
-[ActionRecorder] URL changed: https://www.amazon.com/s?k=nintendo%20switch%202&i=aps&ref=nb_sb_ss_p13n-expert-pd-ops-ranker_1_17&crid=11JMEXE5JO4BO&sprefix=nintendo%20switch%202%2Caps%2C242 -> https://www.amazon.com/s?k=nintendo+switch+2&crid=11JMEXE5JO4BO&sprefix=nintendo+switch+2%2Caps%2C242&ref=nb_sb_ss_p13n-expert-pd-ops-ranker_1_17
+[ActionRecorder] Retrieved 6 actions from page
+[ActionRecorder] Retrieved 1 actions from page
+[ActionRecorder] URL changed: https://www.amazon.com/ -> https://www.amazon.com/s?k=nintendo+switch+2&crid=HO999SKU6VRK&sprefix=Nintendo+switch+2%2Caps%2C2220&ref=nb_sb_ss_p13n-expert-pd-ops-ranker_1_17
 [ActionRecorder] Event listeners will auto-persist via addInitScript
 [POST /api/skills/finish-recording] Finishing recording workflow {
-  recordingId: 'rec_1766000963826_bwqc0tvvr',
-  sessionId: '4c3f6dc9-7f01-4c2f-a46a-a23d876a7903',
+  recordingId: 'rec_1766007596138_eaejd5hl2',
+  sessionId: 'f29140cf-df10-4459-8432-420a3b621c15',
   creatorAddress: '0x08bfec5133141cc704a34505d5e504503bf3168d'
 }
- POST /.well-known/workflow/v1/flow 200 in 14ms (compile: 1860µs, render: 12ms)
+ POST /.well-known/workflow/v1/flow 200 in 13ms (compile: 1143µs, render: 12ms)
 [finishRecordingStep] Finishing recording {
-  recordingId: 'rec_1766000963826_bwqc0tvvr',
-  sessionId: '4c3f6dc9-7f01-4c2f-a46a-a23d876a7903',
+  recordingId: 'rec_1766007596138_eaejd5hl2',
+  sessionId: 'f29140cf-df10-4459-8432-420a3b621c15',
   creatorAddress: '0x08bfec5133141cc704a34505d5e504503bf3168d'
 }
-[finishRecordingStep] Loaded recording session: { recordingId: 'rec_1766000963826_bwqc0tvvr', actionsCount: 20 }
+[finishRecordingStep] Loaded recording session: { recordingId: 'rec_1766007596138_eaejd5hl2', actionsCount: 19 }
 [ActionRecorder] Performing final action retrieval from browser...
 [ActionRecorder] No additional actions found in browser
-[ActionRecorder] Grouping 20 raw actions...
-[ActionRecorder] Grouped into 5 semantic actions
+[ActionRecorder] Grouping 19 raw actions...
+[ActionRecorder] Grouped into 4 semantic actions
 [finishRecordingStep] Stopped action recorder
-[finishRecordingStep] Reloaded recording with grouped actions: { actionsCount: 5 }
+[finishRecordingStep] Reloaded recording with grouped actions: { actionsCount: 4 }
 [finishRecordingStep] Captured page context: {
-  url: 'https://www.amazon.com/s?k=nintendo+switch+2&crid=11JMEXE5JO4BO&sprefix=nintendo+switch+2%2Caps%2C242&ref=nb_sb_ss_p13n-expert-pd-ops-ranker_1_17',
+  url: 'https://www.amazon.com/s?k=nintendo+switch+2&crid=HO999SKU6VRK&sprefix=Nintendo+switch+2%2Caps%2C2220&ref=nb_sb_ss_p13n-expert-pd-ops-ranker_1_17',
   title: 'Amazon.com : nintendo switch 2',
   headingCount: 5,
   hints: {
@@ -118,7 +169,7 @@ Creating webhook route
 }
 [finishRecordingStep] 🧪 Testing extraction schema before session close...
 [Schema Generator] Analysis: {
-  goal: 'product price search on Amazon',
+  goal: 'Amazon Product Price Search',
   hasVariables: false,
   variables: [],
   contextProvided: true
@@ -138,7 +189,8 @@ Creating webhook route
     {
       name: 'availability',
       type: 'string',
-      description: 'Stock availability status.'
+      description: 'Stock availability status.',
+      optional: true
     },
     {
       name: 'rating',
@@ -152,36 +204,36 @@ Creating webhook route
       description: 'URL of the product page.'
     }
   ],
-  instruction: 'Extract product price, title, availability, and rating from Amazon search results.',
+  instruction: 'Extract product price, title, availability, rating, and product URL.',
   description: "Extracts product information from Amazon search results for 'nintendo switch 2'."
 }
 [finishRecordingStep] Generated test schema: {
   fields: 5,
-  instruction: 'Extract product price, title, availability, and rating from Amazon search results.'
+  instruction: 'Extract product price, title, availability, rating, and product URL.'
 }
 [finishRecordingStep] ✅ Extraction test PASSED
 [finishRecordingStep] Released keep-alive session
 [finishRecordingStep] Extracted semantic values: [
   {
-    value: 'nint',
+    value: 'Nintendo ',
     type: 'text-input',
     label: 'Fill Search Amazon',
     actionIndex: 1
   },
   {
-    value: 'nintendo switch 2',
+    value: 'Nintendo switch 2',
     type: 'text-input',
     label: 'Fill Search Amazon',
     actionIndex: 2
   }
 ]
 [finishRecordingStep] Goal appears vague, inferring structured goal...
-[finishRecordingStep] Original goal: product price search on Amazon
+[finishRecordingStep] Original goal: Amazon Product Price Search
 [Goal Inference] Analyzing user intent: {
-  userIntent: 'product price search on Amazon',
-  demoQuery: 'nint',
+  userIntent: 'Amazon Product Price Search',
+  demoQuery: 'Nintendo ',
   startUrl: 'https://www.amazon.com/',
-  actionCount: 5
+  actionCount: 4
 }
 [Goal Inference] Inference result: {
   structuredGoal: 'Find price for %product% on Amazon',
@@ -190,7 +242,7 @@ Creating webhook route
   confidence: 0.95
 }
 [finishRecordingStep] Inferred goal: {
-  original: 'product price search on Amazon',
+  original: 'Amazon Product Price Search',
   structured: 'Find price for %product% on Amazon',
   variables: [ '%product%' ],
   category: 'product_search',
@@ -198,19 +250,18 @@ Creating webhook route
 }
 [finishRecordingStep] ✅ Using inferred goal (confidence >= 0.7)
 [Variable Detector Enhanced] Mapping result: {
-  mappings: { nint: '%product%', 'nintendo switch 2': '%product%' },
-  explanation: "In this task, the goal is to find the price for a product on Amazon. The variable in the goal is %product%. Both captured values ('nint' and 'nintendo switch 2') are related to the search query for a product on Amazon, which corresponds to the %product% variable. Since both values are text inputs used in the context of filling the search bar on Amazon, they both map to %product%."
+  mappings: { 'Nintendo switch 2': '%product%' },
+  explanation: "The goal is to find the price for a product on Amazon. The variable in the goal is %product%. The captured values are related to the search input on Amazon. The second value, 'Nintendo switch 2', is the specific product being searched for, so it maps to %product%. The first value, 'Nintendo ', appears to be an incomplete or initial input and does not map directly to the goal's variable."
 }
-[finishRecordingStep] Variable mapping (enhanced): { nint: '%product%', 'nintendo switch 2': '%product%' }
-[finishRecordingStep] Applied variable mapping to 2 actions
+[finishRecordingStep] Variable mapping (enhanced): { 'Nintendo switch 2': '%product%' }
+[finishRecordingStep] Applied variable mapping to 1 actions
 [finishRecordingStep] Prepended initial navigation to: https://www.amazon.com/
 [filterRedundantNavigations] Keeping initial navigation: https://www.amazon.com/
-[filterRedundantNavigations] 🚫 Detected result page navigation: https://www.amazon.com/s?k=nintendo%20switch%202&i=aps&ref=nb_sb_ss_p13n-expert-pd-ops-ranker_1_17&c
+[filterRedundantNavigations] 🚫 Detected result page navigation: https://www.amazon.com/s?k=nintendo+switch+2&crid=HO999SKU6VRK&sprefix=Nintendo+switch+2%2Caps%2C222
 [filterRedundantNavigations]    Previous page: /
 [filterRedundantNavigations]    Result page:   /s
 [filterRedundantNavigations] ✓ Removed result page navigation, created submit action
-[filterRedundantNavigations] Keeping navigation: https://www.amazon.com/s?k=nintendo+switch+2&crid=11JMEXE5JO4BO&sprefix=nintendo+switch+2%2Caps%2C24
-[finishRecordingStep] Filtered actions: { before: 6, after: 6, removed: 0 }
+[finishRecordingStep] Filtered actions: { before: 5, after: 5, removed: 0 }
 [Schema Generator] Analysis: {
   goal: 'Find price for %product% on Amazon',
   hasVariables: true,
@@ -236,40 +287,35 @@ Creating webhook route
   instruction: 'Extract product details including price, title, availability, and ratings',
   withContext: true
 }
-[finishRecordingStep] Converted to Stagehand workflow: { workflowSteps: 6 }
+[finishRecordingStep] Converted to Stagehand workflow: { workflowSteps: 5 }
 [finishRecordingStep] Validating workflow by replaying
 [replayWorkflow] Executing action: navigate Navigate to https://www.amazon.com/
 [replayWorkflow] Executing action: act Click Search Amazon
 [replayWorkflow] Action executed with exact selector
-[replayWorkflow] Executing action: act Fill Search Amazon with value %product%
-[replayWorkflow] Reverse-substituted variable: { from: '%product%', to: 'nintendo switch 2' }
+[replayWorkflow] Executing action: act Fill Search Amazon with value "Nintendo "
 [replayWorkflow] Action executed with exact selector
-[replayWorkflow] Executing action: act Fill Search Amazon with value %product%endo switch 2
-[replayWorkflow] Reverse-substituted variable: {
-  from: '%product%endo switch 2',
-  to: 'nintendo switch 2endo switch 2'
-}
+[replayWorkflow] Executing action: act Fill Search Amazon with value %product%
+[replayWorkflow] Reverse-substituted variable: { from: '%product%', to: 'Nintendo switch 2' }
 [replayWorkflow] Action executed with exact selector
 [replayWorkflow] Executing action: act Submit and wait for navigation
 [replayWorkflow] Action executed with exact selector
-[replayWorkflow] Executing action: navigate Navigate to https://www.amazon.com/s?k=nintendo+switch+2&crid=11JMEXE5JO4BO&sprefix=nintendo+switch+2%2Caps%2C242&ref=nb_sb_ss_p13n-expert-pd-ops-ranker_1_17
 [finishRecordingStep] Workflow validation successful
-[2025-12-17T19:50:42.973Z] ERROR: initiating shutdown → CDP transport closed: socket-close code=1006 reason=
-[2025-12-17T19:50:42.973Z] ERROR: closing resources → CDP transport closed: socket-close code=1006 reason=
-[2025-12-17T19:50:43.066Z] ERROR: Browserbase session status: COMPLETED
-[finishRecordingStep] Session close timed out after 10s, continuing anyway
-[finishRecordingStep] Skill saved to database: skill_1766001052448_2bq9oledp
- POST /.well-known/workflow/v1/step 200 in 42s (compile: 1872µs, render: 42s)
- POST /.well-known/workflow/v1/flow 200 in 10ms (compile: 1193µs, render: 9ms)
-[POST /api/skills/finish-recording] Skill created: skill_1766001052448_2bq9oledp
- POST /api/skills/finish-recording 200 in 44s (compile: 500ms, render: 43s)
- GET /skills/skill_1766001052448_2bq9oledp 200 in 2.1s (compile: 2.1s, render: 26ms)
-[GET /api/skills/[skillId]] Fetching skill: skill_1766001052448_2bq9oledp
- GET /api/skills/skill_1766001052448_2bq9oledp 200 in 1098ms (compile: 1074ms, render: 24ms)
-[GET /api/skills/[skillId]] Fetching skill: skill_1766001052448_2bq9oledp
- GET /api/skills/skill_1766001052448_2bq9oledp 200 in 27ms (compile: 7ms, render: 20ms)
-[PATCH /api/skills/[skillId]] Updating skill: skill_1766001052448_2bq9oledp {
-  updatedAt: '2025-12-17T19:51:30.687Z',
-  name: 'Amazon Product Price Search'
-}
- PATCH /api/skills/skill_1766001052448_2bq9oledp 200 in 281ms (compile: 8ms, render: 273ms)
+[finishRecordingStep] Validation session closed successfully
+[finishRecordingStep] Skill saved to database: skill_1766007684545_h4qj4xork
+ POST /.well-known/workflow/v1/step 200 in 41s (compile: 1611µs, render: 41s)
+ POST /.well-known/workflow/v1/flow 200 in 14ms (compile: 2ms, render: 12ms)
+[POST /api/skills/finish-recording] Skill created: skill_1766007684545_h4qj4xork
+ POST /api/skills/finish-recording 200 in 43s (compile: 380ms, render: 42s)
+Discovering workflow directives 2693ms
+Created steps bundle 22ms
+Created intermediate workflow bundle 9ms
+Discovering workflow directives 2561ms
+Created steps bundle 16ms
+Created intermediate workflow bundle 13ms
+Rebuilt steps bundle 16ms
+Rebuilt workflow bundle 7ms
+ GET /skills/skill_1766007684545_h4qj4xork 200 in 30ms (compile: 12ms, render: 19ms)
+[GET /api/skills/[skillId]] Fetching skill: skill_1766007684545_h4qj4xork
+ GET /api/skills/skill_1766007684545_h4qj4xork 200 in 255ms (compile: 8ms, render: 247ms)
+[GET /api/skills/[skillId]] Fetching skill: skill_1766007684545_h4qj4xork
+ GET /api/skills/skill_1766007684545_h4qj4xork 200 in 31ms (compile: 8ms, render: 23ms)

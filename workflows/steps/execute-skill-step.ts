@@ -925,7 +925,11 @@ Be precise and thorough. Validate your selections match the search criteria befo
     );
 
     if (extractionAction) {
-      extractionData = extractionAction.extraction || extractionAction;
+      // Unwrap the actual data from the agent's extraction format
+      // Agent returns: { type: 'extract', result: {...actual data...}, success: true, ... }
+      // We want just the result field for consistency with Strategy 1/2
+      const rawExtraction = extractionAction.extraction || extractionAction;
+      extractionData = rawExtraction.result || rawExtraction;
       console.log('[executeAIRelearn] Found extraction data:', extractionData);
     }
   }

@@ -4,7 +4,7 @@ import { useState, useEffect } from 'react';
 import { useParams } from 'next/navigation';
 import { Header } from '@/components/Header';
 import { SkillTester } from '@/components/SkillTester';
-import { useEvmAddress } from '@coinbase/cdp-hooks';
+import { useEvmAddress, useCurrentUser } from '@coinbase/cdp-hooks';
 import { useAccessToken } from '@/lib/hooks/use-access-token';
 import { authenticatedFetch } from '@/lib/api/authenticated-fetch';
 import {
@@ -54,6 +54,7 @@ export default function SkillDetailsPage() {
   const params = useParams();
   const skillId = params.skillId as string;
   const { evmAddress } = useEvmAddress();
+  const { currentUser } = useCurrentUser();
   const accessToken = useAccessToken();
 
   const [skill, setSkill] = useState<Skill | null>(null);
@@ -69,10 +70,29 @@ export default function SkillDetailsPage() {
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
   const [isDeleting, setIsDeleting] = useState(false);
 
+  // Get EOA address for creator comparison (not Smart Wallet address)
+  // Skills are created with EOA addresses, so we compare against that
+  const eoaAddress = currentUser?.evmAccounts?.[0];
+
   // Check if current user is the creator of this skill
   const isCreator = skill?.creatorAddress &&
-                     evmAddress &&
-                     skill.creatorAddress.toLowerCase() === evmAddress.toLowerCase();
+                     eoaAddress &&
+                     skill.creatorAddress.toLowerCase() === eoaAddress.toLowerCase();
+
+  // Debug logging for edit permissions
+  useEffect(() => {
+    if (skill) {
+      console.log('[Skill Edit Debug]', {
+        skillCreatorAddress: skill.creatorAddress,
+        currentEOAAddress: eoaAddress,
+        currentSmartWalletAddress: evmAddress,
+        isCreator,
+        creatorLower: skill.creatorAddress?.toLowerCase(),
+        eoaLower: eoaAddress?.toLowerCase(),
+        skillId: skill.skillId,
+      });
+    }
+  }, [skill, eoaAddress, evmAddress, isCreator]);
 
   useEffect(() => {
     fetchSkill();
