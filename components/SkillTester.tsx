@@ -176,6 +176,7 @@ export function SkillTester({ skillId, goal, variableMapping, price = 0.01 }: Sk
   const getSampleValue = (varName: string): string => {
     const samples: Record<string, string> = {
       query: "what's the price of nvidia stock?",
+      topic: 'Bob Dylan',
       from: 'NYC',
       to: 'LAX',
       origin: 'New York',

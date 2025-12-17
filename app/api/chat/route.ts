@@ -1,4 +1,4 @@
-import { streamText, tool, stepCountIs, convertToModelMessages } from 'ai';
+import { streamText, tool, convertToModelMessages } from 'ai';
 import { openai } from '@ai-sdk/openai';
 import { z } from 'zod';
 
@@ -133,7 +133,6 @@ DO NOT SKIP STEP 3. You MUST call executeSkill before responding.`,
         listSkills: listSkillsTool,
         executeSkill: executeSkillTool,
       },
-      stopWhen: stepCountIs(10), // Allow multi-step reasoning (list → select → execute → format)
     });
 
     console.log('[POST /api/chat] Streaming response started');
