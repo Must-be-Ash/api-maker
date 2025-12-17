@@ -188,3 +188,90 @@ export async function PATCH(
     );
   }
 }
+
+/**
+ * DELETE /api/skills/[skillId]
+ *
+ * Deletes a skill.
+ * Only the skill creator can delete the skill.
+ *
+ * REQUIRES AUTHENTICATION
+ *
+ * Request Headers:
+ * - Authorization: Bearer <CDP_ACCESS_TOKEN> (required)
+ *
+ * Response:
+ * - Success message or 403 if unauthorized
+ */
+export async function DELETE(
+  request: NextRequest,
+  { params }: { params: Promise<{ skillId: string }> }
+) {
+  try {
+    const { skillId } = await params;
+
+    // AUTHENTICATE USER
+    const session = await validateSession(request);
+
+    if (!session.isAuthenticated) {
+      return Response.json(
+        { error: 'Unauthorized', message: session.error },
+        { status: 401 }
+      );
+    }
+
+    // Validate skillId
+    if (!skillId || typeof skillId !== 'string') {
+      return Response.json(
+        { error: 'skillId is required' },
+        { status: 400 }
+      );
+    }
+
+    // Fetch skill from MongoDB first to check ownership
+    const db = await connectDB();
+    const skill = await db.collection('skills').findOne({ skillId });
+
+    if (!skill) {
+      return Response.json(
+        { error: 'Skill not found' },
+        { status: 404 }
+      );
+    }
+
+    // AUTHORIZE: Check ownership using SERVER-VERIFIED address
+    if (!checkSkillOwnership(session.evmAddress, skill.creatorAddress)) {
+      return Response.json(
+        {
+          error: 'Forbidden: Only the skill creator can delete this skill',
+          creator: skill.creatorAddress,
+        },
+        { status: 403 }
+      );
+    }
+
+    console.log('[DELETE /api/skills/[skillId]] Deleting skill:', skillId, 'by creator:', session.evmAddress);
+
+    // Delete skill from MongoDB
+    const result = await db.collection('skills').deleteOne({ skillId });
+
+    if (result.deletedCount === 0) {
+      return Response.json(
+        { error: 'Skill not found' },
+        { status: 404 }
+      );
+    }
+
+    return Response.json({ success: true, message: 'Skill deleted successfully' });
+  } catch (error) {
+    console.error('[DELETE /api/skills/[skillId]] Error:', error);
+
+    return Response.json(
+      {
+        error: 'Failed to delete skill',
+        message: error instanceof Error ? error.message : 'Unknown error',
+      },
+      { status: 500 }
+    );
+  }
+}

@@ -12,6 +12,89 @@ import { extractVariablesFromInput } from "@/lib/ai/variable-extractor";
 import { generateExtractionSchema } from "@/lib/extraction/schema-generator";
 
 /**
+ * Auto-scroll to trigger lazy-loaded content before extraction
+ *
+ * This function:
+ * 1. Checks if the page is long enough to warrant scrolling
+ * 2. Scrolls to the bottom to trigger lazy-loaded content
+ * 3. Waits for content to load
+ * 4. Scrolls back to the top
+ *
+ * This ensures extraction sees ALL content, including lazy-loaded items
+ */
+async function autoScrollForExtraction(page: any, stagehand?: any): Promise<void> {
+  try {
+    // Check if page is long enough to have content below the fold
+    const scrollHeight = await page.evaluate(() => document.documentElement.scrollHeight);
+    const viewportHeight = await page.evaluate(() => window.innerHeight);
+
+    if (scrollHeight > viewportHeight * 1.5) {
+      console.log('[Auto-Scroll] Page is long, scrolling to trigger lazy-loaded content...');
+      console.log('[Auto-Scroll] Page height:', scrollHeight, 'Viewport:', viewportHeight);
+
+      // Scroll to the bottom using direct JavaScript (no AI involved, no context limits)
+      await page.evaluate(() => {
+        window.scrollTo({
+          top: document.documentElement.scrollHeight,
+          behavior: 'smooth'
+        });
+      });
+
+      // Wait for lazy content to load
+      await new Promise(resolve => setTimeout(resolve, 2000));
+      console.log('[Auto-Scroll] Waited 2s for lazy content to load');
+
+      // Scroll back to the top using direct JavaScript
+      await page.evaluate(() => {
+        window.scrollTo({
+          top: 0,
+          behavior: 'smooth'
+        });
+      });
+
+      // Let the page settle
+      await new Promise(resolve => setTimeout(resolve, 1000));
+      console.log('[Auto-Scroll] ✓ Auto-scroll complete, page settled');
+    } else {
+      console.log('[Auto-Scroll] Page fits in viewport, skipping auto-scroll');
+    }
+  } catch (error) {
+    console.error('[Auto-Scroll] ✗ Failed:', error);
+    // Don't throw - extraction should still proceed even if auto-scroll fails
+  }
+}
+
+/**
+ * Get optimal extraction selector based on URL to reduce context window usage
+ *
+ * For sites with known content containers, this limits extraction to the main
+ * content area, dramatically reducing token usage and avoiding context window errors.
+ */
+function getExtractionSelector(url: string): string | undefined {
+  try {
+    const urlObj = new URL(url);
+    const hostname = urlObj.hostname.toLowerCase();
+
+    // Wikipedia - extract only from main article content
+    if (hostname.includes('wikipedia.org')) {
+      return '.mw-parser-output'; // Main article content, excludes navigation/sidebars
+    }
+
+    // Add more site-specific selectors here as needed
+    // Example: Amazon product pages
+    // if (hostname.includes('amazon.com')) {
+    //   return '#dp-container'; // Product detail container
+    // }
+
+    // Default: no selector (full page extraction)
+    return undefined;
+  } catch (error) {
+    console.warn('[getExtractionSelector] Invalid URL, using full page extraction:', error);
+    return undefined;
+  }
+}
+
+/**
  * Execute Skill Step
  *
  * Executes a skill using the triple replay strategy:
@@ -491,6 +574,34 @@ async function executeExactReplay(
           console.log('[executeExactReplay] Submitted using Stagehand act():', action.description);
         }
       }
+    } else if (action.type === 'scroll') {
+      // Replay scroll action with precise positioning
+      try {
+        console.log(`[executeExactReplay] Scrolling to ${action.scrollPercent}%`);
+
+        // Use Playwright page.evaluate for precise scroll
+        await page.evaluate((scrollData: any) => {
+          if (scrollData.scrollTarget === 'window') {
+            // Scroll window
+            window.scrollTo({
+              top: scrollData.scrollPosition.y,
+              left: scrollData.scrollPosition.x,
+              behavior: 'smooth'
+            });
+          }
+        }, {
+          scrollTarget: action.scrollTarget,
+          scrollPosition: action.scrollPosition,
+        });
+
+        // Wait for scroll to complete
+        await new Promise(resolve => setTimeout(resolve, 1000));
+
+        console.log(`[executeExactReplay] ✓ Scroll completed`);
+      } catch (error) {
+        console.error(`[executeExactReplay] ✗ Scroll failed:`, error);
+        throw error;
+      }
     }
 
     // Small delay between actions
@@ -500,8 +611,20 @@ async function executeExactReplay(
   // EXTRACTION: If schema and stagehand are provided, extract data
   let extraction = null;
   if (stagehand && zodExtractionSchema && extractionInstruction) {
-    console.log('[executeExactReplay] Extracting data with schema...');
-    extraction = await stagehand.extract(extractionInstruction, zodExtractionSchema);
+    // Auto-scroll to trigger lazy-loaded content before extraction
+    await autoScrollForExtraction(page, stagehand);
+
+    // Get optimal selector for this page to reduce context window usage
+    const currentUrl = page.url();
+    const extractionSelector = getExtractionSelector(currentUrl);
+
+    if (extractionSelector) {
+      console.log(`[executeExactReplay] Using targeted extraction with selector: ${extractionSelector}`);
+      extraction = await stagehand.extract(extractionInstruction, zodExtractionSchema, { selector: extractionSelector });
+    } else {
+      console.log('[executeExactReplay] Extracting data with schema (full page)...');
+      extraction = await stagehand.extract(extractionInstruction, zodExtractionSchema);
+    }
     console.log('[executeExactReplay] Extraction result:', extraction);
   }
 
@@ -604,6 +727,12 @@ async function executeNaturalLanguage(
       console.log('[executeNaturalLanguage] Executing via AI:', instruction);
       await stagehand.act(instruction, { page: page });
 
+      // Wait for scroll to complete if this is a scroll action
+      if (instruction && instruction.toLowerCase().includes('scroll')) {
+        console.log('[executeNaturalLanguage] 💤 Waiting 1s for scroll to complete...');
+        await page.waitForTimeout(1000);
+      }
+
       // 🔍 AUTOCOMPLETE TWO-STEP: After typing, wait for dropdown and select suggestion
       if (isAutocomplete) {
         console.log('[executeNaturalLanguage] 💤 Waiting 3s for autocomplete dropdown to load...');
@@ -658,8 +787,20 @@ async function executeNaturalLanguage(
   // EXTRACTION: If schema is provided, extract data at the end
   let extraction = null;
   if (zodExtractionSchema && extractionInstruction) {
-    console.log('[executeNaturalLanguage] Extracting data with schema...');
-    extraction = await stagehand.extract(extractionInstruction, zodExtractionSchema);
+    // Auto-scroll to trigger lazy-loaded content before extraction
+    await autoScrollForExtraction(page, stagehand);
+
+    // Get optimal selector for this page to reduce context window usage
+    const currentUrl = page.url();
+    const extractionSelector = getExtractionSelector(currentUrl);
+
+    if (extractionSelector) {
+      console.log(`[executeNaturalLanguage] Using targeted extraction with selector: ${extractionSelector}`);
+      extraction = await stagehand.extract(extractionInstruction, zodExtractionSchema, { selector: extractionSelector });
+    } else {
+      console.log('[executeNaturalLanguage] Extracting data with schema (full page)...');
+      extraction = await stagehand.extract(extractionInstruction, zodExtractionSchema);
+    }
     console.log('[executeNaturalLanguage] Extraction result:', extraction);
   }
 
@@ -792,7 +933,22 @@ Be precise and thorough. Validate your selections match the search criteria befo
   // If no extraction found but schema is available, try manual extraction
   if (!extractionData && zodExtractionSchema && extractionSchemaInfo?.instruction) {
     console.log('[executeAIRelearn] No extraction in agent result, trying manual extraction...');
-    extractionData = await stagehand.extract(extractionSchemaInfo.instruction, zodExtractionSchema);
+
+    // Auto-scroll to trigger lazy-loaded content before extraction
+    const page = stagehand.context.pages()[0];
+    await autoScrollForExtraction(page, stagehand);
+
+    // Get optimal selector for this page to reduce context window usage
+    const currentUrl = page.url();
+    const extractionSelector = getExtractionSelector(currentUrl);
+
+    if (extractionSelector) {
+      console.log(`[executeAIRelearn] Using targeted extraction with selector: ${extractionSelector}`);
+      extractionData = await stagehand.extract(extractionSchemaInfo.instruction, zodExtractionSchema, { selector: extractionSelector });
+    } else {
+      console.log('[executeAIRelearn] Manual extraction (full page)...');
+      extractionData = await stagehand.extract(extractionSchemaInfo.instruction, zodExtractionSchema);
+    }
     console.log('[executeAIRelearn] Manual extraction result:', extractionData);
   }
 

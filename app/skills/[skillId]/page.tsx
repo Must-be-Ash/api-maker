@@ -23,6 +23,7 @@ import {
   Pencil,
   X,
   DollarSign,
+  Trash2,
 } from 'lucide-react';
 
 interface Skill {
@@ -65,6 +66,8 @@ export default function SkillDetailsPage() {
   const [editedName, setEditedName] = useState('');
   const [isEditingPrice, setIsEditingPrice] = useState(false);
   const [editedPrice, setEditedPrice] = useState('');
+  const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
+  const [isDeleting, setIsDeleting] = useState(false);
 
   // Check if current user is the creator of this skill
   const isCreator = skill?.creatorAddress &&
@@ -272,6 +275,34 @@ export default function SkillDetailsPage() {
     }
   };
 
+  const deleteSkill = async () => {
+    if (!skill || !accessToken) return;
+
+    setIsDeleting(true);
+    try {
+      const response = await authenticatedFetch(
+        `/api/skills/${skillId}`,
+        accessToken,
+        {
+          method: 'DELETE',
+        }
+      );
+
+      if (!response.ok) {
+        const error = await response.json();
+        throw new Error(error.error || 'Failed to delete skill');
+      }
+
+      // Redirect to skills gallery after successful deletion
+      window.location.href = '/skills';
+    } catch (err) {
+      console.error('Error deleting skill:', err);
+      alert(err instanceof Error ? err.message : 'Failed to delete skill');
+      setIsDeleting(false);
+      setShowDeleteConfirm(false);
+    }
+  };
+
 
   if (loading) {
     return (
@@ -310,20 +341,32 @@ export default function SkillDetailsPage() {
       <main className="max-w-5xl mx-auto px-6 py-12 space-y-8">
         {/* Header */}
         <div className="space-y-4">
-          <div className="flex items-center gap-3">
-            <div className="inline-flex items-center gap-2 px-3 py-1 bg-blue-50 text-blue-700 rounded-full text-xs font-medium">
-              Skill ID: {skill.skillId}
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-3">
+              <div className="inline-flex items-center gap-2 px-3 py-1 bg-blue-50 text-blue-700 rounded-full text-xs font-medium">
+                Skill ID: {skill.skillId}
+              </div>
+              {skill.successfulRun ? (
+                <div className="inline-flex items-center gap-1 px-3 py-1 bg-green-50 text-green-700 rounded-full text-xs font-medium">
+                  <CheckCircle2 className="h-3 w-3" />
+                  Validated
+                </div>
+              ) : (
+                <div className="inline-flex items-center gap-1 px-3 py-1 bg-yellow-50 text-yellow-700 rounded-full text-xs font-medium">
+                  <XCircle className="h-3 w-3" />
+                  Needs Review
+                </div>
+              )}
             </div>
-            {skill.successfulRun ? (
-              <div className="inline-flex items-center gap-1 px-3 py-1 bg-green-50 text-green-700 rounded-full text-xs font-medium">
-                <CheckCircle2 className="h-3 w-3" />
-                Validated
-              </div>
-            ) : (
-              <div className="inline-flex items-center gap-1 px-3 py-1 bg-yellow-50 text-yellow-700 rounded-full text-xs font-medium">
-                <XCircle className="h-3 w-3" />
-                Needs Review
-              </div>
+            {isCreator && (
+              <button
+                onClick={() => setShowDeleteConfirm(true)}
+                className="inline-flex items-center gap-2 px-4 py-2 bg-red-50 hover:bg-red-100 text-red-700 rounded-lg transition-colors text-sm font-medium"
+                title="Delete skill"
+              >
+                <Trash2 className="h-4 w-4" />
+                Delete Skill
+              </button>
             )}
           </div>
           {isEditingName ? (
@@ -578,6 +621,49 @@ export default function SkillDetailsPage() {
           variableMapping={skill.variableMapping}
         />
       </main>
+
+      {/* Delete Confirmation Dialog */}
+      {showDeleteConfirm && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
+          <div className="bg-white rounded-2xl shadow-2xl max-w-md w-full p-6 space-y-4">
+            <div className="flex items-start gap-4">
+              <div className="flex-shrink-0 w-12 h-12 bg-red-100 rounded-full flex items-center justify-center">
+                <Trash2 className="h-6 w-6 text-red-600" />
+              </div>
+              <div className="flex-1 space-y-2">
+                <h3 className="text-xl font-bold text-slate-900">Delete Skill</h3>
+                <p className="text-sm text-slate-600">
+                  Are you sure you want to delete <span className="font-semibold">{skill.name}</span>? This action cannot be undone.
+                </p>
+              </div>
+            </div>
+
+            <div className="flex gap-3 pt-2">
+              <button
+                onClick={() => setShowDeleteConfirm(false)}
+                disabled={isDeleting}
+                className="flex-1 px-4 py-2 bg-slate-100 hover:bg-slate-200 text-slate-900 font-medium rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={deleteSkill}
+                disabled={isDeleting}
+                className="flex-1 px-4 py-2 bg-red-600 hover:bg-red-700 text-white font-medium rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed inline-flex items-center justify-center gap-2"
+              >
+                {isDeleting ? (
+                  <>
+                    <Loader2 className="h-4 w-4 animate-spin" />
+                    Deleting...
+                  </>
+                ) : (
+                  'Delete'
+                )}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

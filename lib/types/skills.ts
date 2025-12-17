@@ -29,7 +29,7 @@ export type InteractionType =
  * Both raw and grouped action types are supported.
  */
 export interface RecordedAction {
-  type: 'navigate' | 'click' | 'fill' | 'type' | 'select' | 'hover' | 'extract' | 'submit';
+  type: 'navigate' | 'click' | 'fill' | 'type' | 'select' | 'hover' | 'extract' | 'submit' | 'scroll';
   selector?: string;            // Exact selector from user action (optional for some action types)
   description: string;          // Human-readable description
   value?: string;               // For fill/type/select actions
@@ -41,6 +41,14 @@ export interface RecordedAction {
   semanticValue?: string | number | boolean | null;  // The actual value selected/entered
   semanticType?: InteractionType;                     // Type of interaction (date-picker, dropdown, etc.)
   semanticLabel?: string | null;                      // Contextual label (e.g., "departure date", "cabin class")
+
+  // Scroll-specific properties
+  scrollPosition?: {
+    x: number;
+    y: number;
+  };
+  scrollTarget?: 'window' | 'element'; // Scroll window or specific element
+  scrollPercent?: number;              // 0-100 for replay purposes
 }
 
 /**

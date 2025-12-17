@@ -11,13 +11,21 @@
 import type { RecordedAction } from '../types/skills';
 
 export interface GroupedAction {
-  type: 'type' | 'click' | 'select' | 'navigate' | 'submit';
+  type: 'type' | 'click' | 'select' | 'navigate' | 'submit' | 'scroll';
   selector?: string;
   description: string;
   value?: string;
   url?: string;
   timestamp: number; // Timestamp of first action in group
   endTimestamp?: number; // Timestamp of last action in group
+
+  // Scroll-specific properties
+  scrollPosition?: {
+    x: number;
+    y: number;
+  };
+  scrollTarget?: 'window' | 'element';
+  scrollPercent?: number;
 }
 
 const TYPING_DEBOUNCE_MS = 500; // 500ms pause indicates typing completion
@@ -78,6 +86,20 @@ export function groupActions(rawActions: RecordedAction[]): GroupedAction[] {
       const fillGroup = groupFillActions(rawActions, i);
       grouped.push(fillGroup.action);
       i = fillGroup.nextIndex;
+      continue;
+    }
+
+    // Handle scroll actions (always standalone, preserve scroll-specific properties)
+    if (action.type === 'scroll') {
+      grouped.push({
+        type: 'scroll',
+        description: action.description || `Scroll to ${action.scrollPercent}%`,
+        timestamp: action.timestamp,
+        scrollPosition: action.scrollPosition,
+        scrollTarget: action.scrollTarget,
+        scrollPercent: action.scrollPercent,
+      });
+      i++;
       continue;
     }
 

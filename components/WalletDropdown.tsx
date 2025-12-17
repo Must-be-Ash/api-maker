@@ -58,7 +58,10 @@ export function WalletDropdown() {
     try {
       const client = createPublicClient({
         chain: base,
-        transport: http(),
+        transport: http('https://mainnet.base.org', {
+          retryCount: 2,
+          retryDelay: 1000,
+        }),
       });
 
       const balanceResult = await client.readContract({
@@ -78,9 +81,15 @@ export function WalletDropdown() {
 
       const formattedBalance = parseFloat(formatUnits(balanceResult, USDC_DECIMALS));
       setBalance(formattedBalance);
-    } catch (error) {
-      console.error('Failed to fetch balance:', error);
-      setBalance(null);
+    } catch (error: any) {
+      // Handle rate limit errors gracefully
+      if (error?.message?.includes('429') || error?.message?.includes('rate limit')) {
+        console.warn('[WalletDropdown] Rate limit hit, will retry on next open');
+        // Don't set balance to null - keep previous value if any
+      } else {
+        console.error('[WalletDropdown] Failed to fetch balance:', error);
+        setBalance(null);
+      }
     } finally {
       setLoading(false);
     }

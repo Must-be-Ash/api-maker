@@ -932,6 +932,45 @@ export class ActionRecorder {
         console.log('[ActionRecorder] Captured submit:', action);
       }, true);
 
+      // ========== SCROLL EVENT LISTENER ==========
+      let scrollTimeout: any = null;
+      const SCROLL_DEBOUNCE_MS = 500; // Wait 500ms after scroll stops
+
+      window.addEventListener('scroll', (e) => {
+        // Debounce scroll events (only record when scrolling stops)
+        if (scrollTimeout) {
+          clearTimeout(scrollTimeout);
+        }
+
+        scrollTimeout = setTimeout(() => {
+          const scrollX = window.scrollX || window.pageXOffset;
+          const scrollY = window.scrollY || window.pageYOffset;
+
+          // Calculate scroll position as percentage
+          const scrollHeight = document.documentElement.scrollHeight;
+          const viewportHeight = window.innerHeight;
+          const maxScroll = scrollHeight - viewportHeight;
+          const scrollPercent = maxScroll > 0 ? Math.round((scrollY / maxScroll) * 100) : 0;
+
+          const action = {
+            type: 'scroll' as const,
+            scrollPosition: {
+              x: scrollX,
+              y: scrollY,
+            },
+            scrollTarget: 'window' as const,
+            scrollPercent: scrollPercent,
+            description: `Scroll to ${scrollPercent}%`,
+            timestamp: Date.now(),
+          };
+
+          (window as any)._recordedActions.push(action);
+          localStorage.setItem(storageKey, JSON.stringify((window as any)._recordedActions));
+          console.log('[ActionRecorder] Captured scroll:', action);
+        }, SCROLL_DEBOUNCE_MS);
+      }, { passive: true });
+      // ========== END SCROLL LISTENER ==========
+
           console.log('[ActionRecorder] Event listeners attached successfully');
     };
   }

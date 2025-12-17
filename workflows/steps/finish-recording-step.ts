@@ -934,6 +934,29 @@ function convertToStagehand(actions: RecordedAction[]): StagehandAction[] {
       };
     }
 
+    // Scroll actions
+    if (action.type === 'scroll') {
+      // Generate natural language scroll instruction based on percentage
+      let instruction = 'scroll down';
+
+      if (action.scrollPercent !== undefined) {
+        if (action.scrollPercent >= 90) {
+          instruction = 'scroll to the bottom';
+        } else if (action.scrollPercent <= 10) {
+          instruction = 'scroll to the top';
+        } else if (action.scrollPercent >= 45 && action.scrollPercent <= 55) {
+          instruction = 'scroll to the middle';
+        } else {
+          instruction = `scroll to ${action.scrollPercent}% of the page`;
+        }
+      }
+
+      return {
+        method: 'act',
+        instruction: instruction,
+      };
+    }
+
     // SEMANTIC VALUE HANDLING - Generate natural language instructions for all widget types
     if (action.semanticValue !== undefined && action.semanticValue !== null && action.semanticType) {
       const semanticValueStr = String(action.semanticValue);
