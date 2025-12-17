@@ -91,29 +91,14 @@ export async function POST(request: Request) {
     const result = await streamText({
       model: openai('gpt-4o-mini'),
       messages: convertToModelMessages(messages),
-      onStepFinish: ({ stepType, toolCalls, toolResults, text }) => {
+      onStepFinish: ({ toolCalls, toolResults, text }) => {
         console.log('[streamText] Step finished:', {
-          stepType,
           toolCallsCount: toolCalls?.length || 0,
-          toolCalls: toolCalls?.map(tc => ({ name: tc.toolName, args: tc.args })),
+          toolCalls: toolCalls?.map(tc => ({
+            name: tc.toolName,
+            args: 'args' in tc ? tc.args : undefined
+          })),
           toolResultsCount: toolResults?.length || 0,
-          toolResults: toolResults?.map(tr => {
-            let resultPreview = 'undefined';
-            if (tr.result !== undefined && tr.result !== null) {
-              try {
-                resultPreview = typeof tr.result === 'string'
-                  ? tr.result.substring(0, 500)
-                  : JSON.stringify(tr.result).substring(0, 500);
-              } catch (e) {
-                resultPreview = 'Error stringifying result';
-              }
-            }
-            return {
-              toolCallId: tr.toolCallId,
-              toolName: tr.toolName,
-              result: resultPreview,
-            };
-          }),
           hasText: !!text,
           textPreview: text ? text.substring(0, 200) : null,
         });
