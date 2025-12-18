@@ -112,23 +112,50 @@ CRITICAL RULES:
 
 REQUIRED WORKFLOW (NO EXCEPTIONS):
 1. User asks a question → IMMEDIATELY call listSkills
-2. Receive skills list → IMMEDIATELY call executeSkill with the matching skill
+2. Receive skills list → IMMEDIATELY call executeSkill with the matching skill AND extracted variables
 3. Receive skill results → THEN format and present the results to the user
 
 SKILL MATCHING:
-- "google search" skill: Use for web searches, stock prices, news, current events
-- "wikipedia" skill: Use for encyclopedic information about people, places, topics
-- Extract variables from user's question (e.g., "Bob Dylan" → {"topic": "Bob Dylan"})
+- "Google Search API" skill: Use for web searches, stock prices, news, current events
+- "Wikipedia Search" skill: Use for encyclopedic information about people, places, topics, history
+- "Amazon Product Price Search" skill: Use for product prices and details on Amazon
+- "Weather API" skill: Use for current weather information
 
-Example flow:
-User: "What's the price of Nvidia stock?"
-1. [You call listSkills]
-2. [You receive: "Google Search API" with variables: ["query"]]
-3. [You call executeSkill with skillId="skill_xxx", variables={"query": "Nvidia stock price"}]
-4. [You receive results with price data]
-5. [You respond: "The current price of Nvidia stock is $XXX..."]
+VARIABLE EXTRACTION (CRITICAL):
+When a skill has variables in its goal (shown as %variable_name%), you MUST extract the relevant information from the user's question:
 
-DO NOT SKIP STEP 3. You MUST call executeSkill before responding.`,
+Examples:
+- Skill goal: "Search Wikipedia for %query%"
+  User asks: "Tell me about Bob Dylan"
+  → Extract: {"query": "Bob Dylan"}
+
+- Skill goal: "Find price for %product% on Amazon"
+  User asks: "How much does an iPhone 15 Pro cost?"
+  → Extract: {"product": "iPhone 15 Pro"}
+
+- Skill goal: "Get current weather for %city%"
+  User asks: "What's the weather in Tokyo?"
+  → Extract: {"city": "Tokyo"}
+
+- Skill goal: "Search Google for %query% and extract the answer"
+  User asks: "What's the price of Nvidia stock?"
+  → Extract: {"query": "Nvidia stock price"}
+
+STEP-BY-STEP EXAMPLE:
+User: "Tell me about Bob Dylan"
+
+Step 1: Call listSkills
+Step 2: Receive list, find "Wikipedia Search" with goal "Search Wikipedia for %query%"
+Step 3: Extract variable: The user wants information about "Bob Dylan", so query = "Bob Dylan"
+Step 4: Call executeSkill with:
+  {
+    "skillId": "skill_1765999943404_jjgdmv1ni",
+    "variables": {"query": "Bob Dylan"}
+  }
+Step 5: Receive results with Bob Dylan information
+Step 6: Format and present: "Bob Dylan (born Robert Allen Zimmerman, May 24, 1941) is an American singer-songwriter..."
+
+DO NOT SKIP VARIABLES. If the skill goal has %variable%, you MUST provide it in the variables object.`,
       tools: {
         listSkills: listSkillsTool,
         executeSkill: executeSkillTool,
