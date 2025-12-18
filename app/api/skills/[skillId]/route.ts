@@ -100,7 +100,7 @@ export async function PATCH(
     }
 
     const body = await request.json();
-    const { name, price } = body;
+    const { name, price, goal } = body;
     // REMOVED: requestorAddress (was spoofable!)
 
     // Fetch skill from MongoDB first to check ownership
@@ -143,19 +143,30 @@ export async function PATCH(
 
     // Validate and add price if provided
     if (price !== undefined) {
-      if (typeof price !== 'number' || price < 0 || isNaN(price)) {
+      if (typeof price !== 'number' || price < 0.001 || isNaN(price)) {
         return Response.json(
-          { error: 'price must be a non-negative number' },
+          { error: 'price must be at least $0.001' },
           { status: 400 }
         );
       }
       updateFields.price = price;
     }
 
+    // Validate and add goal if provided
+    if (goal !== undefined) {
+      if (typeof goal !== 'string' || !goal.trim()) {
+        return Response.json(
+          { error: 'goal must be a non-empty string' },
+          { status: 400 }
+        );
+      }
+      updateFields.goal = goal.trim();
+    }
+
     // Ensure at least one field is being updated
     if (Object.keys(updateFields).length === 1) {
       return Response.json(
-        { error: 'At least one field (name or price) must be provided' },
+        { error: 'At least one field (name, price, or goal) must be provided' },
         { status: 400 }
       );
     }

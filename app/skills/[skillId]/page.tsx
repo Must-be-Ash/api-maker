@@ -67,6 +67,7 @@ export default function SkillDetailsPage() {
   const [editedName, setEditedName] = useState('');
   const [isEditingPrice, setIsEditingPrice] = useState(false);
   const [editedPrice, setEditedPrice] = useState('');
+  const [editedGoal, setEditedGoal] = useState('');
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
   const [isDeleting, setIsDeleting] = useState(false);
 
@@ -97,6 +98,14 @@ export default function SkillDetailsPage() {
   useEffect(() => {
     fetchSkill();
   }, [skillId]);
+
+  // Format price with smart decimal display
+  // Shows 2 decimals by default (e.g., 1.00, 0.01)
+  // Shows 3 decimals only when third decimal is non-zero (e.g., 1.234, 0.205)
+  const formatPrice = (price: number) => {
+    const thirdDecimal = Math.round((price * 1000) % 10);
+    return thirdDecimal !== 0 ? price.toFixed(3) : price.toFixed(2);
+  };
 
   const fetchSkill = async () => {
     try {
@@ -190,6 +199,7 @@ export default function SkillDetailsPage() {
   const startEditingName = () => {
     if (skill) {
       setEditedName(skill.name);
+      setEditedGoal(skill.goal);
       setIsEditingName(true);
     }
   };
@@ -197,10 +207,11 @@ export default function SkillDetailsPage() {
   const cancelEditingName = () => {
     setIsEditingName(false);
     setEditedName('');
+    setEditedGoal('');
   };
 
   const saveSkillName = async () => {
-    if (!skill || !editedName.trim()) return;
+    if (!skill || !editedName.trim() || !editedGoal.trim()) return;
 
     if (!accessToken) {
       alert('Please sign in to edit skills');
@@ -218,23 +229,24 @@ export default function SkillDetailsPage() {
           },
           body: JSON.stringify({
             name: editedName.trim(),
-            // REMOVED: requestorAddress (server-verified now!)
+            goal: editedGoal.trim(),
           }),
         }
       );
 
       if (!response.ok) {
         const error = await response.json();
-        throw new Error(error.error || 'Failed to update skill name');
+        throw new Error(error.error || 'Failed to update skill');
       }
 
       // Update local state
-      setSkill({ ...skill, name: editedName.trim() });
+      setSkill({ ...skill, name: editedName.trim(), goal: editedGoal.trim() });
       setIsEditingName(false);
       setEditedName('');
+      setEditedGoal('');
     } catch (err) {
-      console.error('Error updating skill name:', err);
-      alert(err instanceof Error ? err.message : 'Failed to update skill name');
+      console.error('Error updating skill:', err);
+      alert(err instanceof Error ? err.message : 'Failed to update skill');
     }
   };
 
@@ -254,8 +266,8 @@ export default function SkillDetailsPage() {
     if (!skill) return;
 
     const newPrice = parseFloat(editedPrice);
-    if (isNaN(newPrice) || newPrice < 0) {
-      alert('Please enter a valid price');
+    if (isNaN(newPrice) || newPrice < 0.001) {
+      alert('Please enter a valid price (minimum: $0.001)');
       return;
     }
 
@@ -390,48 +402,62 @@ export default function SkillDetailsPage() {
             )}
           </div>
           {isEditingName ? (
-            <div className="flex items-center gap-3">
-              <input
-                type="text"
-                value={editedName}
-                onChange={(e) => setEditedName(e.target.value)}
-                className="flex-1 text-4xl font-bold text-slate-900 bg-white border-2 border-blue-500 rounded-lg px-4 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500"
-                autoFocus
-                onKeyDown={(e) => {
-                  if (e.key === 'Enter') saveSkillName();
-                  if (e.key === 'Escape') cancelEditingName();
-                }}
-              />
-              <button
-                onClick={saveSkillName}
-                className="p-3 bg-blue-600 hover:bg-blue-700 text-white rounded-lg transition-colors"
-                title="Save"
-              >
-                <Check className="h-5 w-5" />
-              </button>
-              <button
-                onClick={cancelEditingName}
-                className="p-3 bg-slate-200 hover:bg-slate-300 text-slate-700 rounded-lg transition-colors"
-                title="Cancel"
-              >
-                <X className="h-5 w-5" />
-              </button>
+            <div className="space-y-4">
+              <div className="flex items-center gap-3">
+                <input
+                  type="text"
+                  value={editedName}
+                  onChange={(e) => setEditedName(e.target.value)}
+                  placeholder="Skill name"
+                  className="flex-1 text-4xl font-bold text-slate-900 bg-white border-2 border-blue-500 rounded-lg px-4 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  autoFocus
+                />
+                <button
+                  onClick={saveSkillName}
+                  disabled={!editedName.trim() || !editedGoal.trim()}
+                  className="p-3 bg-blue-600 hover:bg-blue-700 text-white rounded-lg transition-colors disabled:bg-slate-300 disabled:cursor-not-allowed"
+                  title="Save"
+                >
+                  <Check className="h-5 w-5" />
+                </button>
+                <button
+                  onClick={cancelEditingName}
+                  className="p-3 bg-slate-200 hover:bg-slate-300 text-slate-700 rounded-lg transition-colors"
+                  title="Cancel"
+                >
+                  <X className="h-5 w-5" />
+                </button>
+              </div>
+              <div className="space-y-2">
+                <textarea
+                  value={editedGoal}
+                  onChange={(e) => setEditedGoal(e.target.value)}
+                  placeholder="e.g., Search Wikipedia for %query%"
+                  className="w-full text-lg text-slate-900 bg-white border-2 border-blue-500 rounded-lg px-4 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500 font-mono"
+                  rows={2}
+                />
+                <p className="text-xs text-slate-500">
+                  Use %variable% syntax for dynamic values (e.g., %query%, %product%, %city%)
+                </p>
+              </div>
             </div>
           ) : (
-            <div className="flex items-center gap-3">
-              <h1 className="text-4xl font-bold text-slate-900">{skill.name}</h1>
-              {isCreator && (
-                <button
-                  onClick={startEditingName}
-                  className="p-2 hover:bg-slate-200 rounded-lg transition-colors"
-                  title="Edit name"
-                >
-                  <Pencil className="h-5 w-5 text-slate-600" />
-                </button>
-              )}
+            <div className="space-y-2">
+              <div className="flex items-center gap-3">
+                <h1 className="text-4xl font-bold text-slate-900">{skill.name}</h1>
+                {isCreator && (
+                  <button
+                    onClick={startEditingName}
+                    className="p-2 hover:bg-slate-200 rounded-lg transition-colors"
+                    title="Edit skill"
+                  >
+                    <Pencil className="h-5 w-5 text-slate-600" />
+                  </button>
+                )}
+              </div>
+              <p className="text-lg text-slate-600">{skill.goal}</p>
             </div>
           )}
-          <p className="text-lg text-slate-600">{skill.goal}</p>
         </div>
 
         {/* Metrics */}
@@ -471,8 +497,8 @@ export default function SkillDetailsPage() {
                 <span className="text-xl font-bold text-slate-900">$</span>
                 <input
                   type="number"
-                  step="0.01"
-                  min="0"
+                  step="0.001"
+                  min="0.001"
                   value={editedPrice}
                   onChange={(e) => setEditedPrice(e.target.value)}
                   className="w-20 text-xl font-bold text-slate-900 bg-white border-2 border-blue-500 rounded px-2 py-1 focus:outline-none focus:ring-2 focus:ring-blue-500"
@@ -500,7 +526,7 @@ export default function SkillDetailsPage() {
             ) : (
               <div className="flex items-center gap-2">
                 <div className="text-3xl font-bold text-slate-900">
-                  ${skill.price.toFixed(2)}
+                  ${formatPrice(skill.price)}
                 </div>
                 {isCreator && (
                   <button
@@ -534,7 +560,7 @@ export default function SkillDetailsPage() {
             <div className="text-blue-400">POST</div>
             <div>/api/skills/{skillId}/execute</div>
             <div className="text-slate-500 text-xs mt-3">
-              Price: ${skill.price.toFixed(2)} per execution
+              Price: ${formatPrice(skill.price)} per execution
             </div>
           </div>
         </div>

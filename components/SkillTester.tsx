@@ -27,6 +27,14 @@ interface SkillTesterProps {
 }
 
 export function SkillTester({ skillId, goal, variableMapping, price = 0.01 }: SkillTesterProps) {
+  // Format price with smart decimal display
+  // Shows 2 decimals by default (e.g., 1.00, 0.01)
+  // Shows 3 decimals only when third decimal is non-zero (e.g., 1.234, 0.205)
+  const formatPrice = (price: number) => {
+    const thirdDecimal = Math.round((price * 1000) % 10);
+    return thirdDecimal !== 0 ? price.toFixed(3) : price.toFixed(2);
+  };
+
   const [variables, setVariables] = useState<Record<string, string>>({});
   const [testing, setTesting] = useState(false);
   const [result, setResult] = useState<any>(null);
@@ -145,7 +153,7 @@ export function SkillTester({ skillId, goal, variableMapping, price = 0.01 }: Sk
       let errorMessage = 'An unknown error occurred';
       if (err instanceof Error) {
         if (err.message.includes('402') || err.message.includes('Payment')) {
-          errorMessage = `Payment failed. Please ensure you have sufficient USDC balance ($${price.toFixed(2)}) on Base network.`;
+          errorMessage = `Payment failed. Please ensure you have sufficient USDC balance ($${formatPrice(price)}) on Base network.`;
         } else if (err.message.includes('rejected')) {
           errorMessage = 'Payment was rejected by your wallet';
         } else if (err.message.includes('Insufficient funds') || err.message.includes('insufficient_funds')) {
@@ -215,7 +223,7 @@ export function SkillTester({ skillId, goal, variableMapping, price = 0.01 }: Sk
                 Wallet Connection Required
               </p>
               <p className="text-sm text-blue-700">
-                Sign in with your Coinbase account to test this skill. Cost: ${price.toFixed(2)} USDC on Base mainnet
+                Sign in with your Coinbase account to test this skill. Cost: ${formatPrice(price)} USDC on Base mainnet
               </p>
             </div>
           </div>
@@ -294,7 +302,7 @@ export function SkillTester({ skillId, goal, variableMapping, price = 0.01 }: Sk
         ) : (
           <>
             <Play className="h-5 w-5" />
-            Test Skill (${price.toFixed(2)} USDC)
+            Test Skill (${formatPrice(price)} USDC)
           </>
         )}
       </button>
@@ -347,7 +355,7 @@ export function SkillTester({ skillId, goal, variableMapping, price = 0.01 }: Sk
                   <ExternalLink className="h-3 w-3" />
                 </a>
                 <p className="text-xs text-green-600 mt-1">
-                  ${price.toFixed(2)} USDC paid on Base
+                  ${formatPrice(price)} USDC paid on Base
                 </p>
               </div>
             </div>
