@@ -42,6 +42,10 @@ export interface RecordedAction {
   semanticType?: InteractionType;                     // Type of interaction (date-picker, dropdown, etc.)
   semanticLabel?: string | null;                      // Contextual label (e.g., "departure date", "cabin class")
 
+  // Autocomplete metadata (when semanticType === 'autocomplete')
+  isAutocomplete?: boolean;                           // Detected autocomplete pattern
+  autocompleteClickedText?: string;                   // Hardcoded text that was clicked (for reference only)
+
   // Scroll-specific properties
   scrollPosition?: {
     x: number;

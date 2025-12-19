@@ -46,6 +46,29 @@ export class ActionRecorder {
       }
       (window as any)._actionRecorderInjected = true;
 
+      // 🔍 Intercept console logs for debugging
+      if (!(window as any).__browserConsoleLogs__) {
+        (window as any).__browserConsoleLogs__ = [];
+        const originalConsoleLog = console.log;
+        const originalConsoleWarn = console.warn;
+        const originalConsoleError = console.error;
+
+        console.log = function(...args: any[]) {
+          (window as any).__browserConsoleLogs__.push({ type: 'log', args: args });
+          originalConsoleLog.apply(console, args);
+        };
+
+        console.warn = function(...args: any[]) {
+          (window as any).__browserConsoleLogs__.push({ type: 'warn', args: args });
+          originalConsoleWarn.apply(console, args);
+        };
+
+        console.error = function(...args: any[]) {
+          (window as any).__browserConsoleLogs__.push({ type: 'error', args: args });
+          originalConsoleError.apply(console, args);
+        };
+      }
+
       // Helper to generate XPath
       function getXPath(element: Element): string {
         if (element.id) {
@@ -75,6 +98,13 @@ export class ActionRecorder {
       function getStableSelector(element: Element): string {
         // Try ID first
         if (element.id) {
+          // ✅ FIX: Use attribute selector for IDs with special characters (more reliable than escaping)
+          // Stagehand/Playwright's CSS engine doesn't handle escaped characters well
+          // Attribute selector [id="..."] works for ALL characters without escaping
+          const hasSpecialChars = /[.:#\[\]!@$%^&*()+=,/'"|~`<>?{}]/.test(element.id);
+          if (hasSpecialChars) {
+            return `[id="${element.id}"]`;
+          }
           return `#${element.id}`;
         }
 
@@ -322,6 +352,59 @@ export class ActionRecorder {
 
       // Helper to capture date picker semantic value (P2 - 45% of use cases)
       function captureDatePickerValue(element: Element): { value: string, semanticLabel: string } | null {
+        const elementId = element.id || '';
+        // ✅ FIX: SVG elements have className as SVGAnimatedString object, not string
+        const classList = typeof element.className === 'string'
+          ? element.className
+          : ((element.className as any)?.baseVal || '');
+        const tagName = element.tagName.toLowerCase();
+
+        // Strategy 0: Check if clicking calendar icon or SVG inside it (FlightNetwork pattern)
+        const isCalendarIcon = elementId.includes('calendar-icon') ||
+                              elementId.includes('calendar') ||
+                              classList.includes('calendar-icon') ||
+                              classList.includes('datepicker-icon');
+
+        // Check if parent is calendar icon (for SVG/path clicks)
+        const parentId = element.parentElement?.id || '';
+        const grandparentId = element.parentElement?.parentElement?.id || '';
+        const isChildOfCalendarIcon = parentId.includes('calendar-icon') ||
+                                      parentId.includes('calendar') ||
+                                      grandparentId.includes('calendar-icon') ||
+                                      grandparentId.includes('calendar');
+
+        // Only treat SVG/path as calendar if they're inside a calendar icon
+        const isSvgInCalendar = (tagName === 'svg' || tagName === 'path') && isChildOfCalendarIcon;
+
+        if (isCalendarIcon || isChildOfCalendarIcon || isSvgInCalendar) {
+          // Find associated date input field
+          const dateInput = document.querySelector('input[type="date"]') as HTMLInputElement;
+          if (dateInput && dateInput.value && isDateLike(dateInput.value)) {
+            return {
+              value: dateInput.value,
+              semanticLabel: inferDateIntent(element)
+            };
+          }
+
+          // Try to find input with similar ID pattern
+          const inputIdPattern = elementId.replace('calendar-icon-', '').replace('icon-', '');
+          if (inputIdPattern) {
+            const relatedInput = document.querySelector(`input[id*="${inputIdPattern}"]`) as HTMLInputElement;
+            if (relatedInput && relatedInput.value && isDateLike(relatedInput.value)) {
+              return {
+                value: relatedInput.value,
+                semanticLabel: inferDateIntent(element)
+              };
+            }
+          }
+
+          // Calendar icon clicked - infer semantic intent even without value
+          const label = inferDateIntent(element);
+          // Return null for now - this is a calendar OPEN action, not a date SELECT action
+          // The actual date selection will be captured when user clicks a day cell
+          return null;
+        }
+
         // Strategy 1: Check if element has date-related aria-label
         const ariaLabel = element.getAttribute('aria-label');
         if (ariaLabel && isDateLike(ariaLabel)) {
@@ -349,7 +432,6 @@ export class ActionRecorder {
 
         // Strategy 2: Check if we're in a date picker and clicked a day cell
         const role = element.getAttribute('role');
-        const classList = element.className || '';
         const isCalendarDay = role === 'gridcell' ||
                              classList.includes('calendar-day') ||
                              classList.includes('date-cell') ||
@@ -578,7 +660,10 @@ export class ActionRecorder {
       // Helper to capture autocomplete/location input semantic value (P2 - 40% of use cases)
       function captureAutocompleteValue(element: Element): { value: string, displayText: string, semanticLabel: string } | null {
         const role = element.getAttribute('role');
-        const classList = element.className || '';
+        // ✅ FIX: SVG elements have className as SVGAnimatedString object, not string
+        const classList = typeof element.className === 'string'
+          ? element.className
+          : ((element.className as any)?.baseVal || '');
 
         // Strategy 1: ARIA combobox option (common in autocomplete dropdowns)
         if (role === 'option' || role === 'menuitem') {
@@ -598,13 +683,29 @@ export class ActionRecorder {
           }
         }
 
-        // Strategy 2: Check for autocomplete/suggestion class patterns
+        // Strategy 2: Check for autocomplete/suggestion class patterns AND IDs (including parents)
+        const elementId = element.id || '';
+        const parentId = element.parentElement?.id || '';
+        const grandparentId = element.parentElement?.parentElement?.id || '';
+
         const isAutocompleteOption = classList.includes('autocomplete') ||
                                      classList.includes('suggestion') ||
                                      classList.includes('place-result') ||
                                      classList.includes('location-item') ||
                                      classList.includes('address-option') ||
-                                     classList.includes('pac-item'); // Google Places Autocomplete
+                                     classList.includes('pac-item') || // Google Places Autocomplete
+                                     classList.includes('option') ||
+                                     classList.includes('item') ||
+                                     classList.includes('result') ||
+                                     elementId.includes('-option-') || // FlightNetwork pattern
+                                     elementId.includes('-item-') ||
+                                     elementId.includes('-result-') ||
+                                     parentId.includes('-option-') ||  // ✅ Check parent ID
+                                     parentId.includes('-item-') ||
+                                     parentId.includes('-result-') ||
+                                     grandparentId.includes('-option-') ||  // ✅ Check grandparent ID
+                                     grandparentId.includes('-item-') ||
+                                     grandparentId.includes('-result-');
 
         if (isAutocompleteOption) {
           const displayText = element.textContent?.trim() || '';
@@ -633,7 +734,7 @@ export class ActionRecorder {
         }
 
         // Strategy 4: Check if clicking inside a listbox/menu (autocomplete results)
-        const autocompleteContainer = element.closest('[class*="autocomplete"], [class*="suggestions"], [class*="dropdown-menu"]');
+        const autocompleteContainer = element.closest('[class*="autocomplete"], [class*="suggestions"], [class*="dropdown-menu"], [class*="menu"], [id*="-option-"], [id*="-item-"]');
         if (autocompleteContainer) {
           // This might be an autocomplete option
           const displayText = element.textContent?.trim() || '';
@@ -646,6 +747,24 @@ export class ActionRecorder {
               displayText: displayText,
               semanticLabel: inferAutocompleteLabel(element)
             };
+          }
+        }
+
+        // Strategy 5: Check parent element IDs (FlightNetwork pattern: click on child of option element)
+        const parent = element.parentElement;
+        if (parent) {
+          const parentId = parent.id || '';
+          const parentClass = parent.className || '';
+          if (parentId.includes('-option-') || parentId.includes('-item-') ||
+              parentClass.includes('option') || parentClass.includes('item') || parentClass.includes('result')) {
+            const displayText = element.textContent?.trim() || parent.textContent?.trim() || '';
+            if (displayText.length > 0) {
+              return {
+                value: displayText,
+                displayText: displayText,
+                semanticLabel: inferAutocompleteLabel(element)
+              };
+            }
           }
         }
 
@@ -822,72 +941,124 @@ export class ActionRecorder {
         return 'toggle';
       }
 
+      /**
+       * Detects semantic value from clicked element
+       * Waits 200ms for DOM updates before detection
+       */
+      function detectSemanticValue(target: Element): Promise<{
+        semanticValue?: string | number | boolean | null;
+        semanticType?: string;
+        semanticLabel?: string | null;
+      }> {
+        return new Promise(resolve => {
+          setTimeout(() => {
+            try {
+              console.log('[detectSemanticValue] Starting detection for:', target.tagName, target.id, target.className);
+
+              // Priority 3: Try checkbox/toggle (35% of use cases, check early as it's specific)
+              const toggleValue = captureToggleValue(target);
+              if (toggleValue) {
+                console.log('[ActionRecorder] ✅ Captured toggle value:', toggleValue);
+                resolve({
+                  semanticValue: toggleValue.checked,
+                  semanticType: 'checkbox',
+                  semanticLabel: toggleValue.semanticLabel,
+                });
+                return;
+              }
+              console.log('[detectSemanticValue] ❌ Not a toggle');
+
+              // Priority 2: Try autocomplete (40% of use cases, but most specific)
+              const autocompleteValue = captureAutocompleteValue(target);
+              if (autocompleteValue) {
+                console.log('[ActionRecorder] ✅ Captured autocomplete value:', autocompleteValue);
+                resolve({
+                  semanticValue: autocompleteValue.value,
+                  semanticType: 'autocomplete',
+                  semanticLabel: autocompleteValue.semanticLabel,
+                });
+                return;
+              }
+              console.log('[detectSemanticValue] ❌ Not autocomplete');
+
+              // Priority 2: Try date picker (45% of use cases)
+              const dateValue = captureDatePickerValue(target);
+              if (dateValue) {
+                console.log('[ActionRecorder] ✅ Captured date picker value:', dateValue);
+                resolve({
+                  semanticValue: dateValue.value,
+                  semanticType: 'date-picker',
+                  semanticLabel: dateValue.semanticLabel,
+                });
+                return;
+              }
+              console.log('[detectSemanticValue] ❌ Not date picker');
+
+              // Priority 1: Try dropdown (65% of use cases)
+              const dropdownValue = captureDropdownValue(target);
+              if (dropdownValue) {
+                console.log('[ActionRecorder] ✅ Captured dropdown value:', dropdownValue);
+                resolve({
+                  semanticValue: dropdownValue.value,
+                  semanticType: 'dropdown',
+                  semanticLabel: dropdownValue.semanticLabel,
+                });
+                return;
+              }
+              console.log('[detectSemanticValue] ❌ Not dropdown');
+
+              // Priority 2: Try number input (40% of use cases)
+              const numberValue = captureNumberValue(target);
+              if (numberValue) {
+                console.log('[ActionRecorder] ✅ Captured number value:', numberValue);
+                resolve({
+                  semanticValue: numberValue.value,
+                  semanticType: 'number-input',
+                  semanticLabel: numberValue.semanticLabel,
+                });
+                return;
+              }
+              console.log('[detectSemanticValue] ❌ Not number input');
+
+              // No semantic value detected
+              console.log('[detectSemanticValue] ⚠️  No semantic value detected');
+              resolve({});
+            } catch (error) {
+              console.error('[detectSemanticValue] Detection failed with error:', error);
+              resolve({});
+            }
+          }, 200); // 200ms delay for DOM updates
+        });
+      }
+
       // Capture clicks
-      document.addEventListener('click', (e) => {
+      document.addEventListener('click', async (e) => {
         const target = e.target as Element;
         if (!target) return;
 
+        console.log('[ActionRecorder] 🖱️ Click detected on:', target.tagName, {
+          id: target.id,
+          className: target.className,
+          textContent: target.textContent?.substring(0, 50),
+          parentId: target.parentElement?.id,
+          parentClassName: target.parentElement?.className
+        });
+
+        // ✅ Wait for semantic detection to complete FIRST (with 200ms delay)
+        const semanticResult = await detectSemanticValue(target);
+
+        console.log('[ActionRecorder] 🔍 Semantic detection result:', semanticResult);
+
+        // ✅ Create action AFTER detection completes
         const action: any = {
           type: 'click' as const,
           selector: getStableSelector(target),
           description: `Click ${getDescription(target)}`,
           timestamp: Date.now(),
+          ...semanticResult,  // Spread semantic properties if present
         };
 
-        // Try to capture semantic values from different widget types
-        // Use setTimeout to let DOM update after click (important for dynamic widgets)
-        setTimeout(() => {
-          // Priority 3: Try checkbox/toggle (35% of use cases, check early as it's specific)
-          const toggleValue = captureToggleValue(target);
-          if (toggleValue) {
-            action.semanticValue = toggleValue.checked;
-            action.semanticType = 'checkbox';
-            action.semanticLabel = toggleValue.semanticLabel;
-            console.log('[ActionRecorder] Captured toggle value:', toggleValue);
-            return;
-          }
-
-          // Priority 2: Try autocomplete (40% of use cases, but most specific)
-          const autocompleteValue = captureAutocompleteValue(target);
-          if (autocompleteValue) {
-            action.semanticValue = autocompleteValue.value;
-            action.semanticType = 'autocomplete';
-            action.semanticLabel = autocompleteValue.semanticLabel;
-            console.log('[ActionRecorder] Captured autocomplete value:', autocompleteValue);
-            return;
-          }
-
-          // Priority 2: Try date picker (45% of use cases)
-          const dateValue = captureDatePickerValue(target);
-          if (dateValue) {
-            action.semanticValue = dateValue.value;
-            action.semanticType = 'date-picker';
-            action.semanticLabel = dateValue.semanticLabel;
-            console.log('[ActionRecorder] Captured date picker value:', dateValue);
-            return;
-          }
-
-          // Priority 1: Try dropdown (65% of use cases)
-          const dropdownValue = captureDropdownValue(target);
-          if (dropdownValue) {
-            action.semanticValue = dropdownValue.value;
-            action.semanticType = 'dropdown';
-            action.semanticLabel = dropdownValue.semanticLabel;
-            console.log('[ActionRecorder] Captured dropdown value:', dropdownValue);
-            return;
-          }
-
-          // Priority 2: Try number input (40% of use cases)
-          const numberValue = captureNumberValue(target);
-          if (numberValue) {
-            action.semanticValue = numberValue.value;
-            action.semanticType = 'number-input';
-            action.semanticLabel = numberValue.semanticLabel;
-            console.log('[ActionRecorder] Captured number value:', numberValue);
-            return;
-          }
-        }, 200); // 200ms delay for DOM updates
-
+        // ✅ Now push action with complete semantic data
         (window as any)._recordedActions.push(action);
         localStorage.setItem(storageKey, JSON.stringify((window as any)._recordedActions));
         console.log('[ActionRecorder] Captured click:', action);
@@ -898,21 +1069,69 @@ export class ActionRecorder {
         const target = e.target as HTMLInputElement;
         if (!target) return;
 
+        // Check if this is a date-related input field
+        const isDayField = isDateLike(target.value);
+        const label = findLabelForElement(target) || getDescription(target);
+        const isDateField = label && (
+          label.toLowerCase().includes('date') ||
+          label.toLowerCase().includes('depart') ||
+          label.toLowerCase().includes('return') ||
+          label.toLowerCase().includes('check-in') ||
+          label.toLowerCase().includes('check-out')
+        );
+
         const action: any = {
           type: 'fill' as const,
           selector: getStableSelector(target),
           description: `Fill ${getDescription(target)}`,
           value: target.value,
           timestamp: Date.now(),
-          // Semantic value capture for text inputs (100% of use cases)
+          // Detect if this is a date picker value
           semanticValue: target.value,
-          semanticType: 'text-input',
-          semanticLabel: findLabelForElement(target) || getDescription(target),
+          semanticType: (isDayField && isDateField) ? 'date-picker' : 'text-input',
+          semanticLabel: label,
         };
 
         (window as any)._recordedActions.push(action);
         localStorage.setItem(storageKey, JSON.stringify((window as any)._recordedActions));
         console.log('[ActionRecorder] Captured input:', action);
+      }, true);
+
+      // 📅 Capture "change" events for date pickers (many widgets use change instead of input)
+      document.addEventListener('change', (e) => {
+        const target = e.target as HTMLInputElement;
+        if (!target) return;
+
+        // Only capture change events for date-related fields
+        const value = target.value;
+        if (!value || !isDateLike(value)) return;
+
+        const label = findLabelForElement(target) || getDescription(target);
+        const isDateField = label && (
+          label.toLowerCase().includes('date') ||
+          label.toLowerCase().includes('depart') ||
+          label.toLowerCase().includes('return') ||
+          label.toLowerCase().includes('arrival') ||
+          label.toLowerCase().includes('check-in') ||
+          label.toLowerCase().includes('check-out')
+        );
+
+        if (!isDateField) return;
+
+        // Create a date picker action
+        const action: any = {
+          type: 'click' as const, // Treat as click since user interacted with calendar
+          selector: getStableSelector(target),
+          description: `Select ${label}`,
+          timestamp: Date.now(),
+          semanticValue: value,
+          semanticType: 'date-picker',
+          semanticLabel: label,
+        };
+
+        (window as any)._recordedActions.push(action);
+        localStorage.setItem(storageKey, JSON.stringify((window as any)._recordedActions));
+        console.log('[ActionRecorder] 📅 Captured date picker change:', action);
       }, true);
 
       // Capture form submissions

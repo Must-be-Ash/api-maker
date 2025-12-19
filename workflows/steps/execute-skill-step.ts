@@ -75,9 +75,12 @@ function getExtractionSelector(url: string): string | undefined {
     const urlObj = new URL(url);
     const hostname = urlObj.hostname.toLowerCase();
 
-    // Wikipedia - extract only from main article content
+    // ✅ FIX: Wikipedia pages are too large for scoped extraction
+    // The `.mw-parser-output` selector creates a11y snapshots that exceed server limits
+    // Using full-page extraction instead (Stagehand optimizes this better)
     if (hostname.includes('wikipedia.org')) {
-      return '.mw-parser-output'; // Main article content, excludes navigation/sidebars
+      console.log('[getExtractionSelector] Wikipedia detected - using full page extraction to avoid a11y snapshot size issues');
+      return undefined; // Full page extraction works better for large pages
     }
 
     // Add more site-specific selectors here as needed
@@ -224,9 +227,9 @@ export async function executeSkillStep(input: ExecuteSkillInput): Promise<Execut
     env: "BROWSERBASE",
     apiKey: process.env.BROWSERBASE_API_KEY,
     projectId: process.env.BROWSERBASE_PROJECT_ID,
-    verbose: 0, // Errors only
+    verbose: 1, // Show warnings and errors
     disablePino: true, // Disable pino logger (prevents pino-pretty error in Vercel)
-    model: "openai/gpt-4o", // Use OpenAI GPT-4o for AI operations (v3 API)
+    model: "openai/gpt-4o", // Using GPT-4o for everything (was working before)
   });
 
   await stagehand.init();
@@ -463,7 +466,28 @@ async function executeExactReplay(
         timeoutMs: 10000,
       });
     } else if (action.type === 'click') {
-      await page.locator(action.selector).click({ timeout: 5000 });
+      // ✅ IMPROVED: Detect optional elements (cookie banners, popups) that may not always appear
+      const isOptionalElement = action.description && (
+        action.description.toLowerCase().includes('accept') ||
+        action.description.toLowerCase().includes('cookie') ||
+        action.description.toLowerCase().includes('dismiss') ||
+        action.description.toLowerCase().includes('close popup')
+      );
+
+      if (isOptionalElement) {
+        // Try to click optional elements but don't fail if not found
+        try {
+          console.log('[executeExactReplay] Optional element detected, attempting click with timeout...');
+          await page.locator(action.selector).click({ timeout: 3000 });
+          console.log('[executeExactReplay] ✓ Optional element clicked');
+        } catch (error) {
+          console.log('[executeExactReplay] ⚠️ Optional element not found, continuing...', (error as Error).message);
+          // Don't throw - continue execution
+        }
+      } else {
+        // Required elements - fail if not found
+        await page.locator(action.selector).click({ timeout: 5000 });
+      }
     } else if (action.type === 'fill' || action.type === 'type') {
       // Handle both 'fill' (raw) and 'type' (grouped) actions
       let value = action.value || '';
@@ -504,6 +528,28 @@ async function executeExactReplay(
       }
 
       await page.locator(action.selector).fill(value, { timeout: 5000 });
+
+      // ✅ AUTOCOMPLETE HANDLING: Use Stagehand to select from dropdown suggestions
+      // Only for autocomplete fields (not date-pickers - those are typed directly)
+      const isAutocompleteField = (action as any).semanticType === 'autocomplete';
+
+      if (isAutocompleteField && stagehand) {
+        console.log('[executeExactReplay] 🔍 Detected autocomplete field');
+
+        // Wait for dropdown suggestions to load
+        await new Promise(resolve => setTimeout(resolve, 2000));
+
+        console.log(`[executeExactReplay] 🎯 Selecting from dropdown: "${value}"`);
+
+        // Use Stagehand act() with proper instruction format (from best practices)
+        try {
+          await stagehand.act(`select "${value}" from the dropdown suggestions`);
+          console.log('[executeExactReplay] ✅ Dropdown selection succeeded');
+        } catch (error) {
+          console.warn('[executeExactReplay] ⚠️ Dropdown selection failed, continuing...', (error as Error).message);
+          // Don't throw - the form might still submit successfully
+        }
+      }
     } else if (action.type === 'submit') {
       // Submit the form by pressing Enter
       // The selector points to the input field that triggered the navigation
@@ -620,10 +666,15 @@ async function executeExactReplay(
 
     if (extractionSelector) {
       console.log(`[executeExactReplay] Using targeted extraction with selector: ${extractionSelector}`);
-      extraction = await stagehand.extract(extractionInstruction, zodExtractionSchema, { selector: extractionSelector });
+      extraction = await stagehand.extract(extractionInstruction, zodExtractionSchema, {
+        selector: extractionSelector,
+        timeout: 120000 // 2 minutes for large pages
+      });
     } else {
       console.log('[executeExactReplay] Extracting data with schema (full page)...');
-      extraction = await stagehand.extract(extractionInstruction, zodExtractionSchema);
+      extraction = await stagehand.extract(extractionInstruction, zodExtractionSchema, {
+        timeout: 120000 // 2 minutes for large pages
+      });
     }
     console.log('[executeExactReplay] Extraction result:', extraction);
   }
@@ -700,19 +751,29 @@ async function executeNaturalLanguage(
       });
     }
 
-    // 🔍 AUTOCOMPLETE DETECTION: Detect "fill + submit" pattern and handle type-then-select autocomplete
-    // Pattern: fill action followed by submit action = search with autocomplete dropdown
+    // 🔍 AUTOCOMPLETE DETECTION: Detect autocomplete patterns and handle type-then-select
+    // Pattern 1: fill + submit (Wikipedia style)
+    // Pattern 2: fill + click (Flight search dropdown style)
     let isAutocomplete = false;
+    let autocompleteType = null;
+
     if (action.method === 'act' &&
         instruction &&
         instruction.toLowerCase().includes('fill') &&
         value &&
-        i + 1 < workflow.length &&
-        workflow[i + 1].instruction?.toLowerCase().includes('submit')) {
+        i + 1 < workflow.length) {
 
-      console.log('[executeNaturalLanguage] 🔍 Detected autocomplete pattern - will use two-step approach');
-      isAutocomplete = true;
-      // Keep original instruction for typing, handle selection separately after
+      const nextInstruction = workflow[i + 1].instruction?.toLowerCase() || '';
+
+      if (nextInstruction.includes('submit')) {
+        console.log('[executeNaturalLanguage] 🔍 Detected autocomplete pattern: fill + submit');
+        isAutocomplete = true;
+        autocompleteType = 'submit';
+      } else if (nextInstruction.includes('click')) {
+        console.log('[executeNaturalLanguage] 🔍 Detected autocomplete pattern: fill + click dropdown');
+        isAutocomplete = true;
+        autocompleteType = 'click';
+      }
     }
 
     console.log('[executeNaturalLanguage] Action:', action.method, instruction);
@@ -723,9 +784,30 @@ async function executeNaturalLanguage(
         timeoutMs: 10000,
       });
     } else if (action.method === 'act') {
+      // ✅ IMPROVED: Detect optional elements (cookie banners, popups) that may not always appear
+      const isOptionalElement = instruction && (
+        instruction.toLowerCase().includes('accept') ||
+        instruction.toLowerCase().includes('cookie') ||
+        instruction.toLowerCase().includes('dismiss') ||
+        instruction.toLowerCase().includes('close popup')
+      );
+
       // Use AI for all actions in Natural Language strategy
       console.log('[executeNaturalLanguage] Executing via AI:', instruction);
-      await stagehand.act(instruction, { page: page });
+
+      if (isOptionalElement) {
+        // Try optional actions but don't fail if element not found
+        try {
+          await stagehand.act(instruction, { page: page, timeout: 5000 });
+          console.log('[executeNaturalLanguage] ✓ Optional action completed');
+        } catch (error) {
+          console.log('[executeNaturalLanguage] ⚠️ Optional element not found, continuing...', (error as Error).message);
+          // Don't throw - continue execution
+        }
+      } else {
+        // Required actions - fail if they don't work
+        await stagehand.act(instruction, { page: page });
+      }
 
       // Wait for scroll to complete if this is a scroll action
       if (instruction && instruction.toLowerCase().includes('scroll')) {
@@ -735,23 +817,23 @@ async function executeNaturalLanguage(
 
       // 🔍 AUTOCOMPLETE TWO-STEP: After typing, wait for dropdown and select suggestion
       if (isAutocomplete) {
-        console.log('[executeNaturalLanguage] 💤 Waiting 3s for autocomplete dropdown to load...');
+        console.log(`[executeNaturalLanguage] 💤 Waiting 3s for autocomplete dropdown to load (type: ${autocompleteType})...`);
         await new Promise(resolve => setTimeout(resolve, 3000));
 
-        console.log('[executeNaturalLanguage] 🎯 Clicking autocomplete suggestion matching typed value...');
+        console.log(`[executeNaturalLanguage] 🎯 Selecting option matching typed value: "${value}"`);
         const urlBeforeClick = page.url();
         console.log('[executeNaturalLanguage] URL before click:', urlBeforeClick);
 
-        // Use the actual typed value in the instruction for better targeting
-        // Example: "click on 'New York' in the autocomplete suggestions"
+        // ✅ CRITICAL: Use the VARIABLE VALUE (not hardcoded recorded value)
+        // This allows "New York" to be selected even if "Vancouver" was recorded
         const clickInstruction = `click on the link or suggestion containing '${value}' in the dropdown list`;
-        console.log('[executeNaturalLanguage] Click instruction:', clickInstruction);
+        console.log('[executeNaturalLanguage] Dynamic click instruction:', clickInstruction);
 
         try {
           await stagehand.act(clickInstruction, { page: page });
-          console.log('[executeNaturalLanguage] ✓ Autocomplete suggestion clicked');
+          console.log('[executeNaturalLanguage] ✓ Autocomplete option selected');
         } catch (error) {
-          console.error('[executeNaturalLanguage] ⚠️  Stagehand error after click:', (error as Error).message);
+          console.error('[executeNaturalLanguage] ⚠️  Error during dropdown selection:', (error as Error).message);
 
           // Check if navigation actually occurred despite the error (Stagehand internal error after successful click)
           await new Promise(resolve => setTimeout(resolve, 1500)); // Wait for potential navigation
@@ -759,24 +841,28 @@ async function executeNaturalLanguage(
           console.log('[executeNaturalLanguage] URL after click:', urlAfterClick);
 
           if (urlAfterClick !== urlBeforeClick) {
-            console.log('[executeNaturalLanguage] ✓ Navigation occurred despite Stagehand error - treating as success');
+            console.log('[executeNaturalLanguage] ✓ Navigation occurred despite error - treating as success');
             // Navigation happened, continue execution
           } else {
-            console.error('[executeNaturalLanguage] ✗ No navigation occurred - click truly failed');
+            console.error('[executeNaturalLanguage] ✗ No navigation occurred - selection truly failed');
             throw error; // Re-throw if navigation didn't happen
           }
         }
 
-        // Skip the submit action since we handled it via autocomplete
-        i++; // Skip next action (submit)
-        console.log('[executeNaturalLanguage] ⏭️  Skipped redundant submit action');
+        // Skip the next action (submit or click) since we handled it via autocomplete
+        i++; // Skip next action
+        console.log(`[executeNaturalLanguage] ⏭️  Skipped redundant ${autocompleteType} action`);
       }
     } else if (action.method === 'extract') {
       // If schema is provided, use it
       if (action.schema) {
-        return await stagehand.extract(instruction, z.object(action.schema as any));
+        return await stagehand.extract(instruction, z.object(action.schema as any), {
+          timeout: 120000 // 2 minutes for large pages
+        });
       } else {
-        return await stagehand.extract(instruction);
+        return await stagehand.extract(instruction, undefined, {
+          timeout: 120000 // 2 minutes for large pages
+        });
       }
     }
 
@@ -796,10 +882,15 @@ async function executeNaturalLanguage(
 
     if (extractionSelector) {
       console.log(`[executeNaturalLanguage] Using targeted extraction with selector: ${extractionSelector}`);
-      extraction = await stagehand.extract(extractionInstruction, zodExtractionSchema, { selector: extractionSelector });
+      extraction = await stagehand.extract(extractionInstruction, zodExtractionSchema, {
+        selector: extractionSelector,
+        timeout: 120000 // 2 minutes for large pages
+      });
     } else {
       console.log('[executeNaturalLanguage] Extracting data with schema (full page)...');
-      extraction = await stagehand.extract(extractionInstruction, zodExtractionSchema);
+      extraction = await stagehand.extract(extractionInstruction, zodExtractionSchema, {
+        timeout: 120000 // 2 minutes for large pages
+      });
     }
     console.log('[executeNaturalLanguage] Extraction result:', extraction);
   }
@@ -948,10 +1039,15 @@ Be precise and thorough. Validate your selections match the search criteria befo
 
     if (extractionSelector) {
       console.log(`[executeAIRelearn] Using targeted extraction with selector: ${extractionSelector}`);
-      extractionData = await stagehand.extract(extractionSchemaInfo.instruction, zodExtractionSchema, { selector: extractionSelector });
+      extractionData = await stagehand.extract(extractionSchemaInfo.instruction, zodExtractionSchema, {
+        selector: extractionSelector,
+        timeout: 120000 // 2 minutes for large pages
+      });
     } else {
       console.log('[executeAIRelearn] Manual extraction (full page)...');
-      extractionData = await stagehand.extract(extractionSchemaInfo.instruction, zodExtractionSchema);
+      extractionData = await stagehand.extract(extractionSchemaInfo.instruction, zodExtractionSchema, {
+        timeout: 120000 // 2 minutes for large pages
+      });
     }
     console.log('[executeAIRelearn] Manual extraction result:', extractionData);
   }

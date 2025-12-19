@@ -265,6 +265,28 @@ export async function finishRecordingStep(input: FinishRecordingInput): Promise<
   });
 
   if (activeRecorder) {
+    // 🔍 CAPTURE BROWSER CONSOLE LOGS before stopping
+    try {
+      // Access page through recorder's page property
+      const page = activeRecorder.recorder.page || activeRecorder.page;
+      if (page && typeof page.evaluate === 'function') {
+        const browserConsoleLogs = await page.evaluate(() => {
+          return (window as any).__browserConsoleLogs__ || [];
+        });
+        if (browserConsoleLogs.length > 0) {
+          console.log('[finishRecordingStep] ========== BROWSER CONSOLE LOGS ==========');
+          browserConsoleLogs.forEach((log: any) => {
+            console.log(`[BROWSER] ${log.type.toUpperCase()}:`, ...log.args);
+          });
+          console.log('[finishRecordingStep] ========== END BROWSER CONSOLE LOGS ==========');
+        }
+      } else {
+        console.log('[finishRecordingStep] Page.evaluate not available');
+      }
+    } catch (error) {
+      console.log('[finishRecordingStep] Could not retrieve browser console logs:', error);
+    }
+
     await activeRecorder.recorder.stopRecording();
     console.log('[finishRecordingStep] Stopped action recorder');
 
@@ -515,15 +537,18 @@ export async function finishRecordingStep(input: FinishRecordingInput): Promise<
 
   // Extract ALL semantic values from recorded actions (not just text inputs)
   // This includes values from dropdowns, date pickers, number inputs, autocomplete, checkboxes
-  const semanticValues: SemanticValue[] = (recording.recordedActions || [])
-    .map((action: RecordedAction, index: number): SemanticValue | null => {
+  // ✅ FIX: Extract semantic values and filter out intermediate typing states
+  // For each selector, keep only the LAST semantic value (final state after typing completes)
+  const allSemanticValues: Array<SemanticValue & { selector?: string }> = (recording.recordedActions || [])
+    .map((action: RecordedAction, index: number): (SemanticValue & { selector?: string }) | null => {
       // Extract semantic value if present
       if (action.semanticValue !== undefined && action.semanticValue !== null && action.semanticType) {
         return {
           value: action.semanticValue,
           type: action.semanticType,
           label: action.semanticLabel || action.description || 'unknown',
-          actionIndex: index
+          actionIndex: index,
+          selector: action.selector
         };
       }
       // Fallback: Extract text input values (for compatibility)
@@ -532,14 +557,31 @@ export async function finishRecordingStep(input: FinishRecordingInput): Promise<
           value: action.value,
           type: 'text-input' as const,
           label: action.description || 'text input',
-          actionIndex: index
+          actionIndex: index,
+          selector: action.selector
         };
       }
       return null;
     })
-    .filter((sv: SemanticValue | null): sv is SemanticValue => sv !== null);
+    .filter((sv: (SemanticValue & { selector?: string }) | null): sv is SemanticValue & { selector?: string } => sv !== null);
 
-  console.log('[finishRecordingStep] Extracted semantic values:', semanticValues);
+  // Group by selector and keep only the LAST value for each selector
+  const selectorMap = new Map<string, SemanticValue & { selector?: string }>();
+  allSemanticValues.forEach((sv: SemanticValue & { selector?: string }) => {
+    const key = sv.selector || `index-${sv.actionIndex}`;
+    // Always replace with later values (keeps the most recent/final state)
+    selectorMap.set(key, sv);
+  });
+
+  // Convert back to array and remove selector property
+  const semanticValues: SemanticValue[] = Array.from(selectorMap.values()).map(sv => ({
+    value: sv.value,
+    type: sv.type,
+    label: sv.label,
+    actionIndex: sv.actionIndex
+  }));
+
+  console.log('[finishRecordingStep] Extracted semantic values (filtered):', semanticValues);
 
   // ✅ PHASE 1: Infer structured goal from vague user intent FIRST (before variable detection)
   // This ensures we work with the enhanced/proper goal, not the original malformed one
@@ -629,15 +671,30 @@ export async function finishRecordingStep(input: FinishRecordingInput): Promise<
       // Example: Replace "nintendo switch 2" before "nint" to prevent corruption
       const sortedMappings = Object.entries(variableMapping).sort((a, b) => b[0].length - a[0].length);
 
-      // Replace each mapped value within the action's value
-      sortedMappings.forEach(([originalText, placeholder]) => {
-        if (newValue.includes(originalText)) {
-          // Escape special regex characters in originalText
-          const escapedText = originalText.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-          newValue = newValue.replace(new RegExp(escapedText, 'gi'), placeholder);
-          wasReplaced = true;
+      // ✅ FIX: For autocomplete/date-picker, directly replace value with placeholder if semanticValue matches
+      if (action.semanticType === 'autocomplete' || action.semanticType === 'date-picker') {
+        const semanticStr = String(action.semanticValue || '');
+        for (const [originalText, placeholder] of sortedMappings) {
+          if (semanticStr === originalText || semanticStr.includes(originalText)) {
+            console.log(`[Variable Mapping] Semantic match: "${action.value}" → ${placeholder} (via semanticValue: "${semanticStr}")`);
+            newValue = placeholder;
+            wasReplaced = true;
+            break;
+          }
         }
-      });
+      }
+
+      // Fallback: Replace each mapped value within the action's value (for text-input, etc.)
+      if (!wasReplaced) {
+        sortedMappings.forEach(([originalText, placeholder]) => {
+          if (newValue.includes(originalText)) {
+            // Escape special regex characters in originalText
+            const escapedText = originalText.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+            newValue = newValue.replace(new RegExp(escapedText, 'gi'), placeholder);
+            wasReplaced = true;
+          }
+        });
+      }
 
       if (wasReplaced) {
         // ALSO UPDATE semanticValue if it exists (Bug fix: ensure workflow instructions use placeholders)
@@ -698,6 +755,40 @@ export async function finishRecordingStep(input: FinishRecordingInput): Promise<
     removed: allActions.length - filteredActions.length
   });
 
+  // ✅ NEW: Filter out intermediate clicks without semantic value
+  // These are clicks that just open fields (e.g., "Click field with placeholder 'Origin'")
+  // or click calendar cells (e.g., "Click 19") which are site-specific
+  // They don't execute during actual workflow runs and cause GPT-4o errors
+  const executableActions = filteredActions.filter((action) => {
+    // Keep all non-click actions
+    if (action.type !== 'click') {
+      return true;
+    }
+
+    // For click actions: only keep if they have TRUE semantic meaning
+    // ONLY keep clicks that are:
+    // 1. Select actions (e.g., "Select Vancouver from dropdown")
+    // 2. Submit actions (e.g., "Submit form")
+    // 3. Have a value to fill (autocomplete with value)
+    const description = action.description || '';
+    const hasSemanticContext = description.includes('Select') ||
+                               description.includes('Submit') ||
+                               (action as any).value;  // Has a value to fill
+
+    if (!hasSemanticContext) {
+      console.log('[finishRecordingStep] ⏭️  Filtering out intermediate click:', description);
+      return false;
+    }
+
+    return true;
+  });
+
+  console.log('[finishRecordingStep] Filtered intermediate clicks:', {
+    before: filteredActions.length,
+    after: executableActions.length,
+    removed: filteredActions.length - executableActions.length
+  });
+
   // Generate extraction schema from goal with context
   let extractionSchema = null;
   if (finalGoal) {
@@ -715,7 +806,7 @@ export async function finishRecordingStep(input: FinishRecordingInput): Promise<
           type: sv.type,
           label: sv.label,
         })),
-        actions: filteredActions.map(a => ({
+        actions: executableActions.map(a => ({
           type: a.type,
           description: a.description || '',
           selector: a.selector,
@@ -731,8 +822,8 @@ export async function finishRecordingStep(input: FinishRecordingInput): Promise<
     }
   }
 
-  // Convert recorded actions to Stagehand workflow (use filteredActions)
-  const stagehandWorkflow = convertToStagehand(filteredActions || []);
+  // Convert recorded actions to Stagehand workflow (use executableActions - already filtered)
+  const stagehandWorkflow = convertToStagehand(executableActions || []);
 
   console.log('[finishRecordingStep] Converted to Stagehand workflow:', {
     workflowSteps: stagehandWorkflow.length,
@@ -744,7 +835,7 @@ export async function finishRecordingStep(input: FinishRecordingInput): Promise<
   let metrics: SkillMetrics = {
     totalTokens: 0,
     duration: 0,
-    operations: filteredActions?.length || 0,
+    operations: executableActions?.length || 0,  // ✅ FIX: Use executableActions (after filtering)
   };
 
   try {
@@ -757,7 +848,7 @@ export async function finishRecordingStep(input: FinishRecordingInput): Promise<
       projectId: process.env.BROWSERBASE_PROJECT_ID,
       verbose: 0, // Errors only
       disablePino: true, // Disable pino logger (prevents pino-pretty error in Vercel)
-      model: "openai/gpt-4o", // Use OpenAI GPT-4o for AI operations (v3 API)
+      model: "openai/gpt-4o",
     });
 
     await stagehand.init();
@@ -858,8 +949,8 @@ export async function finishRecordingStep(input: FinishRecordingInput): Promise<
       sampleExtraction: pageContext.sampleExtraction || null, // ✅ NEW: Sample extraction from testing
     } : null,
 
-    // HYBRID STORAGE - Now with variable-mapped actions, initial navigation, and filtered redundant navigations
-    recordedActions: filteredActions || [],
+    // HYBRID STORAGE - Now with variable-mapped actions, initial navigation, and filtered intermediate clicks
+    recordedActions: executableActions || [],  // ✅ FIX: Use executableActions (after filtering intermediate clicks)
     stagehandWorkflow,
     history,
 
@@ -903,7 +994,7 @@ export async function finishRecordingStep(input: FinishRecordingInput): Promise<
     goal: finalGoal,
     originalGoal: originalGoal,
     goalInference: goalInference,
-    recordedActions: filteredActions || [],  // ✅ FIX: Return grouped/filtered actions
+    recordedActions: executableActions || [],  // ✅ FIX: Return executable actions (after filtering intermediate clicks)
     stagehandWorkflow,
     testResult,
     metrics,
@@ -972,11 +1063,14 @@ function convertToStagehand(actions: RecordedAction[]): StagehandAction[] {
 
       switch (action.semanticType) {
         case 'date-picker':
-          // Generate: "Select departure date %departureDate%" or "Select date 2025-12-17"
+          // ✅ FIX: Use clear "Fill" instruction that specifies both the field AND the value
+          // Format: "Fill [field description] with [date value]"
+          // This works for both typed date inputs AND calendar date pickers
+          const dateFieldLabel = action.semanticLabel || 'date field';
           return {
             method: 'act',
             selector: action.selector,
-            instruction: `Select ${action.semanticLabel || 'date'} ${isVariable ? semanticValueStr : semanticValueStr}`,
+            instruction: `Fill ${dateFieldLabel} with ${semanticValueStr}`,
           };
 
         case 'dropdown':
@@ -997,11 +1091,13 @@ function convertToStagehand(actions: RecordedAction[]): StagehandAction[] {
           };
 
         case 'autocomplete':
-          // Generate: "Select origin %origin%" or "Select location New York"
+          // Generate: "Type %origin% into location field"
+          // This is atomic, specific, and follows Stagehand best practices
           return {
             method: 'act',
             selector: action.selector,
-            instruction: `Select ${action.semanticLabel || 'location'} ${displayValue}`,
+            instruction: `Type ${displayValue} into the ${action.semanticLabel || 'location'} field`,
+            value: semanticValueStr,  // ✅ Add value field for exact selector fallback
           };
 
         case 'checkbox':
@@ -1084,7 +1180,35 @@ async function replayWorkflow(
     });
   }
 
-  for (const action of workflow) {
+  // ✅ NEW: Filter out intermediate clicks without semantic value
+  // These are clicks that just open fields (e.g., "Click field with placeholder 'Origin'")
+  // They don't have semantic context and cause GPT-4o to return empty {}
+  const executableWorkflow = workflow.filter((action) => {
+    // Keep all non-click actions
+    if (action.method !== 'act' || !action.instruction.startsWith('Click')) {
+      return true;
+    }
+
+    // For click actions: only keep if they have semantic meaning OR a value to fill
+    const hasSemanticContext = action.instruction.includes('Select') ||
+                               action.instruction.includes('Submit') ||
+                               action.value;
+
+    if (!hasSemanticContext) {
+      console.log('[replayWorkflow] ⏭️  Skipping intermediate click:', action.instruction);
+      return false;
+    }
+
+    return true;
+  });
+
+  console.log('[replayWorkflow] Filtered workflow:', {
+    original: workflow.length,
+    executable: executableWorkflow.length,
+    skipped: workflow.length - executableWorkflow.length
+  });
+
+  for (const action of executableWorkflow) {
     console.log('[replayWorkflow] Executing action:', action.method, action.instruction);
 
     if (action.method === 'navigate') {
@@ -1109,7 +1233,7 @@ async function replayWorkflow(
         }
       }
 
-      // Try exact selector first (Strategy 1)
+      // Try exact selector first with Playwright (fastest, no LLM)
       if (action.selector) {
         try {
           if (valueToUse) {
@@ -1119,12 +1243,21 @@ async function replayWorkflow(
           }
           console.log('[replayWorkflow] Action executed with exact selector');
         } catch (error) {
-          // Fallback to natural language (Strategy 2)
-          console.log('[replayWorkflow] Exact selector failed, using natural language');
-          await stagehand.act(action.instruction);
+          // ✅ FIX: Fallback to natural language instruction (not Action object)
+          // Stagehand Action objects expect XPath, but we have CSS selectors
+          // Using natural language is more reliable than converting CSS → XPath
+          console.log('[replayWorkflow] Exact selector failed, using natural language instruction');
+
+          let instruction = action.instruction;
+          // Add value to instruction if present
+          if (valueToUse && !instruction.includes(valueToUse)) {
+            instruction = `${instruction} with value "${valueToUse}"`;
+          }
+
+          await stagehand.act(instruction);
         }
       } else {
-        // No selector, use natural language
+        // No selector, use natural language instruction
         await stagehand.act(action.instruction);
       }
     }
