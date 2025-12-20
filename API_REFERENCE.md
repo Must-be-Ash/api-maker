@@ -57,6 +57,12 @@ Execute a saved skill with optional variables.
     valid: boolean
     errors: string[]
   }
+  widgetHandling?: {
+    autocompleteFields: number  // Number of autocomplete fields handled
+    calendarWidgets: number  // Number of calendar/date pickers handled
+    fieldRestoration: number  // Number of fields that were restored
+    redundantSubmitsSkipped: number  // Number of duplicate submits avoided
+  }
 }
 ```
 
@@ -72,28 +78,34 @@ curl -X POST http://localhost:3000/api/skills/skill_123456/execute \
   }'
 ```
 
-**Example Response** (Flight Search):
+**Example Response** (Flight Search with Autocomplete & Date Pickers):
 ```json
 {
   "success": true,
   "data": {
     "extraction": {
-      "price": "$450",
+      "cheapestPrice": "$450",
       "airline": "Delta",
       "route": "Toronto → New York",
-      "departureTime": "10:00 AM",
-      "arrivalTime": "1:30 PM",
+      "departureDate": "25 Dec, Thu",
+      "returnDate": "02 Jan, Fri",
       "duration": "3h 30m"
     }
   },
-  "strategy": "natural_language",
+  "strategy": "exact_replay",
   "executionTime": 18500,
-  "tokensUsed": 1250,
+  "tokensUsed": 0,
   "sessionId": "sess_abc123xyz",
   "sessionUrl": "https://www.browserbase.com/sessions/sess_abc123xyz",
   "validation": {
     "valid": true,
     "errors": []
+  },
+  "widgetHandling": {
+    "autocompleteFields": 2,
+    "calendarWidgets": 2,
+    "fieldRestoration": 0,
+    "redundantSubmitsSkipped": 1
   }
 }
 ```
@@ -163,71 +175,116 @@ curl http://localhost:3000/api/skills/skill_123456
 {
   "skillId": "skill_123456",
   "name": "Search Flights",
-  "goal": "Search for flights from %origin% to %destination%",
-  "startUrl": "https://www.google.com/travel/flights",
+  "goal": "Search for flights from %origin% to %destination% departing %departureDate% returning %returnDate%",
+  "startUrl": "https://www.farecompare.com/",
   "recordedActions": [
     {
-      "type": "fill",
-      "selector": "#origin",
+      "type": "autocomplete",
+      "selector": "#flights-origin-prepop-whitelabel_en",
       "value": "%origin%",
-      "description": "Fill origin field"
+      "description": "Select origin from dropdown",
+      "widgetType": "autocomplete"
     },
     {
-      "type": "fill",
-      "selector": "#destination",
+      "type": "autocomplete",
+      "selector": "#flights-destination-prepop-whitelabel_en",
       "value": "%destination%",
-      "description": "Fill destination field"
+      "description": "Select destination from dropdown",
+      "widgetType": "autocomplete"
+    },
+    {
+      "type": "datepicker",
+      "selector": "#departure-date",
+      "description": "Open departure date picker",
+      "widgetType": "calendar"
     },
     {
       "type": "click",
+      "selector": "[data-date='2025-12-19']",
+      "description": "Select departure date"
+    },
+    {
+      "type": "datepicker",
+      "selector": "#return-date",
+      "description": "Open return date picker",
+      "widgetType": "calendar"
+    },
+    {
+      "type": "click",
+      "selector": "[data-date='2025-12-27']",
+      "description": "Select return date"
+    },
+    {
+      "type": "submit",
       "selector": "#search-button",
-      "description": "Click search button"
+      "description": "Submit search form"
     }
   ],
   "stagehandWorkflow": [
     {
       "method": "navigate",
-      "url": "https://www.google.com/travel/flights",
-      "instruction": "Navigate to Google Flights"
+      "url": "https://www.farecompare.com/",
+      "instruction": "Navigate to FareCompare"
     },
     {
       "method": "act",
-      "instruction": "Fill the origin field with %origin%",
+      "instruction": "Type %origin% into the origin field and select from dropdown",
       "value": "%origin%"
     },
     {
       "method": "act",
-      "instruction": "Fill the destination field with %destination%",
+      "instruction": "Type %destination% into the destination field and select from dropdown",
       "value": "%destination%"
     },
     {
       "method": "act",
-      "instruction": "Click the search button"
+      "instruction": "Click the departure date picker"
+    },
+    {
+      "method": "act",
+      "instruction": "Select departure date %departureDate% from calendar"
+    },
+    {
+      "method": "act",
+      "instruction": "Click the return date picker"
+    },
+    {
+      "method": "act",
+      "instruction": "Select return date %returnDate% from calendar"
+    },
+    {
+      "method": "act",
+      "instruction": "Submit the search form"
     }
   ],
   "extractionSchema": {
     "fields": [
       {
-        "name": "price",
+        "name": "cheapestPrice",
         "type": "string",
-        "description": "Total price with currency symbol"
+        "description": "Lowest flight price found with currency symbol"
       },
       {
         "name": "airline",
         "type": "string",
-        "description": "Airline name"
+        "description": "Airline name offering cheapest flight"
       },
       {
-        "name": "route",
+        "name": "departureDate",
         "type": "string",
-        "description": "Flight route in format 'Origin → Destination'"
+        "description": "Formatted departure date (e.g., '19 Dec, Fri')"
+      },
+      {
+        "name": "returnDate",
+        "type": "string",
+        "description": "Formatted return date (e.g., '27 Dec, Sat')"
       }
     ],
-    "instruction": "Extract the cheapest flight details including price, airline, and route"
+    "instruction": "Extract the cheapest round-trip flight details including price, airline, and both dates"
   },
   "variableMapping": {
-    "Vancouver": "%origin%",
-    "LAX": "%destination%"
+    "vancouver": "%origin%",
+    "los angeles": "%destination%"
   },
   "createdAt": "2025-12-10T10:00:00Z",
   "updatedAt": "2025-12-10T10:00:00Z"
@@ -380,14 +437,24 @@ curl -X POST http://localhost:3000/api/skills/finish-recording \
 
 ```typescript
 interface RecordedAction {
-  type: 'click' | 'fill' | 'type' | 'navigate' | 'submit'
+  type: 'click' | 'fill' | 'type' | 'navigate' | 'submit' | 'autocomplete' | 'datepicker'
   selector?: string  // CSS selector
-  value?: string  // For fill/type actions, may contain %variables%
+  value?: string  // For fill/type/autocomplete actions, may contain %variables%
   url?: string  // For navigate actions
   description: string  // Natural language description
   timestamp?: number
+  widgetType?: 'autocomplete' | 'calendar' | 'dropdown' | 'datepicker'  // Widget metadata
 }
 ```
+
+**Action Types**:
+- `click` - Standard button/link click
+- `fill` - Fill input field (direct value)
+- `type` - Type into field (keyboard simulation)
+- `navigate` - Navigate to URL
+- `submit` - Form submission (Enter key or submit button)
+- `autocomplete` - Fill field with dropdown suggestion selection
+- `datepicker` - Open calendar/date picker widget
 
 ### StagehandAction
 
@@ -474,11 +541,11 @@ Note: If Strategy 1 fails, the system automatically falls back to Strategy 2, th
 
 ## Examples
 
-### Example 1: Flight Search with Variables
+### Example 1: Flight Search with Autocomplete & Date Pickers
 
 **Create Skill** (via UI or recording):
-- Goal: `"Search for round trip flights from %origin% to %destination% departing %departureDate%"`
-- Demo with: Vancouver → LAX, Dec 17
+- Goal: `"Search for round trip flights from %origin% to %destination% departing %departureDate% returning %returnDate%"`
+- Demo with: Vancouver → Los Angeles, Dec 19 → Dec 27
 
 **Execute with Different Variables**:
 ```bash
@@ -486,9 +553,10 @@ curl -X POST http://localhost:3000/api/skills/skill_123456/execute \
   -H "Content-Type: application/json" \
   -d '{
     "variables": {
-      "origin": "Toronto",
-      "destination": "Miami",
-      "departureDate": "Jan 15, 2026"
+      "origin": "Seattle",
+      "destination": "New York",
+      "departureDate": "2025-12-25",
+      "returnDate": "2026-01-02"
     }
   }'
 ```
@@ -499,20 +567,25 @@ curl -X POST http://localhost:3000/api/skills/skill_123456/execute \
   "success": true,
   "data": {
     "extraction": {
-      "price": "$380",
-      "airline": "Air Canada",
-      "route": "Toronto → Miami",
-      "departureTime": "8:30 AM",
-      "arrivalTime": "12:45 PM",
-      "duration": "4h 15m"
+      "cheapestPrice": "$347",
+      "airline": "Alaska Airlines",
+      "departureDate": "25 Dec, Thu",
+      "returnDate": "02 Jan, Fri"
     }
   },
   "strategy": "exact_replay",
-  "executionTime": 8200,
+  "executionTime": 18765,
   "tokensUsed": 0,
+  "sessionUrl": "https://www.browserbase.com/sessions/abc123",
   "validation": {
     "valid": true,
     "errors": []
+  },
+  "widgetHandling": {
+    "autocompleteFields": 2,
+    "calendarWidgets": 2,
+    "fieldRestoration": 0,
+    "redundantSubmitsSkipped": 1
   }
 }
 ```
@@ -649,22 +722,53 @@ curl -X POST http://localhost:3000/api/skills/skill_901234/execute \
 ## Execution Strategies
 
 ### Strategy 1: Exact Replay (Fastest)
-- **Speed**: 5-10 seconds
-- **Tokens**: 0 (no LLM)
+- **Speed**: 5-20 seconds (varies with widget complexity)
+- **Tokens**: 0 (no LLM calls)
 - **Reliability**: Works when DOM structure is unchanged
 - **Use Case**: Stable websites with consistent selectors
+- **Widget Support**:
+  - ✅ Autocomplete fields with dropdown suggestions (3-step process)
+  - ✅ Calendar/date picker widgets (waits for date cells to load)
+  - ✅ Field restoration (refills cleared fields)
+  - ✅ Redundant submit detection (skips duplicate submissions)
 
 ### Strategy 2: Natural Language (AI-Resilient)
 - **Speed**: 15-30 seconds
 - **Tokens**: 500-2000
 - **Reliability**: Works when DOM changes slightly
-- **Use Case**: Dynamic websites, partial DOM changes
+- **Use Case**: Dynamic websites, partial DOM changes, widget fallback
 
 ### Strategy 3: AI Re-learn (Ultimate Fallback)
 - **Speed**: 30-60 seconds
 - **Tokens**: 2000-5000
 - **Reliability**: Re-learns entire workflow with AI agent
 - **Use Case**: Complete DOM changes, first execution on new site
+
+---
+
+## Widget Handling
+
+The system includes specialized handling for common UI widgets:
+
+### Autocomplete Fields
+- **Behavior**: Type value → Wait for dropdown → Select suggestion → 1000ms settling time
+- **Why settling time?**: Allows website's validation JavaScript to complete (prevents field clearing bugs)
+- **Example**: Flight origin/destination fields, city search
+
+### Calendar/Date Pickers
+- **Behavior**: Click opener → Wait for date CELLS to load (5000ms timeout) → Click date cell
+- **Why wait for cells?**: Calendar containers load instantly, but date cells populate asynchronously
+- **Example**: Departure/return date selection, hotel check-in/out
+
+### Form Field Restoration
+- **Behavior**: Before form submission, check if any fields were cleared by website JavaScript → Re-fill if needed
+- **Why needed?**: Some websites (e.g., FareCompare) have bugs that clear origin field when destination is selected
+- **Example**: Multi-field forms where fields interact with each other
+
+### Redundant Submit Detection
+- **Behavior**: Check URL query params before submitting → Skip if already on results page
+- **Why needed?**: Some websites navigate through intermediate pages, re-submitting corrupts data
+- **Example**: Multi-step navigation during form submission
 
 ---
 
@@ -704,13 +808,27 @@ Webhook payload:
 
 ## Best Practices
 
+### Skill Execution
 1. **Always provide variables** when skill has `%variables%` in goal
 2. **Check validation results** to ensure extracted data matches search criteria
-3. **Monitor token usage** for cost optimization
-4. **Use sessionUrl** to debug failed executions
+3. **Monitor token usage** for cost optimization (Strategy 1 uses 0 tokens!)
+4. **Use sessionUrl** to debug failed executions via Browserbase Live View
 5. **Handle all three strategies** - don't assume Strategy 1 will always work
 6. **Validate extracted data** on your end for critical workflows
 7. **Cache skill executions** when appropriate to reduce costs
+
+### Widget-Heavy Skills
+8. **Autocomplete fields**: Expect 1-2 extra seconds per field (dropdown + settling time)
+9. **Calendar widgets**: Expect up to 5 seconds per date picker (waiting for cells to load)
+10. **Multi-step forms**: Check `widgetHandling.fieldRestoration` to see if fields were refilled
+11. **Redundant submits**: Check `widgetHandling.redundantSubmitsSkipped` for multi-page navigation
+12. **Different variables**: Test with different city names - some trigger website bugs (e.g., "New York" vs "Vancouver")
+
+### Recording Skills
+13. **Use Live View URL**: Watch your demonstration in real-time to ensure actions are captured
+14. **Wait for widgets**: Let calendars fully load before clicking dates
+15. **Test after recording**: The system validates by replaying once, check for errors
+16. **Variable naming**: Use descriptive variable names (`%origin%`, `%destination%` not `%var1%`, `%var2%`)
 
 ---
 
@@ -724,5 +842,9 @@ For issues or questions:
 
 ---
 
-**API Version**: 2.0
-**Last Updated**: December 10, 2025
+**API Version**: 2.1
+**Last Updated**: December 20, 2025
+
+**Changelog**:
+- **v2.1** (Dec 20, 2025): Added widget handling (autocomplete, calendar, field restoration, redundant submit detection)
+- **v2.0** (Dec 10, 2025): Initial release with triple strategy execution and variable support

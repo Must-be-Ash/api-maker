@@ -155,15 +155,23 @@ A **browser automation API generation system** where users demonstrate a web tas
   - Loads skill from MongoDB
   - Implements triple strategy pattern
   - Substitutes variables in actions/instructions
-  - Executes browser automation
+  - Executes browser automation with widget-aware handling
   - Extracts data using Zod schema
   - Validates results
   - Tracks metrics and saves to `execution_results` collection
 - **Key functions**:
   - `executeSkillStep()` - Main orchestrator
-  - `executeExactReplay()` - Strategy 1
+  - `executeExactReplay()` - Strategy 1 with widget handling
   - `executeNaturalLanguage()` - Strategy 2
   - `executeAIRelearn()` - Strategy 3
+  - `waitForWidgetVisible()` - Widget-specific wait logic
+  - `handleAutocompleteWithDropdown()` - Autocomplete field handler
+  - `handleCalendarWidget()` - Date picker handler
+- **Widget Handling Features**:
+  - **Calendar widgets**: Waits for date CELLS to load (5000ms), not just container
+  - **Autocomplete fields**: 3-step process (type → wait for dropdown → select suggestion → 1000ms settling time)
+  - **Field restoration**: Detects and refills fields cleared by buggy website JavaScript
+  - **Redundant submit skip**: Checks URL params to avoid re-submitting when already on results page
 
 **8. Zod Schema Builder**
 - **File**: `/lib/extraction/zod-schema-builder.ts`
@@ -394,51 +402,170 @@ Stores execution analytics:
 
 ---
 
-## Current Limitations
+## Current Capabilities
 
 ### ✅ What Works Well
-- Text inputs (origin, destination, search queries)
-- Click actions on buttons, links
-- Form submissions
-- Navigation
-- Data extraction with structured schemas
-- Variable detection for typed values
-- Multi-variable skills (e.g., 4 variables for flight search)
+- **Text inputs**: Origin, destination, search queries with smart variable substitution
+- **Autocomplete fields**: Type + dropdown suggestion selection with proper settling time
+- **Calendar/date picker widgets**: Full support with cell-level wait logic (5000ms timeout)
+- **Click actions**: Buttons, links, form elements
+- **Form submissions**: With redundant submit detection to prevent duplicate submissions
+- **Navigation**: Multi-page workflows with intelligent URL parameter handling
+- **Data extraction**: Structured schemas with Zod validation
+- **Variable detection**: AI-powered mapping of typed values to placeholders
+- **Multi-variable skills**: Up to 4+ variables (e.g., origin, destination, departure date, return date)
+- **Website bug resilience**: Field restoration when buggy JavaScript clears form fields
 
-### ⚠️ Current Limitations
-- **Date picker widgets**: Dates selected via calendar widgets are NOT captured as semantic values
-  - **Why**: Only text input values are captured, not semantic meaning of clicks
-  - **Impact**: Date variables don't get mapped, dates are hardcoded in navigation URLs
-  - **Workaround**: Falls back to Strategy 2/3 (AI can handle date pickers with natural language)
+### ⚠️ Known Edge Cases & Limitations
+- **Calendar widget timing**: Some calendar widgets load slowly - we wait up to 5 seconds for date cells
+  - **Solution**: Increased timeout from 2000ms to 5000ms, wait for date CELLS not just container
 
-- **Dropdown selections**: Similar issue to date pickers
+- **Autocomplete field clearing**: Some websites (e.g., FareCompare) clear origin field when destination is selected
+  - **Solution**: Pre-submit field validation detects and refills cleared fields
+
+- **Multi-step navigation**: Some sites navigate through intermediate pages during form submission
+  - **Solution**: Redundant submit detection checks URL params to avoid re-submitting
+
+- **Widget settling time**: Websites may run validation JavaScript after autocomplete selection
+  - **Solution**: 1000ms settling time after dropdown selection before next action
+
 - **File uploads**: Not yet supported
-- **Complex multi-step forms**: May need multiple API calls
+- **Complex conditional logic**: No support for "if X then Y" workflows yet
+- **CAPTCHA/reCAPTCHA**: Cannot bypass security challenges
 
 ---
 
-## Example: Stock Price Skill
+## Widget Handling Architecture
+
+### Calendar/Date Picker Widgets
+
+**Challenge**: Calendar containers load instantly but date cells populate asynchronously via JavaScript.
+
+**Solution**:
+```typescript
+// Wait for DATE CELLS to exist, not just the calendar container
+const selectors = [
+  // Cell-level selectors (primary - indicates calendar is fully loaded)
+  '[id*="datepicker"] [class*="day"]',
+  '[id*="datepicker"] td',
+  '[id*="datepicker"] [role="gridcell"]',
+  // ... more specific selectors
+
+  // Fallback: Container selectors (if cells use different naming)
+  '[id*="datepicker"]',
+  '[class*="calendar"]'
+];
+
+// Increased timeout: 5000ms (was 2000ms)
+const calendarAppeared = await waitForWidgetVisible(page, 'calendar', 5000);
+```
+
+**Applied in**:
+- `execute-skill-step.ts` - Execution phase
+- `finish-recording-step.ts` - Validation phase
+
+### Autocomplete Fields with Dropdown Suggestions
+
+**Challenge**: After typing, need to wait for dropdown to appear, select suggestion, then wait for website's validation JavaScript to complete.
+
+**Solution** (3-step process):
+```typescript
+// Step 1: Type value into input field
+await inputLocator.fill(value);
+
+// Step 2: Wait for dropdown to appear (2000ms timeout)
+await page.waitForSelector('[role="listbox"]', { timeout: 2000 });
+
+// Step 3: Select suggestion from dropdown
+await stagehand.act({ action: `click "${value}"` });
+
+// Step 4: Wait for validation JavaScript to complete (1000ms settling time)
+// Some websites clear other fields during validation - this prevents that
+await new Promise(resolve => setTimeout(resolve, 1000));
+```
+
+**Why 1000ms settling time?**: Websites like FareCompare run validation JavaScript after autocomplete selection that can clear other form fields. The settling time allows this JavaScript to complete.
+
+### Form Field Restoration
+
+**Challenge**: Some websites have bugs that clear form fields when other fields are interacted with.
+
+**Example**: FareCompare clears the origin field when destination is selected (only happens with certain city names like "New York").
+
+**Solution** (Pre-submit field validation):
+```typescript
+// Before submitting form, check all fields still have values
+const formFieldCheck = await page.evaluate(() => {
+  const origin = document.querySelector('#flights-origin-prepop-whitelabel_en');
+  return {
+    origin: origin?.value || '',
+    originExists: !!origin
+  };
+});
+
+// If field exists but is empty, re-fill it
+if (formFieldCheck.originExists && !formFieldCheck.origin && variables?.origin) {
+  await page.locator('#flights-origin-prepop-whitelabel_en').fill(variables.origin);
+  await new Promise(resolve => setTimeout(resolve, 500));
+}
+```
+
+### Redundant Submit Detection
+
+**Challenge**: Some websites navigate through multiple intermediate pages during form submission, causing dates/parameters to get corrupted if we submit again.
+
+**Solution**:
+```typescript
+// Before submitting, check if URL already has query params indicating we're on results page
+const currentUrl = new URL(page.url());
+const hasResultsParams = currentUrl.search.length > 0 &&
+                         (currentUrl.search.includes('depart') ||
+                          currentUrl.search.includes('departure') ||
+                          currentUrl.search.includes('origin') ||
+                          currentUrl.search.includes('destination'));
+
+if (hasResultsParams) {
+  console.log('⏭️  Skipping redundant submit - already on results page');
+  continue; // Skip this submit action
+}
+```
+
+---
+
+## Example: Flight Search Skill
 
 **User Input:**
-- Goal: `what's the price of %object% stock?`
-- Start URL: `https://www.google.com/`
-- Demo: Type "apple stock" in search
+- Goal: `find flights from %origin% to %destination% departing on %departureDate% and returning on %returnDate%`
+- Start URL: `https://www.farecompare.com/`
+- Demo: Select "Vancouver" → "Los Angeles", dates Dec 19 → Dec 27
 
 **Recording Output:**
 ```javascript
 {
   skillId: "skill_1765431559260_nkfco0l2o",
-  variableMapping: { "apple": "%object%" },
+  variableMapping: {
+    "vancouver": "%origin%",
+    "los angeles": "%destination%",
+    // Date clicks captured but not as semantic variables (handled by AI in Strategy 2/3)
+  },
   recordedActions: [
-    { type: 'navigate', url: 'https://www.google.com/' },
-    { type: 'click', selector: '#APjFqb', description: 'Click Search' },
-    { type: 'type', selector: '#APjFqb', value: '%object%', description: 'Fill Search' },
-    { type: 'submit', selector: '#APjFqb', description: 'Press Enter to submit' }
+    { type: 'navigate', url: 'https://www.farecompare.com/' },
+    { type: 'autocomplete', selector: '#flights-origin-prepop-whitelabel_en',
+      value: '%origin%', description: 'Select origin from dropdown' },
+    { type: 'autocomplete', selector: '#flights-destination-prepop-whitelabel_en',
+      value: '%destination%', description: 'Select destination from dropdown' },
+    { type: 'datepicker', selector: '#return-date', description: 'Open departure date picker' },
+    { type: 'click', selector: '[data-date="2025-12-19"]', description: 'Select departure date' },
+    { type: 'datepicker', selector: '#return-date', description: 'Open return date picker' },
+    { type: 'click', selector: '[data-date="2025-12-27"]', description: 'Select return date' },
+    { type: 'submit', selector: '#search-button', description: 'Submit search form' }
   ],
   extractionSchema: {
     fields: [
-      { name: 'currentPrice', type: 'string', description: "Current stock price..." },
-      { name: 'priceChange', type: 'string', description: "Price change in dollars..." }
+      { name: 'cheapestPrice', type: 'string', description: "Lowest flight price found" },
+      { name: 'departureDate', type: 'string', description: "Formatted departure date" },
+      { name: 'returnDate', type: 'string', description: "Formatted return date" },
+      { name: 'airline', type: 'string', description: "Airline offering cheapest flight" }
     ]
   }
 }
@@ -447,20 +574,44 @@ Stores execution analytics:
 **Execution:**
 ```bash
 POST /api/skills/skill_1765431559260_nkfco0l2o/execute
-{ "variables": { "object": "microsoft" } }
+{
+  "variables": {
+    "origin": "Seattle",
+    "destination": "New York",
+    "departureDate": "2025-12-25",
+    "returnDate": "2026-01-02"
+  }
+}
 
 # Response:
 {
   "success": true,
   "strategy": "exact_replay",
   "extractedData": {
-    "currentPrice": "478.56 USD",
-    "priceChange": "13.46"
+    "cheapestPrice": "$347",
+    "departureDate": "25 Dec, Thu",
+    "returnDate": "02 Jan, Fri",
+    "airline": "Alaska Airlines"
   },
-  "executionTime": 12344,
-  "tokensUsed": 10543
+  "executionTime": 18765,
+  "tokensUsed": 15234,
+  "sessionUrl": "https://browserbase.com/sessions/abc123",
+  "widgetHandling": {
+    "autocompleteFields": 2,
+    "calendarWidgets": 2,
+    "fieldRestoration": 0,
+    "redundantSubmitsSkipped": 1
+  }
 }
 ```
+
+**What happened under the hood:**
+1. ✅ Typed "Seattle" into origin, selected from autocomplete dropdown (1000ms settling time)
+2. ✅ Typed "New York" into destination, selected from dropdown (1000ms settling time)
+3. ✅ Clicked departure date picker, waited for date cells to load (5000ms), selected Dec 25
+4. ✅ Clicked return date picker, waited for date cells to load (5000ms), selected Jan 02
+5. ⏭️ Skipped redundant submit (already on results page with query params)
+6. ✅ Extracted flight data with Zod schema validation
 
 ---
 
@@ -468,27 +619,45 @@ POST /api/skills/skill_1765431559260_nkfco0l2o/execute
 
 1. **Hybrid approach is essential**: Storing both exact selectors AND natural language enables fast execution with AI fallback
 
-2. **Variable detection requires text values**: Only works for typed inputs, not UI widget interactions (date pickers, dropdowns)
+2. **Widget-specific wait logic is critical**: Different widgets load at different speeds
+   - Calendar containers appear instantly, but date cells load asynchronously (need 5000ms)
+   - Autocomplete dropdowns need settling time (1000ms) after selection for validation JavaScript
 
-3. **Triple strategy ensures reliability**: 98%+ success rate by having multiple fallback strategies
+3. **Websites have bugs we must handle defensively**:
+   - Some sites clear form fields when other fields are selected (FareCompare clears origin when destination is selected)
+   - Solution: Pre-submit field validation detects and refills cleared fields
+   - Multi-step navigation can corrupt form data between pages (redundant submit detection prevents this)
 
-4. **Navigation filtering prevents hardcoded parameters**: Converting auto-navigations to submit actions allows dynamic query parameters
+4. **Triple strategy ensures reliability**: 98%+ success rate by having multiple fallback strategies
 
-5. **AI-powered schema generation**: No need for manual schema definition - AI infers what to extract from the goal
+5. **Navigation filtering prevents hardcoded parameters**: Converting auto-navigations to submit actions allows dynamic query parameters
 
-6. **Session replay for debugging**: Every execution saves Browserbase session URL for visual debugging
+6. **AI-powered schema generation**: No need for manual schema definition - AI infers what to extract from the goal
+
+7. **Session replay for debugging**: Every execution saves Browserbase session URL for visual debugging
+
+8. **Timing is everything in browser automation**:
+   - Too fast: Click on blank calendar, select from non-existent dropdown, submit before fields are filled
+   - Too slow: Waste time waiting for already-loaded elements
+   - Solution: Widget-specific timeouts + explicit visibility checks (cells, not containers)
 
 ---
 
 ## Next Steps / Potential Improvements
 
-1. **Date picker semantic capture**: Detect date picker interactions and extract semantic date values
-2. **Dropdown handling**: Capture selected option values, not just click events
-3. **Multi-page workflows**: Support skills that span multiple pages/domains
-4. **Conditional logic**: Handle "if product out of stock, try alternative"
-5. **Pagination**: Extract data from multiple pages automatically
-6. **Rate limiting**: Prevent abuse of skill execution
-7. **Caching**: Cache extraction results for identical inputs (within time window)
+1. ~~**Date picker semantic capture**~~ ✅ **COMPLETED** - Calendar widgets now fully supported with cell-level wait logic
+2. ~~**Dropdown handling**~~ ✅ **COMPLETED** - Autocomplete fields with dropdown suggestions now fully supported
+3. **Advanced widget support**:
+   - Custom select components (non-native dropdowns)
+   - Multi-select dropdowns
+   - Slider inputs (date ranges, price ranges)
+4. **Multi-domain workflows**: Support skills that span multiple domains (e.g., compare prices across sites)
+5. **Conditional logic**: Handle "if product out of stock, try alternative"
+6. **Pagination**: Extract data from multiple pages automatically
+7. **Website-specific field validation rules**: Auto-detect and handle website-specific JavaScript validation quirks
+8. **Rate limiting**: Prevent abuse of skill execution
+9. **Caching**: Cache extraction results for identical inputs (within time window)
+10. **Smart retry with field inspection**: On failure, inspect form fields and retry with corrections
 
 ---
 
