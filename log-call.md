@@ -1,16 +1,3 @@
-x402] Payment required - returning 402
- POST /api/skills/skill_1766263143415_232igft55/execute 402 in 1609ms (compile: 1575ms, render: 35ms)
-[x402] Payment received:
-  From: 0x08bfEC5133141cC704a34505d5e504503Bf3168D
-  To: 0x67c8c22e7edc7bf25c299e2c3b9aad4cf2ee6c79
-  Amount: 10000
-  Network: base
-[x402] ✓ Payment verified for: 0x08bfEC5133141cC704a34505d5e504503Bf3168D
-[x402] ✓ Payment verified from: 0x08bfEC5133141cC704a34505d5e504503Bf3168D
-[x402] Settlement attempt 1/3
-[x402] ✓ Payment settled: 0x678c29ead3105306f4e338e91fc4e0beb2d6a283b75f460eeee7c5227193d055
-[x402] ✓ Settlement succeeded on attempt 1
-[x402] ✓ Payment settled on attempt 1: 0x678c29ead3105306f4e338e91fc4e0beb2d6a283b75f460eeee7c5227193d055
 [POST /api/skills/[skillId]/execute] Executing skill {
   skillId: 'skill_1766263143415_232igft55',
   variables: {
@@ -21,7 +8,7 @@ x402] Payment required - returning 402
   },
   executorAddress: null
 }
- POST /.well-known/workflow/v1/flow 200 in 17ms (compile: 2ms, render: 15ms)
+ POST /.well-known/workflow/v1/flow 200 in 177ms (compile: 161ms, render: 15ms)
 [executeSkillStep] Executing skill: skill_1766263143415_232igft55
 [executeSkillStep] Loaded skill: { name: 'Find the cheapest flight from A to B', operations: 8 }
 [executeSkillStep] Using provided variables directly: {
@@ -51,29 +38,39 @@ x402] Payment required - returning 402
     {
       name: 'airline',
       type: 'string',
-      description: 'Name of the airline operating the flight'
+      description: 'Name of the airline providing the flight'
     },
     {
       name: 'route',
       type: 'string',
-      description: "Flight route in the format 'Vancouver → Los Angeles' for validation"
+      description: "Flight route in format 'Vancouver → Los Angeles' for validation"
+    },
+    {
+      name: 'departureDate',
+      type: 'string',
+      description: "Departure date in ISO format (e.g., '2025-12-19')"
+    },
+    {
+      name: 'returnDate',
+      type: 'string',
+      description: "Return date in ISO format (e.g., '2025-12-27')"
     },
     {
       name: 'departureTime',
       type: 'string',
-      description: 'Scheduled departure time in local time',
+      description: 'Departure time of the flight',
       optional: true
     },
     {
       name: 'arrivalTime',
       type: 'string',
-      description: 'Scheduled arrival time in local time',
+      description: 'Arrival time of the flight',
       optional: true
     },
     {
       name: 'duration',
       type: 'string',
-      description: 'Total duration of the flight',
+      description: 'Total flight duration',
       optional: true
     },
     {
@@ -97,6 +94,8 @@ x402] Payment required - returning 402
     'flightPrice',
     'airline',
     'route',
+    'departureDate',
+    'returnDate',
     'departureTime',
     'arrivalTime',
     'duration',
@@ -105,7 +104,7 @@ x402] Payment required - returning 402
   ],
   instruction: 'Extract the cheapest flight details including price, airline, route, and flight times'
 }
-[executeSkillStep] Built Zod schema with 8 fields
+[executeSkillStep] Built Zod schema with 10 fields
 [Extraction Schema] {
   fields: [
     {
@@ -116,29 +115,39 @@ x402] Payment required - returning 402
     {
       name: 'airline',
       type: 'string',
-      description: 'Name of the airline operating the flight'
+      description: 'Name of the airline providing the flight'
     },
     {
       name: 'route',
       type: 'string',
-      description: "Flight route in the format 'Vancouver → Los Angeles' for validation"
+      description: "Flight route in format 'Vancouver → Los Angeles' for validation"
+    },
+    {
+      name: 'departureDate',
+      type: 'string',
+      description: "Departure date in ISO format (e.g., '2025-12-19')"
+    },
+    {
+      name: 'returnDate',
+      type: 'string',
+      description: "Return date in ISO format (e.g., '2025-12-27')"
     },
     {
       name: 'departureTime',
       type: 'string',
-      description: 'Scheduled departure time in local time',
+      description: 'Departure time of the flight',
       optional: true
     },
     {
       name: 'arrivalTime',
       type: 'string',
-      description: 'Scheduled arrival time in local time',
+      description: 'Arrival time of the flight',
       optional: true
     },
     {
       name: 'duration',
       type: 'string',
-      description: 'Total duration of the flight',
+      description: 'Total flight duration',
       optional: true
     },
     {
@@ -155,16 +164,18 @@ x402] Payment required - returning 402
     }
   ],
   instruction: 'Extract the cheapest flight details including price, airline, route, and flight times',
-  fieldCount: 8,
-  timestamp: '2025-12-20T20:40:43.275Z'
+  fieldCount: 10,
+  timestamp: '2025-12-20T21:07:40.745Z'
 }
-[2025-12-20T20:40:43.277Z] INFO: Using Browserbase credentials
-[2025-12-20T20:40:43.277Z] INFO: Starting browserbase session
-[2025-12-20T20:40:43.277Z] INFO: Creating new browserbase session...
-[2025-12-20T20:40:45.528Z] INFO: Browserbase session started
-    sessionUrl: https://www.browserbase.com/sessions/930be9b0-397d-4f9c-a0c8-1b19931b7b5b
-    debugUrl: https://www.browserbase.com/devtools/inspector.html?wss=connect.browserbase.com/debug/930be9b0-397d-4f9c-a0c8-1b19931b7b5b/devtools/page/9E420EB2FF7CA9C174E6998F45058E0C?debug=true
-    sessionId: 930be9b0-397d-4f9c-a0c8-1b19931b7b5b
+[dotenv@17.2.3] injecting env (0) from .env -- tip: 🔑 add access controls to secrets: https://dotenvx.com/ops
+[dotenv@17.2.3] injecting env (0) from .env -- tip: ⚙️  write to custom object with { processEnv: myObject }
+[2025-12-20T21:07:41.437Z] INFO: Using Browserbase credentials
+[2025-12-20T21:07:41.437Z] INFO: Starting browserbase session
+[2025-12-20T21:07:41.437Z] INFO: Creating new browserbase session...
+[2025-12-20T21:07:43.461Z] INFO: Browserbase session started
+    sessionUrl: https://www.browserbase.com/sessions/80b8c1f4-9737-4c94-8be2-b2d7178cadf3
+    debugUrl: https://www.browserbase.com/devtools/inspector.html?wss=connect.browserbase.com/debug/80b8c1f4-9737-4c94-8be2-b2d7178cadf3/devtools/page/EC90D3FDD1053D462BB2C1673F4114D7?debug=true
+    sessionId: 80b8c1f4-9737-4c94-8be2-b2d7178cadf3
 [executeSkillStep] Attempting Strategy 1: Exact Selector Replay
 [ResultTracker] Starting exact_replay
 [executeExactReplay] Starting exact replay with 8 actions
@@ -175,7 +186,7 @@ x402] Payment required - returning 402
   end_date: '2025-12-27'
 }
 [executeExactReplay] Navigating to start URL: https://www.farecompare.co.in/
-[2025-12-20T20:40:45.841Z] INFO: Connecting to local browser
+[2025-12-20T21:07:43.770Z] INFO: Connecting to local browser
 [executeExactReplay] Action: navigate Navigate to https://www.farecompare.co.in/
 [executeExactReplay] Action: type Fill field with placeholder "Origin"
 [executeExactReplay] Substituted %origin% → Vancouver
@@ -184,7 +195,7 @@ x402] Payment required - returning 402
   substituted: 'Vancouver',
   variable: 'origin',
   selector: '#flights-origin-prepop-whitelabel_en',
-  timestamp: '2025-12-20T20:40:48.314Z'
+  timestamp: '2025-12-20T21:07:46.215Z'
 }
 [executeExactReplay] 🔍 Dropdown metadata detected: {
   dropdownType: 'autocomplete',
@@ -201,73 +212,73 @@ x402] Payment required - returning 402
 [waitForWidget] ⚠️  autocomplete widget not detected after 2000ms
 [handleAutocomplete] ⚠️  Dropdown not detected, proceeding anyway
 [handleAutocomplete] 🔍 Observing: find the dropdown option containing "Vancouver" in the Fill field with placeholder "Origin" autocomplete menu
-[2025-12-20T20:40:54.485Z] INFO: starting observation
+[2025-12-20T21:07:51.721Z] INFO: starting observation
     instruction: find the dropdown option containing "Vancouver" in the Fill field with placeholder "Origin" autocomplete menu
-[2025-12-20T20:40:54.623Z] INFO: Got accessibility tree data
-[2025-12-20T20:40:57.240Z] INFO: response
+[2025-12-20T21:07:51.904Z] INFO: Got accessibility tree data
+[2025-12-20T21:08:02.647Z] INFO: response
     response: {
       "object": {
         "elements": [
           {
-            "elementId": "3-5471",
-            "description": "Dropdown option containing 'Vancouver' in the autocomplete menu for the 'Origin' field.",
+            "elementId": "3-5443",
+            "description": "Dropdown option containing 'Vancouver' in the autocomplete menu for the Origin field.",
+            "method": "click",
+            "arguments": []
+          },
+          {
+            "elementId": "3-5458",
+            "description": "Dropdown option containing 'Vancouver' in the autocomplete menu for the Origin field.",
+            "method": "click",
+            "arguments": []
+          },
+          {
+            "elementId": "3-5472",
+            "description": "Dropdown option containing 'Vancouver' in the autocomplete menu for the Origin field.",
             "method": "click",
             "arguments": []
           },
           {
             "elementId": "3-5486",
-            "description": "Dropdown option containing 'Vancouver' in the autocomplete menu for the 'Origin' field.",
-            "method": "click",
-            "arguments": []
-          },
-          {
-            "elementId": "3-5500",
-            "description": "Dropdown option containing 'Vancouver' in the autocomplete menu for the 'Origin' field.",
-            "method": "click",
-            "arguments": []
-          },
-          {
-            "elementId": "3-5514",
-            "description": "Dropdown option containing 'Vancouver' in the autocomplete menu for the 'Origin' field.",
+            "description": "Dropdown option containing 'Vancouver' in the autocomplete menu for the Origin field.",
             "method": "click",
             "arguments": []
           }
         ]
       },
       "usage": {
-        "inputTokens": 6483,
-        "outputTokens": 146,
-        "totalTokens": 6629,
+        "inputTokens": 6438,
+        "outputTokens": 138,
+        "totalTokens": 6576,
         "reasoningTokens": 0,
         "cachedInputTokens": 0
       },
       "finishReason": "stop"
     }
-[2025-12-20T20:40:57.241Z] INFO: found elements
+[2025-12-20T21:08:02.647Z] INFO: found elements
     elements: [
       {
-        "description": "Dropdown option containing 'Vancouver' in the autocomplete menu for the 'Origin' field.",
+        "description": "Dropdown option containing 'Vancouver' in the autocomplete menu for the Origin field.",
         "method": "click",
         "arguments": [],
-        "selector": "xpath=/html[1]/div[1]/div[1]/div[1]/ul[1]/li[1]/span[1]/span[1]/b[1]"
+        "selector": "xpath=/html[1]/div[1]/div[1]/div[1]/ul[1]/li[1]/span[1]"
       },
       {
-        "description": "Dropdown option containing 'Vancouver' in the autocomplete menu for the 'Origin' field.",
+        "description": "Dropdown option containing 'Vancouver' in the autocomplete menu for the Origin field.",
         "method": "click",
         "arguments": [],
-        "selector": "xpath=/html[1]/div[1]/div[1]/div[1]/ul[1]/li[2]/span[1]/span[1]/b[1]"
+        "selector": "xpath=/html[1]/div[1]/div[1]/div[1]/ul[1]/li[2]/span[1]"
       },
       {
-        "description": "Dropdown option containing 'Vancouver' in the autocomplete menu for the 'Origin' field.",
+        "description": "Dropdown option containing 'Vancouver' in the autocomplete menu for the Origin field.",
         "method": "click",
         "arguments": [],
-        "selector": "xpath=/html[1]/div[1]/div[1]/div[1]/ul[1]/li[3]/span[1]/span[1]/b[1]"
+        "selector": "xpath=/html[1]/div[1]/div[1]/div[1]/ul[1]/li[3]/span[1]"
       },
       {
-        "description": "Dropdown option containing 'Vancouver' in the autocomplete menu for the 'Origin' field.",
+        "description": "Dropdown option containing 'Vancouver' in the autocomplete menu for the Origin field.",
         "method": "click",
         "arguments": [],
-        "selector": "xpath=/html[1]/div[1]/div[1]/div[1]/ul[1]/li[4]/span[1]/span[1]/b[1]"
+        "selector": "xpath=/html[1]/div[1]/div[1]/div[1]/ul[1]/li[4]/span[1]"
       }
     ]
 [handleAutocomplete] 📊 observe() returned: {
@@ -276,15 +287,15 @@ x402] Payment required - returning 402
   instruction: 'find the dropdown option containing "Vancouver" in the Fill field with placeholder "Origin" autocomplete menu'
 }
 [handleAutocomplete] 📋 First action: {
-  selector: 'xpath=/html[1]/div[1]/div[1]/div[1]/ul[1]/li[1]/span[1]/span[1]/b[1]',
-  description: "Dropdown option containing 'Vancouver' in the autocomplete menu for the 'Origin' field.",
+  selector: 'xpath=/html[1]/div[1]/div[1]/div[1]/ul[1]/li[1]/span[1]',
+  description: "Dropdown option containing 'Vancouver' in the autocomplete menu for the Origin field.",
   method: 'click'
 }
 [handleAutocomplete] Found 4 suggestions
-[handleAutocomplete] 📝 Clicking: Dropdown option containing 'Vancouver' in the autocomplete menu for the 'Origin' field.
-[2025-12-20T20:40:58.020Z] INFO: action, checking for page navigation
-    xpath: xpath=/html[1]/div[1]/div[1]/div[1]/ul[1]/li[1]/span[1]/span[1]/b[1]
-[2025-12-20T20:40:58.026Z] INFO: no new (frame) URL detected
+[handleAutocomplete] 📝 Clicking: Dropdown option containing 'Vancouver' in the autocomplete menu for the Origin field.
+[2025-12-20T21:08:03.424Z] INFO: action, checking for page navigation
+    xpath: xpath=/html[1]/div[1]/div[1]/div[1]/ul[1]/li[1]/span[1]
+[2025-12-20T21:08:03.431Z] INFO: no new (frame) URL detected
     url: https://www.farecompare.co.in/
 [handleAutocomplete] Field value after selection: "Vancouver"
 [handleAutocomplete] ✓ Autocomplete selection complete
@@ -296,7 +307,7 @@ x402] Payment required - returning 402
   substituted: 'Los Angeles',
   variable: 'destination',
   selector: '#flights-destination-prepop-whitelabel_en',
-  timestamp: '2025-12-20T20:40:59.109Z'
+  timestamp: '2025-12-20T21:08:04.955Z'
 }
 [executeExactReplay] 🔍 Dropdown metadata detected: {
   dropdownType: 'autocomplete',
@@ -313,37 +324,37 @@ x402] Payment required - returning 402
 [waitForWidget] ⚠️  autocomplete widget not detected after 2000ms
 [handleAutocomplete] ⚠️  Dropdown not detected, proceeding anyway
 [handleAutocomplete] 🔍 Observing: find the dropdown option containing "Los Angeles" in the Fill field with placeholder "Destination" autocomplete menu
-[2025-12-20T20:41:00.121Z] INFO: starting observation
+[2025-12-20T21:08:06.106Z] INFO: starting observation
     instruction: find the dropdown option containing "Los Angeles" in the Fill field with placeholder "Destination" autocomplete menu
-[2025-12-20T20:41:00.249Z] INFO: Got accessibility tree data
-[2025-12-20T20:41:02.551Z] INFO: response
+[2025-12-20T21:08:06.269Z] INFO: Got accessibility tree data
+[2025-12-20T21:08:08.070Z] INFO: response
     response: {
       "object": {
         "elements": [
           {
-            "elementId": "3-5677",
-            "description": "Dropdown option containing 'Los Angeles' in the autocomplete menu for the 'Destination' field.",
+            "elementId": "3-5611",
+            "description": "Dropdown option containing 'Los Angeles' in the Fill field with placeholder 'Destination'.",
             "method": "click",
             "arguments": []
           }
         ]
       },
       "usage": {
-        "inputTokens": 6651,
-        "outputTokens": 41,
-        "totalTokens": 6692,
+        "inputTokens": 6655,
+        "outputTokens": 40,
+        "totalTokens": 6695,
         "reasoningTokens": 0,
         "cachedInputTokens": 0
       },
       "finishReason": "stop"
     }
-[2025-12-20T20:41:02.551Z] INFO: found elements
+[2025-12-20T21:08:08.070Z] INFO: found elements
     elements: [
       {
-        "description": "Dropdown option containing 'Los Angeles' in the autocomplete menu for the 'Destination' field.",
+        "description": "Dropdown option containing 'Los Angeles' in the Fill field with placeholder 'Destination'.",
         "method": "click",
         "arguments": [],
-        "selector": "xpath=/html[1]/div[1]/div[1]/div[1]/ul[1]/li[1]"
+        "selector": "xpath=/html[1]/body[1]/div[1]/div[1]/div[2]/div[1]/div[1]/div[1]/div[1]/div[3]/div[1]/div[1]/section[1]/div[1]/form[1]/div[3]/input[1]//div[2]"
       }
     ]
 [handleAutocomplete] 📊 observe() returned: {
@@ -352,125 +363,33 @@ x402] Payment required - returning 402
   instruction: 'find the dropdown option containing "Los Angeles" in the Fill field with placeholder "Destination" autocomplete menu'
 }
 [handleAutocomplete] 📋 First action: {
-  selector: 'xpath=/html[1]/div[1]/div[1]/div[1]/ul[1]/li[1]',
-  description: "Dropdown option containing 'Los Angeles' in the autocomplete menu for the 'Destination' field.",
+  selector: 'xpath=/html[1]/body[1]/div[1]/div[1]/div[2]/div[1]/div[1]/div[1]/div[1]/div[3]/div[1]/div[1]/section[1]/div[1]/form[1]/div[3]/input[1]//div[2]',
+  description: "Dropdown option containing 'Los Angeles' in the Fill field with placeholder 'Destination'.",
   method: 'click'
 }
 [handleAutocomplete] Found 1 suggestions
-[handleAutocomplete] 📝 Clicking: Dropdown option containing 'Los Angeles' in the autocomplete menu for the 'Destination' field.
-[2025-12-20T20:41:03.332Z] INFO: action, checking for page navigation
-    xpath: xpath=/html[1]/div[1]/div[1]/div[1]/ul[1]/li[1]
-[2025-12-20T20:41:03.338Z] INFO: no new (frame) URL detected
-    url: https://www.farecompare.co.in/
-[handleAutocomplete] Field value after selection: "Los Angeles"
-[handleAutocomplete] ✓ Autocomplete selection complete
-[executeExactReplay] ✓ Autocomplete dropdown handled successfully
-[executeExactReplay] Action: click Click field with placeholder "Depart date"
-[executeExactReplay] 🗓️  Date field opener clicked, waiting for calendar widget...
-[waitForWidget] Waiting for calendar widget (timeout: 5000ms)...
-[waitForWidget] ⚠️  calendar widget not detected after 5000ms
-[executeExactReplay] Action: click Click "19"
-[2025-12-20T20:41:05.114Z] DEBUG: xpath main-world
-    frameId: 9E420EB2FF7CA9C174E6998F45058E0C
-    xp: //*[@id="mewtwo-datepicker-2025-12-19"]/div[1]
-    ctxId: 6
-[executeExactReplay] 🗓️  Date field opener clicked, waiting for calendar widget...
-[waitForWidget] Waiting for calendar widget (timeout: 5000ms)...
-[waitForWidget] ⚠️  calendar widget not detected after 5000ms
-[executeExactReplay] Action: click Click "27"
-[2025-12-20T20:41:05.744Z] DEBUG: xpath main-world
-    frameId: 9E420EB2FF7CA9C174E6998F45058E0C
-    xp: //*[@id="mewtwo-datepicker-2025-12-27"]/div[1]
-    ctxId: 6
-[executeExactReplay] Action: submit Submit and wait for navigation
-[executeExactReplay] ⏎ Submitting form via: #flights-destination-prepop-whitelabel_en
-[executeExactReplay] URL before submit: https://www.farecompare.co.in/
-[executeExactReplay] ⏎ Submitting form via: #flights-destination-prepop-whitelabel_en
-[executeExactReplay] ✗ Submit failed: Form submission did not trigger navigation - autocomplete dropdown may require explicit selection
-[executeSkillStep] ✗ Strategy 1 failed: Error: Form submission did not trigger navigation - autocomplete dropdown may require explicit selection
-    at executeExactReplay (app/.well-known/workflow/v1/step/route.js:2231:19)
-    at async executeSkillStep (app/.well-known/workflow/v1/step/route.js:1428:14)
-  2229 |           }
-  2230 |           if (!navigationOccurred) {
-> 2231 |             throw new Error("Form submission did not trigger navigation - autocomplete dropdown may require explicit selection");
-       |                   ^
-  2232 |           }
-  2233 |           await page.waitForLoadState("domcontentloaded", 5e3);
-  2234 |           console.log("[executeExactReplay] \u2713 Navigation completed after submit");
-[ResultTracker] ✗ exact_replay failed in 32065ms: Form submission did not trigger navigation - autocomplete dropdown may require explicit selection
-[executeSkillStep] 🔄 Resetting page state for next strategy...
-[executeSkillStep] 🔄 Navigating to clean start URL: https://www.farecompare.co.in/
-[executeSkillStep] ✓ Page state reset complete
-[executeSkillStep] Attempting Strategy 2: Natural Language
-[ResultTracker] Starting natural_language
-[executeNaturalLanguage] Starting natural language execution with 8 steps
-[executeNaturalLanguage] Variables: {
-  origin: 'Vancouver',
-  destination: 'Los Angeles',
-  start_date: '2025-12-19',
-  end_date: '2025-12-27'
-}
-[executeNaturalLanguage] Navigating to start URL: https://www.farecompare.co.in/
-[executeNaturalLanguage] Action: navigate Navigate to https://www.farecompare.co.in/
-[executeNaturalLanguage] Substituting %origin% in instruction
-[executeNaturalLanguage] Substituting %origin% in value
-[executeNaturalLanguage] Action: act Type Vancouver into the Origin field
-[executeNaturalLanguage] Executing via AI: Type Vancouver into the Origin field
-[2025-12-20T20:41:26.844Z] INFO: response
-    response: {
-      "object": {
-        "elementId": "3-16669",
-        "description": "Origin textbox for entering the departure city",
-        "method": "fill",
-        "arguments": [
-          "Vancouver"
-        ],
-        "twoStep": false
-      },
-      "usage": {
-        "inputTokens": 6671,
-        "outputTokens": 35,
-        "totalTokens": 6706,
-        "reasoningTokens": 0,
-        "cachedInputTokens": 0
-      },
-      "finishReason": "stop"
+[handleAutocomplete] 📝 Clicking: Dropdown option containing 'Los Angeles' in the Fill field with placeholder 'Destination'.
+[2025-12-20T21:08:08.895Z] ERROR: error performing click
+    error: Could not find an element for the given xPath(s): xpath=/html[1]/body[1]/div[1]/div[1]/div[2]/div[1]/div[1]/div[1]/div[1]/div[3]/div[1]/div[1]/section[1]/div[1]/form[1]/div[3]/input[1]//div[2]
+    xpath: xpath=/html[1]/body[1]/div[1]/div[1]/div[2]/div[1]/div[1]/div[1]/div[1]/div[3]/div[1]/div[1]/section[1]/div[1]/form[1]/div[3]/input[1]//div[2]
+[2025-12-20T21:08:08.895Z] INFO: error performing method
+    error: Error Clicking Element with selector: Could not find an element for the given xPath(s): xpath=/html[1]/body[1]/div[1]/div[1]/div[2]/div[1]/div[1]/div[1]/div[1]/div[3]/div[1]/div[1]/section[1]/div[1]/form[1]/div[3]/input[1]//div[2] Reason: xpath=/html[1]/body[1]/div[1]/div[1]/div[2]/div[1]/div[1]/div[1]/div[1]/div[3]/div[1]/div[1]/section[1]/div[1]/form[1]/div[3]/input[1]//div[2]
+    trace: StagehandClickError: Error Clicking Element with selector: Could not find an element for the given xPath(s): xpath=/html[1]/body[1]/div[1]/div[1]/div[2]/div[1]/div[1]/div[1]/div[1]/div[3]/div[1]/div[1]/section[1]/div[1]/form[1]/div[3]/input[1]//div[2] Reason: xpath=/html[1]/body[1]/div[1]/div[1]/div[2]/div[1]/div[1]/div[1]/div[1]/div[3]/div[1]/div[1]/section[1]/div[1]/form[1]/div[3]/input[1]//div[2]
+    at /app/node_modules/.pnpm/@browserbasehq+orca@3.0.6-alpha-1_@opentelemetry+api@1.9.0_@opentelemetry+exporter-trac_6880f06b55ae3eb92d721efcaf915222/node_modules/@browserbasehq/orca/dist/index.js:29631:13
+    at Generator.throw (<anonymous>)
+    at rejected (/app/node_modules/.pnpm/@browserbasehq+orca@3.0.6-alpha-1_@opentelemetry+api@1.9.0_@opentelemetry+exporter-trac_6880f06b55ae3eb92d721efcaf915222/node_modules/@browserbasehq/orca/dist/index.js:124:29)
+    at process.processTicksAndRejections (node:internal/process/task_queues:105:5)
+    method: click
+    xpath: xpath=/html[1]/body[1]/div[1]/div[1]/div[2]/div[1]/div[1]/div[1]/div[1]/div[3]/div[1]/div[1]/section[1]/div[1]/form[1]/div[3]/input[1]//div[2]
+[2025-12-20T21:08:08.895Z] INFO: Error performing action. Reprocessing the page and trying again
+    error: Error Clicking Element with selector: Could not find an element for the given xPath(s): xpath=/html[1]/body[1]/div[1]/div[1]/div[2]/div[1]/div[1]/div[1]/div[1]/div[3]/div[1]/div[1]/section[1]/div[1]/form[1]/div[3]/input[1]//div[2] Reason: xpath=/html[1]/body[1]/div[1]/div[1]/div[2]/div[1]/div[1]/div[1]/div[1]/div[3]/div[1]/div[1]/section[1]/div[1]/form[1]/div[3]/input[1]//div[2]
+    action: {
+      "selector": "xpath=/html[1]/body[1]/div[1]/div[1]/div[2]/div[1]/div[1]/div[1]/div[1]/div[3]/div[1]/div[1]/section[1]/div[1]/form[1]/div[3]/input[1]//div[2]",
+      "description": "Dropdown option containing 'Los Angeles' in the Fill field with placeholder 'Destination'.",
+      "method": "click",
+      "arguments": []
     }
-[2025-12-20T20:41:26.844Z] INFO: action, checking for page navigation
-    xpath: xpath=/html[1]/body[1]/div[1]/div[1]/div[2]/div[1]/div[1]/div[1]/div[1]/div[3]/div[1]/div[1]/section[1]/div[1]/form[1]/div[2]/input[1]
-[2025-12-20T20:41:26.844Z] INFO: no new (frame) URL detected
-    url: https://www.farecompare.co.in/
-[executeNaturalLanguage] Substituting %destination% in instruction
-[executeNaturalLanguage] Substituting %destination% in value
-[executeNaturalLanguage] Action: act Type Los Angeles into the Destination field
-[executeNaturalLanguage] Executing via AI: Type Los Angeles into the Destination field
-[2025-12-20T20:41:29.827Z] INFO: response
-    response: {
-      "object": {
-        "elementId": "3-16670",
-        "description": "Destination textbox where the user can type the destination city.",
-        "method": "fill",
-        "arguments": [
-          "Los Angeles"
-        ],
-        "twoStep": false
-      },
-      "usage": {
-        "inputTokens": 6990,
-        "outputTokens": 38,
-        "totalTokens": 7028,
-        "reasoningTokens": 0,
-        "cachedInputTokens": 0
-      },
-      "finishReason": "stop"
-    }
-[2025-12-20T20:41:29.915Z] INFO: action, checking for page navigation
-    xpath: xpath=/html[1]/body[1]/div[1]/div[1]/div[2]/div[1]/div[1]/div[1]/div[1]/div[3]/div[1]/div[1]/section[1]/div[1]/form[1]/div[3]/input[1]
-[2025-12-20T20:41:29.923Z] INFO: no new (frame) URL detected
-    url: https://www.farecompare.co.in/
-[executeNaturalLanguage] Action: act Click field with placeholder "Depart date"
-[executeNaturalLanguage] Executing via AI: Click field with placeholder "Depart date"
-[2025-12-20T20:41:33.767Z] ERROR: No object generated: response did not match schema.
+[2025-12-20T21:08:11.858Z] ERROR: No object generated: response did not match schema.
     cause: {
       "name": "AI_TypeValidationError",
       "cause": {
@@ -527,45 +446,45 @@ x402] Payment required - returning 402
     }
     text: {}
     response: {
-      "id": "resp_0aefebbdb01a9c4c00694709fc6f8c81a1bd33d60912524e35",
-      "timestamp": "2025-12-20T20:41:32.000Z",
+      "id": "resp_0753ceffd47cd83700694710390c90819fba6a54722e5e0a2b",
+      "timestamp": "2025-12-20T21:08:09.000Z",
       "modelId": "gpt-4o-2024-08-06",
       "headers": {
         "alt-svc": "h3=\":443\"; ma=86400",
         "cf-cache-status": "DYNAMIC",
-        "cf-ray": "9b11f60549fb3e6d-PDX",
+        "cf-ray": "9b121d041a7a9935-PDX",
         "connection": "keep-alive",
         "content-encoding": "br",
         "content-type": "application/json",
-        "date": "Sat, 20 Dec 2025 20:41:33 GMT",
+        "date": "Sat, 20 Dec 2025 21:08:11 GMT",
         "openai-organization": "user-n9hzrlewgav4ug2pm6k2m9vx",
-        "openai-processing-ms": "1224",
+        "openai-processing-ms": "2789",
         "openai-project": "proj_HZ0ojXFnPzdAPID8pfaG3Rv4",
         "openai-version": "2020-10-01",
         "server": "cloudflare",
-        "set-cookie": "_cfuvid=Uu3bkrmPzsnPs6Ds5bCZx_nEjaEplvli1tOyLYUDXQc-1766263293703-0.0.1.1-604800000; path=/; domain=.api.openai.com; HttpOnly; Secure; SameSite=None",
+        "set-cookie": "_cfuvid=IWl6OQ_.RJI1kEG8BlTJqP_eHrY5tOMulyls6pTGqns-1766264891873-0.0.1.1-604800000; path=/; domain=.api.openai.com; HttpOnly; Secure; SameSite=None",
         "strict-transport-security": "max-age=31536000; includeSubDomains; preload",
         "transfer-encoding": "chunked",
         "x-content-type-options": "nosniff",
-        "x-envoy-upstream-service-time": "1227",
+        "x-envoy-upstream-service-time": "2792",
         "x-ratelimit-limit-requests": "5000",
         "x-ratelimit-limit-tokens": "800000",
         "x-ratelimit-remaining-requests": "4999",
-        "x-ratelimit-remaining-tokens": "792823",
+        "x-ratelimit-remaining-tokens": "792845",
         "x-ratelimit-reset-requests": "12ms",
-        "x-ratelimit-reset-tokens": "538ms",
-        "x-request-id": "req_497e49e76c564b058540f289ce03417c"
+        "x-ratelimit-reset-tokens": "536ms",
+        "x-request-id": "req_f0b1bf860e3043fdb5eb64af2dbdc25a"
       },
       "body": {
-        "id": "resp_0aefebbdb01a9c4c00694709fc6f8c81a1bd33d60912524e35",
+        "id": "resp_0753ceffd47cd83700694710390c90819fba6a54722e5e0a2b",
         "object": "response",
-        "created_at": 1766263292,
+        "created_at": 1766264889,
         "status": "completed",
         "background": false,
         "billing": {
           "payer": "developer"
         },
-        "completed_at": 1766263293,
+        "completed_at": 1766264891,
         "error": null,
         "incomplete_details": null,
         "instructions": null,
@@ -574,7 +493,7 @@ x402] Payment required - returning 402
         "model": "gpt-4o-2024-08-06",
         "output": [
           {
-            "id": "msg_0aefebbdb01a9c4c00694709fd8b7881a1858a0e656bb8e72c",
+            "id": "msg_0753ceffd47cd837006947103bbeac819fb9e2dc29b73698b5",
             "type": "message",
             "status": "completed",
             "content": [
@@ -650,7 +569,7 @@ x402] Payment required - returning 402
         "top_p": 1,
         "truncation": "disabled",
         "usage": {
-          "input_tokens": 7158,
+          "input_tokens": 7136,
           "input_tokens_details": {
             "cached_tokens": 0
           },
@@ -658,26 +577,208 @@ x402] Payment required - returning 402
           "output_tokens_details": {
             "reasoning_tokens": 0
           },
-          "total_tokens": 7160
+          "total_tokens": 7138
         },
         "user": null,
         "metadata": {}
       }
     }
     usage: {
-      "inputTokens": 7158,
+      "inputTokens": 7136,
       "outputTokens": 2,
-      "totalTokens": 7160,
+      "totalTokens": 7138,
       "reasoningTokens": 0,
       "cachedInputTokens": 0
     }
     finishReason: stop
-[executeSkillStep] ✗ Strategy 2 failed: Error [StagehandServerError]: An internal server error occurred
-    at Generator.next (<anonymous>)
-[ResultTracker] ✗ natural_language failed in 14814ms: An internal server error occurred
-[executeSkillStep] 🔄 Resetting page state for next strategy...
-[executeSkillStep] 🔄 Navigating to clean start URL: https://www.farecompare.co.in/
-[executeSkillStep] ✓ Page state reset complete
-[executeSkillStep] Attempting Strategy 3: AI Re-learn
-[ResultTracker] Starting ai_relearn
-[executeAIRelearn] Starting AI re-learn for goal: Find the cheapest flight from %origin% to %destination% for dates %start_date% to %end_date%
+[handleAutocomplete] Field value after selection: "Los Angeles"
+[handleAutocomplete] ✓ Autocomplete selection complete
+[executeExactReplay] ✓ Autocomplete dropdown handled successfully
+[executeExactReplay] Action: click Click field with placeholder "Depart date"
+[executeExactReplay] 🗓️  Date field opener clicked, waiting for calendar widget...
+[waitForWidget] Waiting for calendar widget (timeout: 5000ms)...
+[waitForWidget] ⚠️  calendar widget not detected after 5000ms
+[executeExactReplay] Action: click Click "19"
+[2025-12-20T21:08:14.214Z] DEBUG: xpath main-world
+    frameId: EC90D3FDD1053D462BB2C1673F4114D7
+    xp: //*[@id="mewtwo-datepicker-2025-12-19"]/div[1]
+    ctxId: 5
+[executeExactReplay] 🗓️  Date field opener clicked, waiting for calendar widget...
+[waitForWidget] Waiting for calendar widget (timeout: 5000ms)...
+[waitForWidget] ⚠️  calendar widget not detected after 5000ms
+[executeExactReplay] Action: click Click "27"
+[2025-12-20T21:08:14.871Z] DEBUG: xpath main-world
+    frameId: EC90D3FDD1053D462BB2C1673F4114D7
+    xp: //*[@id="mewtwo-datepicker-2025-12-27"]/div[1]
+    ctxId: 5
+[executeExactReplay] Action: submit Submit and wait for navigation
+[executeExactReplay] ⏎ Submitting form via: #flights-destination-prepop-whitelabel_en
+[executeExactReplay] URL before submit: https://www.farecompare.co.in/
+[executeExactReplay] ⏎ Submitting form via: #flights-destination-prepop-whitelabel_en
+[executeExactReplay] ✓ Navigation detected: https://www.farecompare.co.in/flights?=&adults=1&children=0&ct_guests=1+passenger&ct_rooms=1&depart_date=2025-12-19&destination_iata=LAX&destination_name=Los+Angeles&infants=0&locale=en&marker=201840.Zzef321ad3435b43d1af36686-201840&one_way=false&origin_iata=YVR&origin_name=Vancouver&return_date=2025-12-27&trip_class=0&with_request=true
+[executeExactReplay] ✓ Navigation completed after submit
+[executeExactReplay] Action: submit Submit and wait for navigation
+[executeExactReplay] ⏎ Submitting form via: #flights-destination-prepop-whitelabel_en
+[executeExactReplay] URL before submit: https://www.farecompare.co.in/flights?=&adults=1&children=0&ct_guests=1+passenger&ct_rooms=1&depart_date=2025-12-19&destination_iata=LAX&destination_name=Los+Angeles&infants=0&locale=en&marker=201840.Zzef321ad3435b43d1af36686-201840&one_way=false&origin_iata=YVR&origin_name=Vancouver&return_date=2025-12-27&trip_class=0&with_request=true
+[executeExactReplay] ⏎ Submitting form via: #flights-destination-prepop-whitelabel_en
+[executeExactReplay] ✓ Navigation detected: https://www.farecompare.co.in/flights?=&adults=1&children=0&ct_guests=1+passenger&ct_rooms=1&depart_date=2025-12-27&destination_iata=LAX&destination_name=Los+Angeles&infants=0&locale=en&marker=201840.Zzf30abb59c0074b3ebb89037-201840&one_way=false&origin_iata=YVR&origin_name=Vancouver&return_date=2025-12-27&trip_class=0&with_request=true
+[executeExactReplay] ✓ Navigation completed after submit
+[Auto-Scroll] Page is long, scrolling to trigger lazy-loaded content...
+[Auto-Scroll] Page height: 1762 Viewport: 711
+[Auto-Scroll] Waited 2s for lazy content to load
+[Auto-Scroll] ✓ Auto-scroll complete, page settled
+[executeExactReplay] Extracting data with schema (full page)...
+[2025-12-20T21:08:28.667Z] INFO: Starting extraction using a11y snapshot
+    instruction: Extract the cheapest flight details including price, airline, route, and flight times
+[2025-12-20T21:08:32.903Z] INFO: response
+    response: {
+      "object": {
+        "flightPrice": "$276",
+        "airline": "Bookmyairtravel",
+        "route": "Vancouver (YVR) to Los Angeles (LAX)",
+        "departureDate": "27 Dec, Sat",
+        "returnDate": "27 Dec, Sat",
+        "departureTime": "10:25",
+        "arrivalTime": "13:24",
+        "duration": "2h 59m",
+        "stops": "Direct",
+        "bookingUrl": "Book $276"
+      },
+      "usage": {
+        "inputTokens": 17159,
+        "outputTokens": 82,
+        "totalTokens": 17241,
+        "reasoningTokens": 0,
+        "cachedInputTokens": 0
+      },
+      "finishReason": "stop"
+    }
+[2025-12-20T21:08:33.677Z] INFO: response
+    response: {
+      "object": {
+        "progress": "Extracted flight details: price, airline, route, and flight times.",
+        "completed": true
+      },
+      "usage": {
+        "inputTokens": 329,
+        "outputTokens": 23,
+        "totalTokens": 352,
+        "reasoningTokens": 0,
+        "cachedInputTokens": 0
+      },
+      "finishReason": "stop"
+    }
+[2025-12-20T21:08:33.677Z] INFO: Extraction completed successfully
+    prompt_tokens: 17488
+    completion_tokens: 105
+    inference_time_ms: 4988
+[executeExactReplay] Extraction result: {
+  flightPrice: '$276',
+  airline: 'Bookmyairtravel',
+  route: 'Vancouver (YVR) to Los Angeles (LAX)',
+  departureDate: '27 Dec, Sat',
+  returnDate: '27 Dec, Sat',
+  departureTime: '10:25',
+  arrivalTime: '13:24',
+  duration: '2h 59m',
+  stops: 'Direct',
+  bookingUrl: 'Book $276'
+}
+[ResultTracker] ✓ exact_replay succeeded in 50590ms
+[executeSkillStep] ✓ Strategy 1 succeeded
+[executeSkillStep] Session info: {
+  sessionId: '80b8c1f4-9737-4c94-8be2-b2d7178cadf3',
+  sessionUrl: 'https://www.browserbase.com/sessions/80b8c1f4-9737-4c94-8be2-b2d7178cadf3',
+  debugUrl: 'https://www.browserbase.com/devtools/inspector.html?wss=connect.browserbase.com/debug/80b8c1f4-9737-4c94-8be2-b2d7178cadf3/devtools/page/EC90D3FDD1053D462BB2C1673F4114D7?debug=true'
+}
+[executeSkillStep] Captured Stagehand history: 4 actions
+[ResultTracker] Stagehand history captured: {
+  totalActions: 4,
+  counts: { act: 2, extract: 0, observe: 2, navigate: 0, agent: 0 }
+}
+[ResultTracker] Extracted data: {
+  flightPrice: '$276',
+  airline: 'Bookmyairtravel',
+  route: 'Vancouver (YVR) to Los Angeles (LAX)',
+  departureDate: '27 Dec, Sat',
+  returnDate: '27 Dec, Sat',
+  departureTime: '10:25',
+  arrivalTime: '13:24',
+  duration: '2h 59m',
+  stops: 'Direct',
+  bookingUrl: 'Book $276'
+}
+[ResultTracker] Validation: { valid: true, errors: [] }
+
+========== EXECUTION SUMMARY ==========
+Execution ID: exec_1766264856372_hr1j6afex
+Skill: Find the cheapest flight from A to B
+Variables: {
+  origin: 'Vancouver',
+  destination: 'Los Angeles',
+  start_date: '2025-12-19',
+  end_date: '2025-12-27'
+}
+
+--- Strategy Attempts ---
+1. exact_replay: ✓ SUCCESS (50590ms)
+   Details: { actionsCompleted: 8, extractionAttempted: true }
+
+--- Final Result ---
+Success: true
+Final Strategy: exact_replay
+Total Time: 50591 ms
+Tokens Used: 30864
+
+--- Extraction ---
+Data Extracted: YES
+Extracted Fields: 10
+Non-empty Fields: [
+  'flightPrice',
+  'airline',
+  'route',
+  'departureDate',
+  'returnDate',
+  'departureTime',
+  'arrivalTime',
+  'duration',
+  'stops',
+  'bookingUrl'
+]
+
+--- Validation ---
+Valid: true
+
+--- Session ---
+Session URL: https://www.browserbase.com/sessions/80b8c1f4-9737-4c94-8be2-b2d7178cadf3
+Debug URL: https://www.browserbase.com/devtools/inspector.html?wss=connect.browserbase.com/debug/80b8c1f4-9737-4c94-8be2-b2d7178cadf3/devtools/page/EC90D3FDD1053D462BB2C1673F4114D7?debug=true
+
+--- Stagehand Action History ---
+Total Actions: 4
+Action Breakdown:
+  act: 2
+  observe: 2
+
+First Actions:
+  1. [observe] at 1:08:02 PM
+     → find the dropdown option containing "Vancouver" in the Fill field with placeholder "Origin" autocomplete menu
+  2. [act] at 1:08:03 PM
+  3. [observe] at 1:08:08 PM
+     → find the dropdown option containing "Los Angeles" in the Fill field with placeholder "Destination" autocomplete menu
+  4. [act] at 1:08:12 PM
+=======================================
+
+[ResultTracker] Saved to MongoDB: {
+  executionId: 'exec_1766264856372_hr1j6afex',
+  success: true,
+  strategy: 'exact_replay',
+  validationValid: true
+}
+ POST /.well-known/workflow/v1/step 200 in 60s (compile: 363ms, render: 59s)
+ POST /.well-known/workflow/v1/flow 200 in 16ms (compile: 4ms, render: 13ms)
+[POST /api/skills/[skillId]/execute] Skill executed: {
+  skillId: 'skill_1766263143415_232igft55',
+  strategy: 'exact_replay',
+  success: true
+}
+ POST /api/skills/skill_1766263143415_232igft55/execute 200 in 62s (compile: 6ms, render: 62s)
