@@ -6,9 +6,10 @@ import type {
   SkillMetrics,
   PageContext,
 } from "@/lib/types/skills";
-import { detectVariables, detectVariablesEnhanced, type SemanticValue } from "@/lib/capture/variable-detector";
+import { detectVariables, detectVariablesEnhanced, inferSemanticContext, type SemanticValue } from "@/lib/capture/variable-detector";
 import { extractTypedValues } from "@/lib/capture/action-grouper";
 import { generateExtractionSchema, type ExtractionSchema } from "@/lib/extraction/schema-generator";
+import { detectDropdownType } from "@/lib/capture/dropdown-detector";
 import { inferGoalFromIntent } from "@/lib/ai/goal-inference";
 import { z } from "zod";
 
@@ -535,7 +536,7 @@ export async function finishRecordingStep(input: FinishRecordingInput): Promise<
     }
   }
 
-  // Extract ALL semantic values from recorded actions (not just text inputs)
+  // Extract ALL semantic values from recorded actions (LLM enrichment happens later after filtering)
   // This includes values from dropdowns, date pickers, number inputs, autocomplete, checkboxes
   // ✅ FIX: Extract semantic values and filter out intermediate typing states
   // For each selector, keep only the LAST semantic value (final state after typing completes)
@@ -711,15 +712,56 @@ export async function finishRecordingStep(input: FinishRecordingInput): Promise<
           });
         }
 
+        // ✅ DROPDOWN DETECTION: Detect dropdown type for this action
+        let dropdownDetection = null;
+        if (action.selector && (action.type === 'fill' || action.type === 'type' || action.type === 'click')) {
+          dropdownDetection = detectDropdownType(
+            null, // Element not available during recording processing
+            action.selector,
+            action.semanticType
+          );
+
+          // Debug logging for dropdown detection during recording
+          if (dropdownDetection.dropdownType) {
+            console.log('[finishRecordingStep] 🔍 Dropdown detected:', {
+              type: action.type,
+              selector: action.selector,
+              dropdownType: dropdownDetection.dropdownType,
+              isInIframe: dropdownDetection.isInIframe,
+              confidence: dropdownDetection.confidence,
+              semanticType: action.semanticType
+            });
+          }
+        }
+
         return {
           ...action,
           value: newValue, // Replace with placeholders
           semanticValue: newSemanticValue, // ✅ FIX: Also update semanticValue
           originalValue: action.value, // Keep original for reference
+          ...(dropdownDetection?.dropdownType && { dropdownType: dropdownDetection.dropdownType }),
+          ...(dropdownDetection && { isInIframe: dropdownDetection.isInIframe }),
         };
       }
     }
-    return action;
+
+    // ✅ DROPDOWN DETECTION: Detect dropdown type for actions without value replacement
+    let dropdownDetection = null;
+    if (action.selector && (action.type === 'fill' || action.type === 'type' || action.type === 'click')) {
+      dropdownDetection = detectDropdownType(
+        null, // Element not available during recording processing
+        action.selector,
+        action.semanticType
+      );
+    }
+
+    return dropdownDetection?.dropdownType || dropdownDetection?.isInIframe
+      ? {
+          ...action,
+          ...(dropdownDetection.dropdownType && { dropdownType: dropdownDetection.dropdownType }),
+          isInIframe: dropdownDetection.isInIframe,
+        }
+      : action;
   });
 
   console.log('[finishRecordingStep] Applied variable mapping to',
@@ -755,38 +797,124 @@ export async function finishRecordingStep(input: FinishRecordingInput): Promise<
     removed: allActions.length - filteredActions.length
   });
 
-  // ✅ NEW: Filter out intermediate clicks without semantic value
-  // These are clicks that just open fields (e.g., "Click field with placeholder 'Origin'")
-  // or click calendar cells (e.g., "Click 19") which are site-specific
-  // They don't execute during actual workflow runs and cause GPT-4o errors
-  const executableActions = filteredActions.filter((action) => {
+  // ✅ SEMANTIC ENRICHMENT: Use LLM to infer semantic metadata for actions that lack it
+  // IMPORTANT: This happens AFTER navigation filtering to ensure indices match
+  // This handles cases where browser detection failed (e.g., calendar day clicks)
+  // The LLM understands goal context and can infer meaning (e.g., "Click 19" → date selection)
+  // Uses final URL to extract full date values from URL parameters (e.g., depart_date=2025-12-19)
+  console.log('[finishRecordingStep] 🧠 Running LLM semantic inference for actions without metadata...');
+  const enrichedFilteredActions = await inferSemanticContext(
+    recording.goal,
+    filteredActions,
+    pageContext?.url  // Pass final URL for date/param inference
+  );
+  console.log('[finishRecordingStep] ✅ Semantic enrichment complete');
+
+  // Use enriched actions for the rest of the processing
+  const actionsToProcess = enrichedFilteredActions;
+
+  // ✅ ENHANCED: Extract labels from field opener clicks and apply to autocomplete actions
+  // Sequential matching: field opener → next autocomplete action
+  for (let i = 0; i < actionsToProcess.length; i++) {
+    const action = actionsToProcess[i];
+    const description = action.description || '';
+
+    // Check if this is a field opener with a placeholder label
+    const placeholderMatch = description.match(/field with placeholder ["']([^"']+)["']/);
+    if (placeholderMatch) {
+      const label = placeholderMatch[1];
+      console.log('[finishRecordingStep] 📝 Found field opener with label:', {
+        label: label,
+        actionIndex: i
+      });
+
+      // Look for the next autocomplete/type action (within next 3 actions)
+      for (let j = i + 1; j < Math.min(i + 4, actionsToProcess.length); j++) {
+        const nextAction = actionsToProcess[j];
+        const isAutocomplete = (nextAction as any).semanticType === 'autocomplete';
+        const isTypeAction = nextAction.type === 'type' || nextAction.type === 'fill';
+
+        if (isTypeAction && isAutocomplete) {
+          const oldLabel = (nextAction as any).semanticLabel;
+          (nextAction as any).semanticLabel = label;
+          console.log('[finishRecordingStep] ✅ Applied field label to autocomplete:', {
+            oldLabel: oldLabel,
+            newLabel: label,
+            actionIndex: j
+          });
+          break; // Found and updated, move to next field opener
+        }
+      }
+    }
+  }
+
+  // Step 3: Filter out ONLY true intermediate clicks (widget openers)
+  // Keep ALL clicks with semantic metadata (date-picker, autocomplete, etc.)
+  const executableActions = actionsToProcess.filter((action, index) => {
     // Keep all non-click actions
     if (action.type !== 'click') {
       return true;
     }
 
-    // For click actions: only keep if they have TRUE semantic meaning
-    // ONLY keep clicks that are:
-    // 1. Select actions (e.g., "Select Vancouver from dropdown")
-    // 2. Submit actions (e.g., "Submit form")
-    // 3. Have a value to fill (autocomplete with value)
     const description = action.description || '';
-    const hasSemanticContext = description.includes('Select') ||
-                               description.includes('Submit') ||
-                               (action as any).value;  // Has a value to fill
+    const semanticType = (action as any).semanticType;
+    const semanticValue = (action as any).semanticValue;
 
-    if (!hasSemanticContext) {
-      console.log('[finishRecordingStep] ⏭️  Filtering out intermediate click:', description);
+    // ✅ PRIORITY 1: Keep ALL clicks with semantic metadata (date-picker, dropdown, autocomplete)
+    if (semanticType || semanticValue !== undefined) {
+      console.log('[finishRecordingStep] ✅ Keeping semantic click:', description, `(type: ${semanticType})`);
+      return true;
+    }
+
+    // ✅ PRIORITY 2: Keep clicks with semantic descriptions (Select, Submit)
+    if (description.includes('Select') || description.includes('Submit')) {
+      return true;
+    }
+
+    // ✅ PRIORITY 3: Filter ONLY known intermediate patterns (BUT keep date picker openers!)
+    // These are clicks that just OPEN widgets but don't SELECT values
+    const isFieldOpener = description.includes('field with placeholder') ||
+                         description.includes('Click field') ||
+                         description.includes('calendar-icon') ||
+                         description.includes('dropdown-icon') ||
+                         description.includes('Icon') && (description.includes('calendar') || description.includes('date'));
+
+    if (isFieldOpener) {
+      // ✅ NEW: Look ahead to check if next action is a date-picker
+      // If yes, KEEP the field opener (it's needed to open the calendar widget)
+      const nextAction = actionsToProcess[index + 1];
+      if (nextAction && (nextAction as any).semanticType === 'date-picker') {
+        console.log('[finishRecordingStep] ✅ Keeping date picker opener:', description);
+        return true;
+      }
+
+      // Filter out other widget openers (autocomplete, regular dropdowns)
+      console.log('[finishRecordingStep] ⏭️  Filtering out non-date widget opener:', description);
       return false;
     }
 
+    // ✅ PRIORITY 4: Filter numeric day selection clicks (calendar dates) that lack metadata
+    // Pattern: "Click 1" through "Click 31" without semantic metadata
+    // These are intermediate calendar clicks - date values are already captured in field openers above
+    const numericClickMatch = description.match(/^Click\s+"?(\d{1,2})"?$/);
+    if (numericClickMatch) {
+      const dayNumber = parseInt(numericClickMatch[1], 10);
+      if (dayNumber >= 1 && dayNumber <= 31) {
+        console.log('[finishRecordingStep] ⏭️  Filtering out calendar day click:', description);
+        return false;
+      }
+    }
+
+    // ✅ DEFAULT: Keep unknown clicks (better to keep than filter)
+    // This ensures we don't accidentally filter semantic actions that lack metadata
+    console.log('[finishRecordingStep] ⚠️  Keeping unknown click (no semantic metadata):', description);
     return true;
   });
 
   console.log('[finishRecordingStep] Filtered intermediate clicks:', {
-    before: filteredActions.length,
+    before: actionsToProcess.length,
     after: executableActions.length,
-    removed: filteredActions.length - executableActions.length
+    removed: actionsToProcess.length - executableActions.length
   });
 
   // Generate extraction schema from goal with context
@@ -822,8 +950,51 @@ export async function finishRecordingStep(input: FinishRecordingInput): Promise<
     }
   }
 
-  // Convert recorded actions to Stagehand workflow (use executableActions - already filtered)
-  const stagehandWorkflow = convertToStagehand(executableActions || []);
+  // ✅ NEW: Filter out phantom partial-value actions before autocomplete
+  // When user pauses while typing, groupFillActions creates separate actions
+  // Example: User types "v" → pauses → types "vancouver" → autocomplete click
+  // Result: Two actions: { value: "v" } and { value: "vancouver", semanticType: 'autocomplete' }
+  // We only want the autocomplete action
+  const dedupedActions = executableActions?.filter((action, index, arr) => {
+    // Only check type/fill actions
+    if (action.type !== 'type' && action.type !== 'fill') {
+      return true;
+    }
+
+    // Check if this action has a selector
+    if (!action.selector) {
+      return true;
+    }
+
+    // Look ahead for autocomplete actions on the same selector
+    const laterAutocompleteOnSameSelector = arr.slice(index + 1).find(
+      (laterAction) =>
+        laterAction.selector === action.selector &&
+        laterAction.semanticType === 'autocomplete'
+    );
+
+    // If we found a later autocomplete on the same selector, filter out this action
+    // (it's a partial value before the full autocomplete)
+    if (laterAutocompleteOnSameSelector && action.semanticType !== 'autocomplete') {
+      console.log('[finishRecordingStep] ⏭️  Filtering out phantom partial-value action:', {
+        value: action.value,
+        selector: action.selector,
+        reason: 'Later autocomplete action exists on same selector'
+      });
+      return false;
+    }
+
+    return true;
+  }) || [];
+
+  console.log('[finishRecordingStep] Deduped autocomplete actions:', {
+    before: executableActions?.length || 0,
+    after: dedupedActions.length,
+    removed: (executableActions?.length || 0) - dedupedActions.length
+  });
+
+  // Convert recorded actions to Stagehand workflow (use dedupedActions - phantom actions removed)
+  const stagehandWorkflow = convertToStagehand(dedupedActions);
 
   console.log('[finishRecordingStep] Converted to Stagehand workflow:', {
     workflowSteps: stagehandWorkflow.length,
@@ -1063,14 +1234,34 @@ function convertToStagehand(actions: RecordedAction[]): StagehandAction[] {
 
       switch (action.semanticType) {
         case 'date-picker':
-          // ✅ FIX: Use clear "Fill" instruction that specifies both the field AND the value
-          // Format: "Fill [field description] with [date value]"
-          // This works for both typed date inputs AND calendar date pickers
-          const dateFieldLabel = action.semanticLabel || 'date field';
+          // ✅ FIX: Use "Click" instruction (date pickers are click actions, not fill)
+          // Date picker actions are clicks on calendar cells, not fills on input fields
+          // Format: "Click the date picker cell for [label] showing day [day]"
+          const dateLabel = action.semanticLabel || 'date';
+
+          // Build instruction: extract day from ISO date for clarity
+          // - Variables: "showing %departDate%"
+          // - Literals: "showing day 19" (extract day number)
+          let dateDisplay: string;
+          if (isVariable) {
+            dateDisplay = semanticValueStr;  // Keep variable as-is: "%departDate%"
+          } else {
+            // Extract day from ISO date (YYYY-MM-DD) for clearer instruction
+            const dayMatch = semanticValueStr.match(/-(\d{2})$/);
+            if (dayMatch) {
+              const day = parseInt(dayMatch[1], 10);
+              dateDisplay = `day ${day}`;
+            } else {
+              dateDisplay = semanticValueStr;
+            }
+          }
+
           return {
             method: 'act',
             selector: action.selector,
-            instruction: `Fill ${dateFieldLabel} with ${semanticValueStr}`,
+            instruction: `Click the date picker cell for ${dateLabel} showing ${dateDisplay}`,
+            value: semanticValueStr,  // ✅ Keep full ISO date for execution fallback
+            semanticType: 'date-picker',  // ✅ Pass semantic type for execution logic
           };
 
         case 'dropdown':
@@ -1079,6 +1270,7 @@ function convertToStagehand(actions: RecordedAction[]): StagehandAction[] {
             method: 'act',
             selector: action.selector,
             instruction: `Select ${action.semanticLabel || 'option'} ${displayValue}`,
+            semanticType: 'dropdown',
           };
 
         case 'number-input':
@@ -1088,6 +1280,7 @@ function convertToStagehand(actions: RecordedAction[]): StagehandAction[] {
             method: 'act',
             selector: action.selector,
             instruction: `Set ${action.semanticLabel || 'value'} to ${semanticValueStr}`,
+            semanticType: action.semanticType,
           };
 
         case 'autocomplete':
@@ -1098,6 +1291,7 @@ function convertToStagehand(actions: RecordedAction[]): StagehandAction[] {
             selector: action.selector,
             instruction: `Type ${displayValue} into the ${action.semanticLabel || 'location'} field`,
             value: semanticValueStr,  // ✅ Add value field for exact selector fallback
+            semanticType: 'autocomplete',  // ✅ Pass semantic type for execution logic
           };
 
         case 'checkbox':
@@ -1183,7 +1377,7 @@ async function replayWorkflow(
   // ✅ NEW: Filter out intermediate clicks without semantic value
   // These are clicks that just open fields (e.g., "Click field with placeholder 'Origin'")
   // They don't have semantic context and cause GPT-4o to return empty {}
-  const executableWorkflow = workflow.filter((action) => {
+  const executableWorkflow = workflow.filter((action, index) => {
     // Keep all non-click actions
     if (action.method !== 'act' || !action.instruction.startsWith('Click')) {
       return true;
@@ -1195,6 +1389,16 @@ async function replayWorkflow(
                                action.value;
 
     if (!hasSemanticContext) {
+      // ✅ EXCEPTION: Keep date field openers (needed to open calendar widget)
+      // Check if next action is a date-picker click
+      const nextAction = workflow[index + 1];
+      const isDateFieldOpener = nextAction && (nextAction as any).semanticType === 'date-picker';
+
+      if (isDateFieldOpener) {
+        console.log('[replayWorkflow] ✅ Keeping date field opener:', action.instruction);
+        return true;
+      }
+
       console.log('[replayWorkflow] ⏭️  Skipping intermediate click:', action.instruction);
       return false;
     }
@@ -1208,7 +1412,8 @@ async function replayWorkflow(
     skipped: workflow.length - executableWorkflow.length
   });
 
-  for (const action of executableWorkflow) {
+  for (let i = 0; i < executableWorkflow.length; i++) {
+    const action = executableWorkflow[i];
     console.log('[replayWorkflow] Executing action:', action.method, action.instruction);
 
     if (action.method === 'navigate') {
@@ -1219,6 +1424,15 @@ async function replayWorkflow(
     } else if (action.method === 'act') {
       // Reverse-substitute variables in the value
       let valueToUse = action.value;
+
+      // ✅ FIX: Date pickers are CLICK actions, not fill actions
+      // Even though they have a value field (ISO date), we should click the calendar cell
+      // Ignore the value field during validation for date pickers
+      const isDatePicker = (action as any).semanticType === 'date-picker';
+      if (isDatePicker) {
+        valueToUse = undefined;  // Treat as click action (no value)
+      }
+
       if (valueToUse && Object.keys(reverseMapping).length > 0) {
         Object.entries(reverseMapping).forEach(([variable, originalValue]) => {
           if (valueToUse) {
@@ -1237,24 +1451,135 @@ async function replayWorkflow(
       if (action.selector) {
         try {
           if (valueToUse) {
-            await page.locator(action.selector).fill(valueToUse, { timeout: 5000 });
+            await page.locator(action.selector).fill(valueToUse);
           } else {
-            await page.locator(action.selector).click({ timeout: 5000 });
+            await page.locator(action.selector).click();
+
+            // ✅ NEW: Wait for calendar widget if this is a date field opener (validation sync)
+            const nextAction = executableWorkflow[i + 1];
+            const isDateFieldOpener = nextAction && (nextAction as any).semanticType === 'date-picker';
+
+            if (isDateFieldOpener) {
+              console.log('[replayWorkflow] 🗓️  Date field opener clicked, waiting for calendar widget...');
+
+              // Wait for calendar widget to appear (same logic as execute-skill-step.ts)
+              const calendarAppeared = await page.evaluate(async () => {
+                const selectors = [
+                  '[id*="datepicker"]', '[id*="calendar"]',
+                  '[class*="datepicker"]', '[class*="calendar"]',
+                  '[class*="picker"]', '[role="dialog"]'
+                ];
+                const startTime = Date.now();
+                const timeout = 2000;
+                while (Date.now() - startTime < timeout) {
+                  for (const selector of selectors) {
+                    const el = document.querySelector(selector);
+                    if (el && (el as HTMLElement).offsetParent !== null) {
+                      return true; // Calendar visible
+                    }
+                  }
+                  await new Promise(resolve => setTimeout(resolve, 100));
+                }
+                return false;
+              });
+
+              if (calendarAppeared) {
+                console.log('[replayWorkflow] ✓ Calendar widget visible');
+                // Additional settle time for animations
+                await new Promise(resolve => setTimeout(resolve, 300));
+              } else {
+                console.warn('[replayWorkflow] ⚠️  Calendar widget not detected, proceeding anyway');
+              }
+            }
           }
           console.log('[replayWorkflow] Action executed with exact selector');
-        } catch (error) {
-          // ✅ FIX: Fallback to natural language instruction (not Action object)
-          // Stagehand Action objects expect XPath, but we have CSS selectors
-          // Using natural language is more reliable than converting CSS → XPath
-          console.log('[replayWorkflow] Exact selector failed, using natural language instruction');
 
-          let instruction = action.instruction;
-          // Add value to instruction if present
-          if (valueToUse && !instruction.includes(valueToUse)) {
-            instruction = `${instruction} with value "${valueToUse}"`;
+          // ✅ VALIDATION: For autocomplete fields, just typing is enough
+          // Validation's job is to verify the field exists and can be filled
+          // Actual dropdown selection happens during execution, not validation
+          const isAutocompleteField = (action as any).semanticType === 'autocomplete';
+          if (isAutocompleteField && valueToUse) {
+            console.log('[replayWorkflow] 🎯 Autocomplete detected - field filled successfully (dropdown selection happens during execution)');
+          }
+        } catch (error) {
+          // ✅ IMPROVED: Use observe→act pattern for selector drift
+          // This is faster and more reliable than pure natural language
+          console.warn('[replayWorkflow] Exact selector failed, using observe→act fallback:', (error as Error).message);
+
+          // Build context-aware description using semantic metadata
+          const semanticType = (action as any).semanticType;
+          const semanticLabel = (action as any).semanticLabel;
+          let description = action.instruction || (valueToUse ? `field to fill with "${valueToUse}"` : 'element to click');
+
+          // Enhance description with semantic context for disambiguation
+          if (semanticType === 'date-picker' && semanticLabel) {
+            // Extract day number from description (e.g., "Click 19" → "19")
+            const dayMatch = description.match(/(\d{1,2})/);
+            const day = dayMatch ? dayMatch[1] : '';
+            if (valueToUse) {
+              description = `date picker field for ${semanticLabel}`;
+            } else {
+              description = `date picker cell for ${semanticLabel} showing day ${day}`;
+            }
+            console.log('[replayWorkflow] 🗓️  Date-picker context added:', description);
+          } else if (semanticType === 'autocomplete' && semanticLabel) {
+            description = `autocomplete field for ${semanticLabel}`;
+            console.log('[replayWorkflow] 🔍 Autocomplete context added:', description);
+          } else if (semanticType) {
+            description = `${semanticType} element: ${description}`;
+            console.log('[replayWorkflow] 🏷️  Semantic type added:', semanticType);
           }
 
-          await stagehand.act(instruction);
+          // Scope observe() query to container if possible
+          let scopedDescription = description;
+          const selectorHint = action.selector;
+
+          if (selectorHint) {
+            // Extract container hints from selector (e.g., form, section, dialog)
+            const containerMatch = selectorHint.match(/(form|section|dialog|div\[class.*form|div\[id.*form)/i);
+            if (containerMatch) {
+              scopedDescription = `within the form: ${description}`;
+              console.log('[replayWorkflow] 🎯 Scoped to form container');
+            }
+          }
+
+          console.log('[replayWorkflow] Observing for:', scopedDescription);
+
+          const [observedAction] = await stagehand.observe(`find ${scopedDescription}`);
+
+          if (observedAction) {
+            if (valueToUse && observedAction.method === 'fill') {
+              // Fill action - create new Action with our value
+              const actionWithValue = {
+                selector: observedAction.selector,
+                description: observedAction.description,
+                method: 'fill' as const,
+                arguments: [valueToUse]
+              };
+              console.log('[replayWorkflow] ✓ Found via observe, executing deterministically');
+              await stagehand.act(actionWithValue);
+            } else if (!valueToUse && observedAction.method === 'click') {
+              // Click action - use observed Action directly
+              console.log('[replayWorkflow] ✓ Found via observe, executing deterministically');
+              await stagehand.act(observedAction);
+            } else {
+              // Fallback: pure natural language
+              console.log('[replayWorkflow] ⚠️  observe method mismatch, using natural language');
+              let instruction = action.instruction;
+              if (valueToUse && !instruction.includes(valueToUse)) {
+                instruction = `${instruction} with value "${valueToUse}"`;
+              }
+              await stagehand.act(instruction);
+            }
+          } else {
+            // Final fallback: pure natural language
+            console.log('[replayWorkflow] ⚠️  observe failed, using natural language');
+            let instruction = action.instruction;
+            if (valueToUse && !instruction.includes(valueToUse)) {
+              instruction = `${instruction} with value "${valueToUse}"`;
+            }
+            await stagehand.act(instruction);
+          }
         }
       } else {
         // No selector, use natural language instruction

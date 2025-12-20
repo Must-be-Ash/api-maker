@@ -325,3 +325,226 @@ export function getVariableName(mapping: VariableMapping, demoValue: string): st
   // Remove % symbols
   return variable.replace(/%/g, '');
 }
+
+/**
+ * Helper to extract useful hints from URL parameters
+ */
+function extractUrlHints(url: string): string {
+  try {
+    const urlObj = new URL(url);
+    const params = Array.from(urlObj.searchParams.entries());
+
+    if (params.length === 0) return '';
+
+    const hints = params
+      .filter(([key]) => key.includes('date') || key.includes('departure') || key.includes('return') || key.includes('check') || key.includes('from') || key.includes('to'))
+      .map(([key, value]) => `  - ${key}: ${value}`)
+      .join('\n');
+
+    return hints ? `\n\n**URL Parameters (hints for full values)**:\n${hints}` : '';
+  } catch (e) {
+    return '';
+  }
+}
+
+/**
+ * LLM-based semantic inference for actions without browser-detected metadata
+ *
+ * Uses goal context to infer what actions mean (e.g., "Click 19" → date selection)
+ * This handles cases where browser detection fails but context provides clear hints
+ *
+ * @param goal - The user's goal with variables
+ * @param actions - Grouped actions (may have missing semantic metadata)
+ * @param finalUrl - The final URL after all actions (may contain date params, search results, etc.)
+ * @returns Enriched actions with inferred semantic types/values/labels
+ */
+export async function inferSemanticContext(
+  goal: string,
+  actions: any[],
+  finalUrl?: string
+): Promise<any[]> {
+  // Extract variables from goal to understand what we're looking for
+  const variables = extractVariablesFromGoal(goal);
+
+  if (variables.length === 0 || actions.length === 0) {
+    return actions; // No variables or actions to analyze
+  }
+
+  // Find actions that lack semantic metadata
+  const actionsNeedingInference = actions
+    .map((action, index) => ({ action, index }))
+    .filter(({ action }) => !action.semanticType && !action.semanticValue);
+
+  if (actionsNeedingInference.length === 0) {
+    return actions; // All actions already have metadata
+  }
+
+  // Build description of actions for LLM
+  const actionsDescription = actions.map((action, index) => {
+    const hasMetadata = action.semanticType || action.semanticValue;
+    return `${index + 1}. ${action.description || action.type}${hasMetadata ? ` (has metadata: ${action.semanticType})` : ' (no metadata)'}`;
+  }).join('\n');
+
+  // Extract URL parameters if available (useful for dates, IDs, etc.)
+  const urlContext = finalUrl ? `\n**Final URL**: ${finalUrl}${extractUrlHints(finalUrl)}` : '';
+
+  const prompt = `You are analyzing a web automation recording to infer semantic meaning from actions that lack explicit metadata.
+
+**Goal**: ${goal}
+
+**Variables in goal**: ${variables.map(v => `%${v}%`).join(', ')}
+${urlContext}
+
+**Action Sequence**:
+${actionsDescription}
+
+**Your task**: For actions marked "(no metadata)", infer their semantic type, value, and label based on:
+1. **Goal context** - What variables exist? (dates, locations, numbers, etc.)
+2. **Action description** - What does the text suggest? (e.g., "Click 19" suggests day selection)
+3. **Sequence position** - What came before/after? (dates usually follow locations)
+4. **Common patterns** - Numeric clicks (1-31) after location inputs = calendar
+
+**Semantic Types**:
+- **date-picker**: Clicking calendar day cells, selecting dates
+- **autocomplete**: Selecting from location/address dropdowns
+- **dropdown**: Selecting from option lists (cabin class, property type)
+- **number-input**: Entering counts, prices, quantities
+- **text-input**: Typing search queries, names
+- **checkbox**: Enabling/disabling filters
+
+**Examples**:
+
+**Example 1: Date selection with URL context**
+Goal: "find flights for dates %start_date% to %end_date%"
+Final URL: https://example.com/flights?depart_date=2025-12-19&return_date=2025-12-26
+
+URL Parameters (hints):
+  - depart_date: 2025-12-19
+  - return_date: 2025-12-26
+
+Actions:
+1. Type "vancouver" into location field (has metadata: autocomplete)
+2. Type "los angeles" into location field (has metadata: autocomplete)
+3. Click field with placeholder "Depart date" (no metadata)
+4. Click "19" (no metadata)
+5. Click field with placeholder "Return date" (no metadata)
+6. Click "26" (no metadata)
+7. Submit (no metadata)
+
+→ Expected Output:
+{
+  "inferences": [
+    {
+      "actionIndex": 4,
+      "semanticType": "date-picker",
+      "semanticValue": "2025-12-19",
+      "semanticLabel": "depart date"
+    },
+    {
+      "actionIndex": 6,
+      "semanticType": "date-picker",
+      "semanticValue": "2025-12-26",
+      "semanticLabel": "return date"
+    }
+  ]
+}
+
+Note: Actions 3, 5, 7 are skipped (widget openers and submit)
+
+**Example 2: Cabin class selection**
+Goal: "find %class% flights"
+Actions:
+1. Click "Economy" (no metadata)
+
+→ Expected Output:
+{
+  "inferences": [
+    {
+      "actionIndex": 1,
+      "semanticType": "dropdown",
+      "semanticValue": "Economy",
+      "semanticLabel": "cabin class"
+    }
+  ]
+}
+
+**Rules**:
+1. ONLY infer for actions marked "(no metadata)"
+2. Skip widget openers (e.g., "Click field with placeholder")
+3. **For date clicks** (numeric 1-31):
+   - Use URL parameters to get FULL dates (YYYY-MM-DD format)
+   - Match day numbers to URL date params by position
+   - Example: "Click 19" + URL param "depart_date=2025-12-19" → semanticValue: "2025-12-19"
+   - Look at PREVIOUS action (widget opener) to get user-visible label
+   - Example: "Click field with placeholder 'Depart date'" → use "depart date" as label
+4. For text clicks after typing, infer based on variable context
+5. **CRITICAL**: Use **user-visible contextual labels**, NOT variable names
+   - ✅ CORRECT: semanticLabel: "depart date", "return date", "cabin class"
+   - ❌ WRONG: semanticLabel: "start_date", "end_date", "class"
+   - These labels are used in Stagehand instructions to find fields on the page
+
+**Output format**:
+
+Return a JSON object with this EXACT structure:
+{
+  "inferences": [
+    {
+      "actionIndex": 5,
+      "semanticType": "date-picker",
+      "semanticValue": "2025-12-19",
+      "semanticLabel": "depart date"
+    },
+    {
+      "actionIndex": 7,
+      "semanticType": "date-picker",
+      "semanticValue": "2025-12-26",
+      "semanticLabel": "return date"
+    }
+  ]
+}
+
+**CRITICAL**:
+- The root object MUST have an "inferences" key with an array value
+- Include ALL inferred actions in this single array
+- If no actions need inference, return: {"inferences": []}
+- Skip widget openers and submit actions (don't include them)`;
+
+  try {
+    const result = await generateObject({
+      model: openai('gpt-4o'),
+      schema: z.object({
+        inferences: z.array(z.object({
+          actionIndex: z.number(),
+          semanticType: z.string(),
+          semanticValue: z.union([z.string(), z.number(), z.boolean()]),
+          semanticLabel: z.string(),
+        })),
+        explanation: z.string().optional(),
+      }),
+      prompt,
+      temperature: 0.2, // Slightly higher for inference creativity
+    });
+
+    console.log('[Semantic Inference] LLM inferred metadata for actions:', result.object);
+
+    // Apply inferences to actions
+    const enrichedActions = actions.map((action, index) => {
+      const inference = result.object.inferences.find(inf => inf.actionIndex === index + 1);
+      if (inference) {
+        return {
+          ...action,
+          semanticType: inference.semanticType,
+          semanticValue: inference.semanticValue,
+          semanticLabel: inference.semanticLabel,
+        };
+      }
+      return action;
+    });
+
+    return enrichedActions;
+  } catch (error) {
+    console.error('[Semantic Inference] Error inferring semantic context:', error);
+    // Fallback: return original actions
+    return actions;
+  }
+}

@@ -58,7 +58,7 @@ A **browser automation API generation system** where users demonstrate a web tas
   │ STRATEGY 1: Exact Selector Replay (Fast)              │
   │ - Use recorded selectors                              │
   │ - Substitute variables (%origin% → "NYC")             │
-  │ - No LLM cost, 1-3 seconds                            │
+  │ - minimal LLM cost                                    │
   │ - Works 90% of the time                               │
   └───────────────────────────────────────────────────────┘
            ↓ (if fails)

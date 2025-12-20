@@ -72,6 +72,7 @@ export interface StagehandAction {
   value?: string;
   schema?: object;
   url?: string;
+  semanticType?: string; // Type of interaction (autocomplete, date-picker, dropdown, etc.)
 }
 
 /**

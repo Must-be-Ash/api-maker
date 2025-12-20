@@ -22,7 +22,7 @@ import { generateExtractionSchema } from "@/lib/extraction/schema-generator";
  *
  * This ensures extraction sees ALL content, including lazy-loaded items
  */
-async function autoScrollForExtraction(page: any, stagehand?: any): Promise<void> {
+async function autoScrollForExtraction(page: any): Promise<void> {
   try {
     // Check if page is long enough to have content below the fold
     const scrollHeight = await page.evaluate(() => document.documentElement.scrollHeight);
@@ -433,6 +433,511 @@ export async function executeSkillStep(input: ExecuteSkillInput): Promise<Execut
 }
 
 /**
+ * Retry wrapper for dropdown selection handlers
+ *
+ * Provides automatic retry logic for transient failures (network issues, timing problems)
+ *
+ * @param handlerFn - The handler function to retry
+ * @param handlerName - Name for logging purposes
+ * @param maxRetries - Maximum number of retry attempts (default: 1)
+ * @returns Result from the handler function
+ */
+async function retryDropdownSelection(
+  handlerFn: () => Promise<any>,
+  handlerName: string,
+  maxRetries = 1
+) {
+  "use step";
+
+  for (let attempt = 0; attempt <= maxRetries; attempt++) {
+    try {
+      const result = await handlerFn();
+      return result;
+    } catch (error) {
+      if (attempt === maxRetries) {
+        console.error(`[${handlerName}] All ${maxRetries + 1} attempts failed`);
+        throw error;
+      }
+
+      console.warn(`[${handlerName}] Attempt ${attempt + 1} failed, retrying...`);
+      await new Promise(resolve => setTimeout(resolve, 1500));
+    }
+  }
+}
+
+/**
+ * Wait for widget/dropdown to become visible
+ *
+ * Generic helper for waiting for any type of widget (autocomplete, calendar, dropdown)
+ * to appear in the DOM and be visible before interacting with it.
+ *
+ * @param page - Playwright page object
+ * @param widgetType - Type of widget to wait for
+ * @param timeoutMs - Maximum time to wait (default: 2000ms)
+ * @returns Promise<boolean> - true if widget appeared, false if timeout
+ */
+async function waitForWidgetVisible(
+  page: any,
+  widgetType: 'autocomplete' | 'calendar' | 'dropdown',
+  timeoutMs = 2000
+): Promise<boolean> {
+  "use step";
+
+  const selectorsByType = {
+    autocomplete: [
+      '[role="listbox"]',
+      '[role="menu"]',
+      '[class*="dropdown"]',
+      '[class*="suggestions"]',
+      '[class*="autocomplete"]',
+      'ul[class*="autocomplete"]',
+      '[id*="autocomplete"]'
+    ],
+    calendar: [
+      '[id*="datepicker"]',
+      '[id*="calendar"]',
+      '[class*="datepicker"]',
+      '[class*="calendar"]',
+      '[class*="picker"]',
+      '[role="dialog"]'
+    ],
+    dropdown: [
+      '[role="listbox"]',
+      '[role="menu"]',
+      '[class*="dropdown"]',
+      'ul[class*="dropdown"]',
+      'select[open]'
+    ]
+  };
+
+  console.log(`[waitForWidget] Waiting for ${widgetType} widget (timeout: ${timeoutMs}ms)...`);
+
+  const appeared = await page.evaluate(async (selectors: string[], timeout: number) => {
+    const startTime = Date.now();
+    while (Date.now() - startTime < timeout) {
+      for (const selector of selectors) {
+        const el = document.querySelector(selector);
+        if (el && (el as HTMLElement).offsetParent !== null) {
+          return true; // Widget visible
+        }
+      }
+      await new Promise(resolve => setTimeout(resolve, 100));
+    }
+    return false; // Timeout
+  }, selectorsByType[widgetType], timeoutMs);
+
+  if (appeared) {
+    console.log(`[waitForWidget] ✓ ${widgetType} widget visible`);
+  } else {
+    console.warn(`[waitForWidget] ⚠️  ${widgetType} widget not detected after ${timeoutMs}ms`);
+  }
+
+  return appeared;
+}
+
+/**
+ * Handle Traditional <select> Dropdown Selection
+ *
+ * Uses direct selectOption() API (no LLM cost) with fallback to observe→act pattern
+ * Supports iframes via deepLocator
+ *
+ * @param page - Stagehand page object
+ * @param stagehand - Stagehand instance (optional, for fallback)
+ * @param selector - CSS or XPath selector for the <select> element
+ * @param value - Value to select from dropdown
+ * @param isInIframe - Whether the selector is inside an iframe
+ * @returns Result object with success status and method used
+ */
+async function handleSelectDropdown(
+  page: any,
+  stagehand: any,
+  selector: string,
+  value: string,
+  isInIframe = false
+) {
+  "use step";
+
+  console.log(`[handleSelectDropdown] Selecting "${value}" from: ${selector}`);
+  console.log(`[handleSelectDropdown] 🔍 Debug info:`, {
+    selector,
+    value,
+    isInIframe,
+    locatorType: isInIframe ? 'deepLocator' : 'locator'
+  });
+
+  try {
+    // Strategy 1: Direct selectOption (fastest, no LLM)
+    const locator = isInIframe
+      ? page.deepLocator(selector)  // Use deepLocator for iframes
+      : page.locator(selector);
+
+    const selected = await locator.selectOption(value);
+    console.log(`[handleSelectDropdown] ✓ Selected: ${selected}`);
+    console.log(`[handleSelectDropdown] 📊 Result:`, {
+      success: true,
+      method: 'selectOption',
+      selected,
+      llmCost: 0
+    });
+    return { success: true, selected, method: 'selectOption' };
+
+  } catch (error) {
+    console.warn(`[handleSelectDropdown] selectOption failed: ${(error as Error).message}`);
+
+    // Strategy 2: Fallback to observe→act (for non-standard selects)
+    if (stagehand) {
+      try {
+        const [action] = await stagehand.observe(
+          `find the dropdown to select "${value}"`,
+          { timeout: 10000 }
+        );
+
+        if (action) {
+          await stagehand.act(action);
+          console.log(`[handleSelectDropdown] ✓ Selected via observe→act`);
+          return { success: true, method: 'observe-act' };
+        }
+      } catch (observeError) {
+        console.error(`[handleSelectDropdown] observe→act failed: ${(observeError as Error).message}`);
+      }
+    }
+
+    // Capture screenshot for debugging
+    try {
+      const screenshot = await page.screenshot({ fullPage: false });
+      console.log(`[handleSelectDropdown] Screenshot captured (${screenshot.length} bytes)`);
+    } catch (screenshotError) {
+      // Ignore screenshot errors
+    }
+
+    throw new Error(`Failed to select "${value}" from <select> dropdown: ${(error as Error).message}`);
+  }
+}
+
+/**
+ * Handle Autocomplete/Suggestions Dropdown Selection
+ *
+ * Uses observe→act pattern to find and select from dropdown suggestions
+ * Supports iframes via deepLocator
+ *
+ * @param stagehand - Stagehand instance for observe/act
+ * @param page - Stagehand page object
+ * @param selector - CSS or XPath selector for the input field
+ * @param value - Value to type and select from suggestions
+ * @param fieldDescription - Optional description for better observe accuracy
+ * @param isInIframe - Whether the selector is inside an iframe
+ * @returns Result object with success status and method used
+ */
+async function handleAutocompleteDropdown(
+  stagehand: any,
+  page: any,
+  selector: string,
+  value: string,
+  fieldDescription = '',
+  isInIframe = false
+) {
+  "use step";
+
+  console.log(`[handleAutocomplete] Handling autocomplete for: ${value}`);
+
+  try {
+    // Step 1: Type value into field (triggers dropdown)
+    // Note: fill() automatically clears existing content (locator.md:76-92)
+    const locator = isInIframe
+      ? page.deepLocator(selector)
+      : page.locator(selector);
+
+    await locator.fill(value);
+    console.log(`[handleAutocomplete] ✓ Typed "${value}"`);
+
+    // Step 2: Wait for dropdown suggestions to appear (smart wait)
+    const dropdownAppeared = await waitForWidgetVisible(page, 'autocomplete', 2000);
+    if (!dropdownAppeared) {
+      console.warn('[handleAutocomplete] ⚠️  Dropdown not detected, proceeding anyway');
+    }
+
+    // Step 3: Use observe() to find dropdown suggestions
+    const instruction = fieldDescription
+      ? `find the dropdown option containing "${value}" in the ${fieldDescription} autocomplete menu`
+      : `find the dropdown option containing the text "${value}"`;
+
+    console.log(`[handleAutocomplete] 🔍 Observing: ${instruction}`);
+
+    const actions = await stagehand.observe(instruction, {
+      timeout: 10000
+    });
+
+    // Debug logging for observe results
+    console.log('[handleAutocomplete] 📊 observe() returned:', {
+      actionsCount: actions?.length || 0,
+      timeout: 10000,
+      instruction: instruction
+    });
+
+    if (actions && actions.length > 0) {
+      // Log first action details for debugging
+      console.log('[handleAutocomplete] 📋 First action:', {
+        selector: actions[0].selector,
+        description: actions[0].description,
+        method: actions[0].method
+      });
+    }
+
+    if (!actions || actions.length === 0) {
+      // ✅ IMPROVED: Specific error message for autocomplete
+      console.warn(`[handleAutocomplete] ⚠️  observe returned no actions - dropdown may not have appeared`);
+
+      // ✅ NEW: Capture screenshot for debugging
+      try {
+        const screenshot = await page.screenshot({ fullPage: false });
+        console.log(`[handleAutocomplete] 📸 Screenshot captured (${screenshot.length} bytes) for debugging`);
+      } catch (screenshotError) {
+        console.warn('[handleAutocomplete] Failed to capture screenshot:', (screenshotError as Error).message);
+      }
+
+      // Fallback: Try natural language act() as last resort
+      console.warn(`[handleAutocomplete] Trying natural language fallback...`);
+      try {
+        await stagehand.act(`select "${value}" from the dropdown`);
+
+        // Verify selection worked
+        await new Promise(resolve => setTimeout(resolve, 500));
+        const currentValue = await locator.inputValue().catch(() => '');
+
+        if (currentValue.toLowerCase().includes(value.toLowerCase().substring(0, 3))) {
+          console.log(`[handleAutocomplete] ✓ Fallback succeeded`);
+          return { success: true, method: 'fallback' };
+        }
+      } catch (fallbackError) {
+        // Both observe and fallback failed - throw descriptive error
+        throw new Error(
+          `Autocomplete dropdown not found for "${value}" - dropdown may not have appeared after typing. ` +
+          `Field: "${fieldDescription || 'unknown'}". Tried observe→act and natural language fallback, both failed.`
+        );
+      }
+
+      throw new Error(
+        `Autocomplete selection failed for "${value}" - field value did not match after selection attempt. ` +
+        `Expected to contain "${value.substring(0, 3)}" but got "${await locator.inputValue().catch(() => 'unknown')}"`
+      );
+    }
+
+    console.log(`[handleAutocomplete] Found ${actions.length} suggestions`);
+
+    // Step 4: Click the first matching suggestion
+    const [suggestionAction] = actions;
+    console.log(`[handleAutocomplete] 📝 Clicking: ${suggestionAction.description}`);
+    await stagehand.act(suggestionAction);
+
+    // Step 5: Wait for dropdown to close and verify
+    await new Promise(resolve => setTimeout(resolve, 500));
+
+    // Verify selection by checking field value (no extra LLM call)
+    const selectedValue = await locator.inputValue().catch(() => '');
+    console.log(`[handleAutocomplete] Field value after selection: "${selectedValue}"`);
+
+    console.log(`[handleAutocomplete] ✓ Autocomplete selection complete`);
+    return { success: true, selectedValue, method: 'observe-act' };
+
+  } catch (error) {
+    console.error(`[handleAutocomplete] Failed:`, (error as Error).message);
+
+    // Capture screenshot for debugging
+    try {
+      const screenshot = await page.screenshot({ fullPage: false });
+      console.log(`[handleAutocomplete] Screenshot captured (${screenshot.length} bytes)`);
+    } catch (screenshotError) {
+      // Ignore screenshot errors
+    }
+
+    throw new Error(`Autocomplete selection failed for "${value}": ${(error as Error).message}`);
+  }
+}
+
+/**
+ * Handle Custom Dropdown Widget Selection
+ *
+ * For custom dropdown widgets (non-<select>, non-autocomplete)
+ * Uses observe→act pattern to open dropdown and select option
+ *
+ * @param stagehand - Stagehand instance for observe/act
+ * @param page - Stagehand page object
+ * @param triggerSelector - Selector for the dropdown trigger/button
+ * @param value - Value to select from dropdown
+ * @param fieldDescription - Optional description for better observe accuracy
+ * @returns Result object with success status
+ */
+async function handleCustomDropdown(
+  stagehand: any,
+  page: any,
+  triggerSelector: string, // Note: Using observe() instead of direct selector for reliability
+  value: string,
+  fieldDescription = ''
+) {
+  "use step";
+
+  console.log(`[handleCustomDropdown] Opening dropdown for: ${value}`);
+  console.log(`[handleCustomDropdown] 🔍 Debug info:`, {
+    triggerSelector,
+    value,
+    fieldDescription,
+    useObserve: true
+  });
+
+  try {
+    // Step 1: Click trigger to open dropdown (using observe for reliability)
+    const [openAction] = await stagehand.observe(
+      `find the ${fieldDescription} dropdown button`,
+      { timeout: 10000 }
+    );
+
+    // Debug logging for observe results
+    if (openAction) {
+      console.log('[handleCustomDropdown] 📋 Trigger action:', {
+        selector: openAction.selector,
+        description: openAction.description,
+        method: openAction.method
+      });
+    }
+
+    if (openAction) {
+      await stagehand.act(openAction);
+      console.log(`[handleCustomDropdown] ✓ Dropdown opened`);
+    } else {
+      throw new Error('Dropdown trigger not found');
+    }
+
+    // Step 2: Wait for dropdown to render (smart wait)
+    const dropdownAppeared = await waitForWidgetVisible(page, 'dropdown', 2000);
+    if (!dropdownAppeared) {
+      console.warn('[handleCustomDropdown] ⚠️  Dropdown not detected, proceeding anyway');
+    }
+
+    // Step 3: Find and click the option
+    const instruction = `find the option "${value}" in the ${fieldDescription} dropdown menu`;
+    const [optionAction] = await stagehand.observe(instruction, {
+      timeout: 10000
+    });
+
+    if (!optionAction) {
+      // ✅ NEW: Capture screenshot for debugging
+      try {
+        const screenshot = await page.screenshot({ fullPage: false });
+        console.log(`[handleCustomDropdown] 📸 Screenshot captured (${screenshot.length} bytes) - option not found`);
+      } catch (screenshotError) {
+        console.warn('[handleCustomDropdown] Failed to capture screenshot:', (screenshotError as Error).message);
+      }
+
+      // ✅ IMPROVED: Specific error message for custom dropdown
+      throw new Error(
+        `Custom dropdown option "${value}" not found in ${fieldDescription} dropdown. ` +
+        `Dropdown widget ${dropdownAppeared ? 'appeared but option not found' : 'may not have appeared'}. ` +
+        `Searched with instruction: "${instruction}"`
+      );
+    }
+
+    console.log(`[handleCustomDropdown] 📝 Selecting: ${optionAction.description}`);
+    await stagehand.act(optionAction);
+
+    // Step 4: Wait for dropdown to close
+    await new Promise(resolve => setTimeout(resolve, 500));
+
+    console.log(`[handleCustomDropdown] ✓ Custom dropdown selection complete`);
+    return { success: true, selectedValue: value };
+
+  } catch (error) {
+    console.error(`[handleCustomDropdown] Failed:`, (error as Error).message);
+
+    // Capture screenshot
+    try {
+      await page.screenshot({ fullPage: false });
+    } catch (e) { /* ignore */ }
+
+    throw error;
+  }
+}
+
+/**
+ * Handle Date Picker Selection (Simplified)
+ *
+ * Tries direct text input first (works for most date pickers)
+ * Falls back to AI navigation for complex calendar UIs
+ *
+ * @param stagehand - Stagehand instance for AI navigation
+ * @param page - Stagehand page object
+ * @param selector - Selector for the date input field
+ * @param dateValue - Date value (e.g., "2024-12-25" or "12/25/2024")
+ * @param fieldDescription - Optional description for better AI accuracy
+ * @returns Result object with success status and method used
+ */
+async function handleDatePicker(
+  stagehand: any,
+  page: any,
+  selector: string,
+  dateValue: string,
+  fieldDescription = ''
+) {
+  "use step";
+
+  console.log(`[handleDatePicker] Selecting date: ${dateValue}`);
+  console.log(`[handleDatePicker] 🔍 Debug info:`, {
+    selector,
+    dateValue,
+    fieldDescription,
+    strategy: 'direct-input-first'
+  });
+
+  try {
+    // Strategy 1: Try direct text input (many date pickers accept this)
+    console.log('[handleDatePicker] 🎯 Trying Strategy 1: Direct text input');
+    const locator = page.locator(selector);
+    await locator.fill(dateValue);
+
+    // Verify it worked
+    await new Promise(resolve => setTimeout(resolve, 500));
+    const currentValue = await locator.inputValue().catch(() => '');
+
+    if (currentValue && currentValue.includes(dateValue.substring(5, 10))) {
+      console.log(`[handleDatePicker] ✓ Direct input succeeded: ${currentValue}`);
+      return { success: true, method: 'direct-input' };
+    }
+
+    throw new Error('Direct input did not work');
+
+  } catch (directError) {
+    console.log(`[handleDatePicker] Direct input failed, using AI navigation`);
+
+    // Strategy 2: Use AI to navigate the date picker UI
+    try {
+      // Parse date for natural language
+      const date = new Date(dateValue);
+      const monthName = date.toLocaleString('en-US', { month: 'long' });
+      const day = date.getDate();
+      const year = date.getFullYear();
+
+      const instruction = `select the date ${monthName} ${day}, ${year} in the ${fieldDescription} date picker`;
+      console.log(`[handleDatePicker] AI instruction: ${instruction}`);
+
+      // Let AI figure out the complex UI (click calendar icon, navigate months, etc.)
+      await stagehand.act(instruction);
+
+      console.log(`[handleDatePicker] ✓ AI navigation succeeded`);
+      return { success: true, method: 'ai-navigation' };
+
+    } catch (aiError) {
+      console.error(`[handleDatePicker] All strategies failed`);
+
+      // Screenshot
+      try {
+        await page.screenshot({ fullPage: false });
+      } catch (e) { /* ignore */ }
+
+      throw new Error(`Date picker selection failed for "${dateValue}": ${(aiError as Error).message}`);
+    }
+  }
+}
+
+/**
  * Strategy 1: Exact Selector Replay (No LLM)
  * Fastest method - replays exact selectors recorded during demonstration
  */
@@ -457,7 +962,8 @@ async function executeExactReplay(
     });
   }
 
-  for (const action of actions) {
+  for (let i = 0; i < actions.length; i++) {
+    const action = actions[i];
     console.log('[executeExactReplay] Action:', action.type, action.description);
 
     if (action.type === 'navigate') {
@@ -477,16 +983,177 @@ async function executeExactReplay(
       if (isOptionalElement) {
         // Try to click optional elements but don't fail if not found
         try {
-          console.log('[executeExactReplay] Optional element detected, attempting click with timeout...');
-          await page.locator(action.selector).click({ timeout: 3000 });
+          console.log('[executeExactReplay] Optional element detected, attempting click...');
+          await page.locator(action.selector).click();
           console.log('[executeExactReplay] ✓ Optional element clicked');
         } catch (error) {
           console.log('[executeExactReplay] ⚠️ Optional element not found, continuing...', (error as Error).message);
           // Don't throw - continue execution
         }
       } else {
-        // Required elements - fail if not found
-        await page.locator(action.selector).click({ timeout: 5000 });
+        // Required elements - try exact selector, then observe→act fallback
+        try {
+          await page.locator(action.selector).click();
+
+          // ✅ NEW: Wait for calendar widget if this is a date field opener
+          const nextAction = actions[i + 1];
+          const isDateFieldOpener = nextAction && (nextAction as any).semanticType === 'date-picker';
+
+          if (isDateFieldOpener) {
+            console.log('[executeExactReplay] 🗓️  Date field opener clicked, waiting for calendar widget...');
+
+            // Wait for calendar widget to appear (smart wait)
+            const calendarAppeared = await waitForWidgetVisible(page, 'calendar', 2000);
+
+            if (calendarAppeared) {
+              // Additional settle time for animations
+              await new Promise(resolve => setTimeout(resolve, 300));
+            }
+          }
+        } catch (error) {
+          console.warn('[executeExactReplay] Required click failed, using observe→act fallback:', (error as Error).message);
+          if (stagehand) {
+            // ✅ IMPROVED: Use observe() to find element with semantic context
+            // Build context-aware description using semantic metadata
+            const semanticType = (action as any).semanticType;
+            const semanticLabel = (action as any).semanticLabel;
+            let description = action.description || 'the target element to click';
+
+            // Enhance description with semantic context for disambiguation
+            if (semanticType === 'date-picker' && semanticLabel) {
+              // Extract day number from description (e.g., "Click 19" → "19")
+              const dayMatch = description.match(/(\d{1,2})/);
+              const day = dayMatch ? dayMatch[1] : '';
+              // ✅ IMPROVED: More specific instruction to avoid finding prices/other numbers
+              description = `calendar date cell for day ${day} in the ${semanticLabel} date picker widget`;
+              console.log('[executeExactReplay] 🗓️  Date-picker context added:', description);
+            } else if (semanticType === 'autocomplete' && semanticLabel) {
+              description = `autocomplete field for ${semanticLabel}`;
+              console.log('[executeExactReplay] 🔍 Autocomplete context added:', description);
+            } else if (semanticType) {
+              description = `${semanticType} element: ${description}`;
+              console.log('[executeExactReplay] 🏷️  Semantic type added:', semanticType);
+            }
+
+            // Scope observe() query to container if possible
+            let scopedDescription = description;
+            let observeOptions: any = {};
+            const selectorHint = action.selector;
+
+            if (selectorHint) {
+              // Extract container hints from selector (e.g., form, section, dialog)
+              const containerMatch = selectorHint.match(/(form|section|dialog|div\[class.*form|div\[id.*form)/i);
+              if (containerMatch) {
+                scopedDescription = `within the form: ${description}`;
+                console.log('[executeExactReplay] 🎯 Scoped to form container');
+              }
+            }
+
+            // ✅ NEW: For date-picker clicks, scope to calendar widget if it exists
+            if (semanticType === 'date-picker') {
+              const calendarSelector = await page.evaluate(() => {
+                const selectors = [
+                  '[id*="datepicker"]', '[id*="calendar"]',
+                  '[class*="datepicker"]', '[class*="calendar"]',
+                  '[class*="picker"]', '[role="dialog"]'
+                ];
+                for (const selector of selectors) {
+                  const el = document.querySelector(selector);
+                  if (el && (el as HTMLElement).offsetParent !== null) {
+                    // Return XPath for Stagehand
+                    const xpath = (el as any).ownerDocument.evaluate(
+                      'count(preceding-sibling::*)+1',
+                      el,
+                      null,
+                      XPathResult.NUMBER_TYPE,
+                      null
+                    ).numberValue;
+                    const parent = (el as any).parentNode;
+                    const parentPath = parent && parent.tagName !== 'HTML'
+                      ? '/' + parent.tagName.toLowerCase()
+                      : '';
+                    return `${parentPath}/*[${xpath}]`;
+                  }
+                }
+                return null;
+              }).catch(() => null);
+
+              if (calendarSelector) {
+                observeOptions.selector = calendarSelector;
+                console.log('[executeExactReplay] 🎯 Scoping observe to calendar widget:', calendarSelector);
+              }
+            }
+
+            console.log('[executeExactReplay] Observing for:', scopedDescription);
+
+            const [observedAction] = await stagehand.observe(`find ${scopedDescription}`, observeOptions);
+
+            if (observedAction && observedAction.method === 'click') {
+              // Use the observed Action directly for clicks (no modification needed)
+              console.log('[executeExactReplay] ✓ Found via observe, executing deterministically');
+              await stagehand.act(observedAction);  // Deterministic execution (no LLM)
+
+              // ✅ NEW: Wait for calendar widget if this is a date field opener (fallback path)
+              const nextAction = actions[i + 1];
+              const isDateFieldOpener = nextAction && (nextAction as any).semanticType === 'date-picker';
+
+              if (isDateFieldOpener) {
+                console.log('[executeExactReplay] 🗓️  Date field opener clicked (fallback), waiting for calendar...');
+                const calendarAppeared = await waitForWidgetVisible(page, 'calendar', 2000);
+                if (calendarAppeared) {
+                  await new Promise(resolve => setTimeout(resolve, 300));
+                }
+              }
+            } else {
+              // ✅ IMPROVED: Specific error message for date-picker
+              if (semanticType === 'date-picker') {
+                console.error('[executeExactReplay] ❌ Date picker calendar cells not found');
+                console.error('[executeExactReplay] This likely means the calendar widget did not open properly');
+                console.error('[executeExactReplay] Searched for:', scopedDescription);
+
+                // ✅ NEW: Capture screenshot for debugging
+                try {
+                  const screenshot = await page.screenshot({ fullPage: false });
+                  console.log(`[executeExactReplay] 📸 Screenshot captured (${screenshot.length} bytes) - date picker cells not found`);
+                } catch (screenshotError) {
+                  console.warn('[executeExactReplay] Failed to capture screenshot:', (screenshotError as Error).message);
+                }
+              }
+
+              // Final fallback: pure natural language
+              console.log('[executeExactReplay] ⚠️  observe failed, using natural language');
+              const fallbackInstruction = action.description || 'click the target element';
+
+              try {
+                await stagehand.act(fallbackInstruction);
+              } catch (nlError) {
+                // Both observe and natural language failed
+                if (semanticType === 'date-picker') {
+                  throw new Error(
+                    `Date picker calendar cells not found - calendar widget may not be open. ` +
+                    `Searched for: "${scopedDescription}". ` +
+                    `Both observe→act and natural language fallback failed.`
+                  );
+                }
+                throw nlError; // Re-throw for other types
+              }
+
+              // ✅ NEW: Wait for calendar widget (natural language fallback path)
+              const nextAction = actions[i + 1];
+              const isDateFieldOpener = nextAction && (nextAction as any).semanticType === 'date-picker';
+
+              if (isDateFieldOpener) {
+                console.log('[executeExactReplay] 🗓️  Date field opener clicked (NL fallback), waiting...');
+                const calendarAppeared = await waitForWidgetVisible(page, 'calendar', 2000);
+                if (calendarAppeared) {
+                  await new Promise(resolve => setTimeout(resolve, 300));
+                }
+              }
+            }
+          } else {
+            throw error;
+          }
+        }
       }
     } else if (action.type === 'fill' || action.type === 'type') {
       // Handle both 'fill' (raw) and 'type' (grouped) actions
@@ -527,27 +1194,182 @@ async function executeExactReplay(
         }
       }
 
-      await page.locator(action.selector).fill(value, { timeout: 5000 });
+      // ✅ DROPDOWN HANDLING: Check if this is a <select> dropdown
+      const dropdownType = (action as any).dropdownType;
+      const isInIframe = (action as any).isInIframe || false;
 
-      // ✅ AUTOCOMPLETE HANDLING: Use Stagehand to select from dropdown suggestions
-      // Only for autocomplete fields (not date-pickers - those are typed directly)
-      const isAutocompleteField = (action as any).semanticType === 'autocomplete';
+      // Debug logging for dropdown detection
+      if (dropdownType || isInIframe) {
+        console.log('[executeExactReplay] 🔍 Dropdown metadata detected:', {
+          dropdownType: dropdownType || 'none',
+          isInIframe,
+          selector: action.selector,
+          value: value,
+          semanticType: (action as any).semanticType,
+          description: action.description
+        });
+      }
 
-      if (isAutocompleteField && stagehand) {
-        console.log('[executeExactReplay] 🔍 Detected autocomplete field');
-
-        // Wait for dropdown suggestions to load
-        await new Promise(resolve => setTimeout(resolve, 2000));
-
-        console.log(`[executeExactReplay] 🎯 Selecting from dropdown: "${value}"`);
-
-        // Use Stagehand act() with proper instruction format (from best practices)
+      if (dropdownType === 'select' && action.selector) {
+        console.log('[executeExactReplay] 🎯 Select dropdown detected, using handleSelectDropdown');
         try {
-          await stagehand.act(`select "${value}" from the dropdown suggestions`);
-          console.log('[executeExactReplay] ✅ Dropdown selection succeeded');
-        } catch (error) {
-          console.warn('[executeExactReplay] ⚠️ Dropdown selection failed, continuing...', (error as Error).message);
-          // Don't throw - the form might still submit successfully
+          const result = await handleSelectDropdown(page, stagehand, action.selector, value, isInIframe);
+          console.log('[executeExactReplay] ✓ Select dropdown handled successfully:', {
+            method: result.method,
+            selected: result.selected || result.success
+          });
+          continue; // Skip normal fill/type logic, move to next action
+        } catch (dropdownError) {
+          console.error('[executeExactReplay] ❌ Select dropdown handler failed:', (dropdownError as Error).message);
+          throw dropdownError; // Propagate error to trigger strategy fallback
+        }
+      }
+
+      // Try exact selector first; fall back to observe→act if the selector drifted
+      try {
+        await page.locator(action.selector).fill(value);
+      } catch (error) {
+        console.warn('[executeExactReplay] Exact fill failed, using observe→act fallback:', (error as Error).message);
+        if (stagehand) {
+          // ✅ IMPROVED: Use observe() to find element with semantic context
+          // Build context-aware description using semantic metadata
+          const semanticType = (action as any).semanticType;
+          const semanticLabel = (action as any).semanticLabel;
+          let description = action.description || `field to fill with "${value}"`;
+
+          // Enhance description with semantic context for disambiguation
+          if (semanticType === 'date-picker' && semanticLabel) {
+            description = `date picker field for ${semanticLabel}`;
+            console.log('[executeExactReplay] 🗓️  Date-picker context added:', description);
+          } else if (semanticType === 'autocomplete' && semanticLabel) {
+            description = `autocomplete field for ${semanticLabel}`;
+            console.log('[executeExactReplay] 🔍 Autocomplete context added:', description);
+          } else if (semanticType) {
+            description = `${semanticType} field: ${description}`;
+            console.log('[executeExactReplay] 🏷️  Semantic type added:', semanticType);
+          }
+
+          // Scope observe() query to container if possible
+          let scopedDescription = description;
+          const selectorHint = action.selector;
+
+          if (selectorHint) {
+            // Extract container hints from selector (e.g., form, section, dialog)
+            const containerMatch = selectorHint.match(/(form|section|dialog|div\[class.*form|div\[id.*form)/i);
+            if (containerMatch) {
+              scopedDescription = `within the form: ${description}`;
+              console.log('[executeExactReplay] 🎯 Scoped to form container');
+            }
+          }
+
+          console.log('[executeExactReplay] Observing for:', scopedDescription);
+
+          const [observedAction] = await stagehand.observe(`find ${scopedDescription}`);
+
+          if (observedAction && observedAction.method === 'fill') {
+            // Create NEW Action object with our value (don't mutate observed action)
+            const actionWithValue = {
+              selector: observedAction.selector,
+              description: observedAction.description,
+              method: 'fill' as const,
+              arguments: [value]
+            };
+            console.log('[executeExactReplay] ✓ Found via observe, executing deterministically');
+            await stagehand.act(actionWithValue);  // Deterministic execution (no LLM)
+          } else {
+            // Final fallback: pure natural language
+            console.log('[executeExactReplay] ⚠️  observe failed, using natural language');
+            const fallbackInstruction = action.description
+              ? `${action.description} with value "${value}"`
+              : `fill the field with "${value}"`;
+            await stagehand.act(fallbackInstruction);
+          }
+        } else {
+          throw error;
+        }
+      }
+
+      // ✅ AUTOCOMPLETE HANDLING: Use observe→act pattern to fix {} error
+      // Check for autocomplete AFTER select dropdown check (priority order)
+      if (dropdownType === 'autocomplete' && stagehand && action.selector) {
+        console.log('[executeExactReplay] 🎯 Autocomplete dropdown detected, using handleAutocompleteDropdown');
+        try {
+          const fieldDesc = action.description || '';
+          await handleAutocompleteDropdown(
+            stagehand,
+            page,
+            action.selector,
+            value,
+            fieldDesc,
+            isInIframe
+          );
+          console.log('[executeExactReplay] ✓ Autocomplete dropdown handled successfully');
+          continue; // Skip normal fill/type logic, move to next action
+        } catch (autocompleteError) {
+          console.error('[executeExactReplay] ❌ Autocomplete handler failed:', (autocompleteError as Error).message);
+          throw autocompleteError; // Propagate error to trigger strategy fallback
+        }
+      }
+
+      // FALLBACK: Also check old semanticType field for backwards compatibility
+      const isAutocompleteField = (action as any).semanticType === 'autocomplete';
+      if (isAutocompleteField && !dropdownType && stagehand && action.selector) {
+        console.log('[executeExactReplay] 🎯 Autocomplete detected (via semanticType), using handleAutocompleteDropdown');
+        try {
+          const fieldDesc = action.description || '';
+          await handleAutocompleteDropdown(
+            stagehand,
+            page,
+            action.selector,
+            value,
+            fieldDesc,
+            isInIframe
+          );
+          console.log('[executeExactReplay] ✓ Autocomplete handled successfully');
+          continue; // Skip normal fill/type logic, move to next action
+        } catch (autocompleteError) {
+          console.error('[executeExactReplay] ❌ Autocomplete handler failed:', (autocompleteError as Error).message);
+          throw autocompleteError; // Propagate error to trigger strategy fallback
+        }
+      }
+
+      // ✅ CUSTOM DROPDOWN HANDLING: Handle custom dropdown widgets
+      if (dropdownType === 'custom' && stagehand && action.selector) {
+        console.log('[executeExactReplay] 🎯 Custom dropdown detected, using handleCustomDropdown');
+        try {
+          const fieldDesc = action.description || '';
+          await handleCustomDropdown(
+            stagehand,
+            page,
+            action.selector,
+            value,
+            fieldDesc
+          );
+          console.log('[executeExactReplay] ✓ Custom dropdown handled successfully');
+          continue; // Skip normal fill/type logic, move to next action
+        } catch (customDropdownError) {
+          console.error('[executeExactReplay] ❌ Custom dropdown handler failed:', (customDropdownError as Error).message);
+          throw customDropdownError; // Propagate error to trigger strategy fallback
+        }
+      }
+
+      // ✅ DATE PICKER HANDLING: Handle date picker widgets
+      if (dropdownType === 'datepicker' && stagehand && action.selector) {
+        console.log('[executeExactReplay] 🗓️  Date picker detected, using handleDatePicker');
+        try {
+          const fieldDesc = action.description || '';
+          await handleDatePicker(
+            stagehand,
+            page,
+            action.selector,
+            value,
+            fieldDesc
+          );
+          console.log('[executeExactReplay] ✓ Date picker handled successfully');
+          continue; // Skip normal fill/type logic, move to next action
+        } catch (datePickerError) {
+          console.error('[executeExactReplay] ❌ Date picker handler failed:', (datePickerError as Error).message);
+          throw datePickerError; // Propagate error to trigger strategy fallback
         }
       }
     } else if (action.type === 'submit') {
@@ -658,7 +1480,7 @@ async function executeExactReplay(
   let extraction = null;
   if (stagehand && zodExtractionSchema && extractionInstruction) {
     // Auto-scroll to trigger lazy-loaded content before extraction
-    await autoScrollForExtraction(page, stagehand);
+    await autoScrollForExtraction(page);
 
     // Get optimal selector for this page to reduce context window usage
     const currentUrl = page.url();
@@ -754,10 +1576,15 @@ async function executeNaturalLanguage(
     // 🔍 AUTOCOMPLETE DETECTION: Detect autocomplete patterns and handle type-then-select
     // Pattern 1: fill + submit (Wikipedia style)
     // Pattern 2: fill + click (Flight search dropdown style)
+    // ✅ FIX: Use semantic type to accurately detect date pickers (not heuristics)
     let isAutocomplete = false;
     let autocompleteType = null;
 
-    if (action.method === 'act' &&
+    // ✅ IMPROVED: Check semantic type to avoid misclassifying date pickers as autocomplete
+    const isDatePicker = action.semanticType === 'date-picker';
+
+    if (!isDatePicker &&
+        action.method === 'act' &&
         instruction &&
         instruction.toLowerCase().includes('fill') &&
         value &&
@@ -806,13 +1633,35 @@ async function executeNaturalLanguage(
         }
       } else {
         // Required actions - fail if they don't work
-        await stagehand.act(instruction, { page: page });
+
+        // ✅ DROPDOWN DETECTION: Use observe→act for dropdown selections
+        const isDropdownAction = /select|choose|pick.*from|dropdown/i.test(instruction || '');
+
+        if (isDropdownAction) {
+          console.log('[executeNaturalLanguage] 🎯 Dropdown action detected, using observe→act pattern');
+          try {
+            const [observedAction] = await stagehand.observe(instruction, { timeout: 10000 });
+            if (observedAction) {
+              console.log('[executeNaturalLanguage] ✓ Found via observe, executing deterministically');
+              await stagehand.act(observedAction);
+            } else {
+              console.warn('[executeNaturalLanguage] observe returned nothing, using direct act as fallback');
+              await stagehand.act(instruction, { page: page });
+            }
+          } catch (observeError) {
+            console.warn('[executeNaturalLanguage] observe failed, using direct act as fallback:', (observeError as Error).message);
+            await stagehand.act(instruction, { page: page });
+          }
+        } else {
+          // Non-dropdown actions - use direct act
+          await stagehand.act(instruction, { page: page });
+        }
       }
 
       // Wait for scroll to complete if this is a scroll action
       if (instruction && instruction.toLowerCase().includes('scroll')) {
         console.log('[executeNaturalLanguage] 💤 Waiting 1s for scroll to complete...');
-        await page.waitForTimeout(1000);
+        await new Promise(resolve => setTimeout(resolve, 1000));
       }
 
       // 🔍 AUTOCOMPLETE TWO-STEP: After typing, wait for dropdown and select suggestion
@@ -874,7 +1723,7 @@ async function executeNaturalLanguage(
   let extraction = null;
   if (zodExtractionSchema && extractionInstruction) {
     // Auto-scroll to trigger lazy-loaded content before extraction
-    await autoScrollForExtraction(page, stagehand);
+    await autoScrollForExtraction(page);
 
     // Get optimal selector for this page to reduce context window usage
     const currentUrl = page.url();
@@ -985,11 +1834,17 @@ async function executeAIRelearn(
   // Create agent with explicit instructions to stay on the current site
   const currentSite = startUrl ? new URL(startUrl).hostname : 'the current website';
   const agent = stagehand.agent({
+    cua: false,  // Use standard tool-based operation (not computer control mode)
     systemPrompt: `You are a web automation expert. Your goal: ${goalWithVars}.
 
 IMPORTANT RULES:
 1. You are already on ${currentSite} - DO NOT navigate to any other website
 2. Complete the entire task on this website only${validationCriteria}${schemaDescription}
+
+DROPDOWN SELECTION BEST PRACTICES:
+- When selecting from dropdowns, ALWAYS use observe() first to find options, then act() on the observed action
+- Example: actions = await observe("find the dropdown option containing 'NYC'"); await act(actions[0])
+- This ensures reliable selection even if UI changes
 
 Perform the task step by step using act, observe, and extract methods on ${currentSite}.
 Be precise and thorough. Validate your selections match the search criteria before proceeding.`,
@@ -1031,7 +1886,7 @@ Be precise and thorough. Validate your selections match the search criteria befo
 
     // Auto-scroll to trigger lazy-loaded content before extraction
     const page = stagehand.context.pages()[0];
-    await autoScrollForExtraction(page, stagehand);
+    await autoScrollForExtraction(page);
 
     // Get optimal selector for this page to reduce context window usage
     const currentUrl = page.url();

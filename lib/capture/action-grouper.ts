@@ -148,12 +148,20 @@ export function groupActions(rawActions: RecordedAction[]): GroupedAction[] {
           });
 
           // Create autocomplete action with semantic metadata (bypasses legacy handling)
+          const semanticLabelToUse = nextAction.semanticLabel || 'location';
+          console.log('[action-grouper] 🏷️  Autocomplete semantic label:', {
+            from: 'click',
+            value: nextAction.semanticLabel,
+            fallback: nextAction.semanticLabel ? null : 'location',
+            final: semanticLabelToUse
+          });
+
           const autocompleteAction: GroupedAction = {
             ...fillGroup.action,
             // ✅ Use semantic type from click if available, otherwise assume autocomplete
             semanticType: (nextAction.semanticType as InteractionType) || 'autocomplete',
             semanticValue: nextAction.semanticValue || fillGroup.action.value, // Use click's value if available
-            semanticLabel: nextAction.semanticLabel || 'location',
+            semanticLabel: semanticLabelToUse,
             // Keep metadata for debugging
             isAutocomplete: true,
             autocompleteClickedText: nextAction.description,

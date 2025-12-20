@@ -254,6 +254,16 @@ export class ActionRecorder {
           return parentLabel.textContent?.trim() || null;
         }
 
+        // ✅ FIX: Check for placeholder (common in modern forms)
+        if (element instanceof HTMLInputElement || element instanceof HTMLTextAreaElement) {
+          const placeholder = element.getAttribute('placeholder');
+          if (placeholder && placeholder.trim()) return placeholder.trim();
+
+          // Check aria-placeholder
+          const ariaPlaceholder = element.getAttribute('aria-placeholder');
+          if (ariaPlaceholder && ariaPlaceholder.trim()) return ariaPlaceholder.trim();
+        }
+
         return null;
       }
 
@@ -287,11 +297,44 @@ export class ActionRecorder {
         return months[monthLower] || 1;
       }
 
+      // Helper to extract month/year from text content (for structural calendar detection)
+      function extractMonthYearFromText(text: string): { month: number, year: number } | null {
+        const monthMatch = text.match(/(january|february|march|april|may|june|july|august|september|october|november|december)/i);
+        const yearMatch = text.match(/\d{4}/);
+
+        if (monthMatch && yearMatch) {
+          return {
+            month: parseMonth(monthMatch[0]),
+            year: parseInt(yearMatch[0])
+          };
+        }
+        return null;
+      }
+
       // Helper to get date picker context (month/year shown)
       function getDatePickerContext(element: Element): { month: number, year: number } | null {
-        // Find the calendar container
-        const picker = element.closest('[class*="datepicker"], [class*="calendar"], [class*="date-picker"], [role="dialog"]');
-        if (!picker) return null;
+        // ✅ ROBUST FIX: Find calendar container with expanded selectors
+        // Look for common calendar class patterns (order matters - most specific first)
+        const picker = element.closest('[class*="datepicker"], [class*="calendar"], [class*="date-picker"], [class*="picker"], [role="dialog"], [class*="popover"], [class*="dropdown"][class*="date"]');
+
+        // ✅ FALLBACK: If no picker found by class, try structural detection
+        // Look for parent containing month name text (works for any calendar)
+        if (!picker) {
+          let parent: Element | null = element.parentElement;
+          let depth = 0;
+          while (parent && depth < 10) {  // Search up to 10 levels
+            const text = parent.textContent || '';
+            const hasMonthName = /(january|february|march|april|may|june|july|august|september|october|november|december)/i.test(text);
+            const hasYear = /\d{4}/.test(text);
+            if (hasMonthName && hasYear) {
+              // Found a container with month/year - likely a calendar
+              return extractMonthYearFromText(text);
+            }
+            parent = parent.parentElement;
+            depth++;
+          }
+          return null;
+        }
 
         // Look for month/year display elements
         const monthEl = picker.querySelector('[class*="month"]:not([class*="day"])') ||
@@ -432,11 +475,33 @@ export class ActionRecorder {
 
         // Strategy 2: Check if we're in a date picker and clicked a day cell
         const role = element.getAttribute('role');
+        const elementTag = element.tagName.toLowerCase();
+
+        // ✅ ROBUST FIX: More permissive day cell detection
         const isCalendarDay = role === 'gridcell' ||
                              classList.includes('calendar-day') ||
                              classList.includes('date-cell') ||
                              classList.includes('day') ||
-                             element.tagName.toLowerCase() === 'td';
+                             elementTag === 'td' ||
+                             elementTag === 'button' && classList.includes('day') ||
+                             // ✅ STRUCTURAL DETECTION: Element with numeric text (1-31) AND siblings with similar pattern
+                             (function() {
+                               const text = element.textContent?.trim() || '';
+                               const num = parseInt(text);
+                               if (isNaN(num) || num < 1 || num > 31 || text.length > 2) return false;
+
+                               // Check if parent has other numeric children (calendar grid pattern)
+                               const parent = element.parentElement;
+                               if (!parent) return false;
+                               const siblings = Array.from(parent.children);
+                               const numericSiblings = siblings.filter(sib => {
+                                 const sibText = sib.textContent?.trim() || '';
+                                 const sibNum = parseInt(sibText);
+                                 return !isNaN(sibNum) && sibNum >= 1 && sibNum <= 31 && sibText.length <= 2;
+                               });
+                               // If 7+ numeric siblings, likely a calendar grid (week has 7 days)
+                               return numericSiblings.length >= 7;
+                             })();
 
         if (isCalendarDay) {
           const dayText = element.textContent?.trim() || '';
@@ -773,43 +838,45 @@ export class ActionRecorder {
 
       // Helper to infer autocomplete label from context
       function inferAutocompleteLabel(element: Element): string {
-        // Look for associated input field label
-        const container = element.closest('[class*="autocomplete"], [role="combobox"], [class*="suggestions"]');
+        // ✅ STRATEGY 1: Look for associated input field by traversing up to find container
+        const container = element.closest('[class*="autocomplete"], [role="combobox"], [class*="suggestions"], [class*="dropdown"], [class*="menu"], [class*="list"]');
         if (container) {
-          // Find the associated input
-          const input = container.querySelector('input') ||
-                       document.querySelector('input[aria-autocomplete]') ||
-                       document.querySelector('input[aria-expanded]');
+          // Try to find input within the container (might be sibling or parent-sibling)
+          let input = container.querySelector('input[type="text"], input:not([type]), input[type="search"]');
+
+          // If not found, try going up one level (input might be outside the dropdown container)
+          if (!input && container.parentElement) {
+            input = container.parentElement.querySelector('input[type="text"], input:not([type]), input[type="search"]');
+          }
 
           if (input) {
             const label = findLabelForElement(input);
             if (label) {
-              const lowerLabel = label.toLowerCase();
-              if (lowerLabel.includes('origin') || lowerLabel.includes('from') || lowerLabel.includes('departure')) return 'origin';
-              if (lowerLabel.includes('destination') || lowerLabel.includes('to') || lowerLabel.includes('arrival')) return 'destination';
-              if (lowerLabel.includes('address')) return 'address';
-              if (lowerLabel.includes('city')) return 'city';
-              if (lowerLabel.includes('airport')) return 'airport';
-              if (lowerLabel.includes('location')) return 'location';
-              if (lowerLabel.includes('zip') || lowerLabel.includes('postal')) return 'zip code';
-              if (lowerLabel.includes('state')) return 'state';
-              if (lowerLabel.includes('country')) return 'country';
-              return label;
+              console.log('[inferAutocompleteLabel] ✅ Found label from input field:', label);
+              return label;  // Returns original label (e.g., "Origin")
             }
           }
         }
 
-        // Check element's own attributes
+        // ✅ STRATEGY 2: Look for ANY nearby input with autocomplete attributes
+        const nearbyInput = document.querySelector('input[aria-autocomplete], input[aria-expanded="true"]');
+        if (nearbyInput) {
+          const label = findLabelForElement(nearbyInput);
+          if (label) {
+            console.log('[inferAutocompleteLabel] ✅ Found label from aria input:', label);
+            return label;
+          }
+        }
+
+        // ✅ STRATEGY 3: Check element's own attributes
         const ariaLabel = element.getAttribute('aria-label');
-        if (ariaLabel) return ariaLabel;
+        if (ariaLabel) {
+          console.log('[inferAutocompleteLabel] ⚠️  Using aria-label fallback:', ariaLabel);
+          return ariaLabel;
+        }
 
-        // Check class names for hints
-        const classList = element.className || '';
-        if (classList.includes('place')) return 'location';
-        if (classList.includes('address')) return 'address';
-        if (classList.includes('city')) return 'city';
-        if (classList.includes('airport')) return 'airport';
-
+        // ✅ FALLBACK: Return generic 'location' with warning
+        console.log('[inferAutocompleteLabel] ⚠️  Using generic fallback: location');
         return 'location';
       }
 
