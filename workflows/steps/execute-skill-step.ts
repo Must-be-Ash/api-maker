@@ -1402,6 +1402,33 @@ async function executeExactReplay(
           // Wait for autocomplete suggestions to load after typing
           await new Promise(resolve => setTimeout(resolve, 1000));
 
+          // ✅ NEW: Pre-submit validation - Check and refill cleared fields
+          // Some websites have bugs that clear origin when destination is selected
+          const formFieldCheck = await page.evaluate(() => {
+            const origin = document.querySelector('#flights-origin-prepop-whitelabel_en') as HTMLInputElement;
+            const destination = document.querySelector('#flights-destination-prepop-whitelabel_en') as HTMLInputElement;
+            return {
+              origin: origin?.value || '',
+              destination: destination?.value || '',
+              originExists: !!origin,
+              destinationExists: !!destination
+            };
+          });
+          console.log('[executeExactReplay] 📋 Form fields before submit:', formFieldCheck);
+
+          // ✅ FIX: Re-fill origin if it was cleared by website's buggy JavaScript
+          if (formFieldCheck.originExists && !formFieldCheck.origin && variables?.origin) {
+            console.log('[executeExactReplay] ⚠️  Origin field was cleared! Re-filling with:', variables.origin);
+            const originLocator = page.locator('#flights-origin-prepop-whitelabel_en');
+            await originLocator.fill(variables.origin as string);
+            await new Promise(resolve => setTimeout(resolve, 500));
+            console.log('[executeExactReplay] ✓ Origin field restored');
+          } else if (!formFieldCheck.originExists) {
+            console.warn('[executeExactReplay] ⚠️  Origin field (#flights-origin-prepop-whitelabel_en) does not exist in DOM before submit!');
+            console.warn('[executeExactReplay] The website may have removed or changed the field after destination was selected.');
+            console.warn('[executeExactReplay] This is a website bug - proceeding with submit anyway...');
+          }
+
           // Submit the form using page.evaluate() (verified against Stagehand docs)
           console.log('[executeExactReplay] ⏎ Submitting form via:', action.selector);
 
