@@ -1463,14 +1463,25 @@ async function replayWorkflow(
               console.log('[replayWorkflow] 🗓️  Date field opener clicked, waiting for calendar widget...');
 
               // Wait for calendar widget to appear (same logic as execute-skill-step.ts)
+              // ✅ IMPROVED: Wait for date CELLS, not just container (5000ms timeout)
               const calendarAppeared = await page.evaluate(async () => {
                 const selectors = [
+                  // Date cell selectors (more specific - calendar fully loaded)
+                  '[id*="datepicker"] [class*="day"]',
+                  '[id*="datepicker"] td',
+                  '[id*="datepicker"] [role="gridcell"]',
+                  '[class*="calendar"] [class*="day"]',
+                  '[class*="calendar"] td',
+                  '[class*="calendar"] [role="gridcell"]',
+                  '[class*="picker"] [class*="day"]',
+                  '[class*="picker"] td',
+                  // Fallback: Container selectors
                   '[id*="datepicker"]', '[id*="calendar"]',
                   '[class*="datepicker"]', '[class*="calendar"]',
                   '[class*="picker"]', '[role="dialog"]'
                 ];
                 const startTime = Date.now();
-                const timeout = 2000;
+                const timeout = 5000; // Increased from 2000ms - date cells load slowly
                 while (Date.now() - startTime < timeout) {
                   for (const selector of selectors) {
                     const el = document.querySelector(selector);

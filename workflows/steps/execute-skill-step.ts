@@ -494,6 +494,17 @@ async function waitForWidgetVisible(
       '[id*="autocomplete"]'
     ],
     calendar: [
+      // ✅ IMPROVED: Wait for actual date CELLS, not just calendar container
+      // Calendar widgets often load the container first, then populate cells via JS
+      '[id*="datepicker"] [class*="day"]',
+      '[id*="datepicker"] td',
+      '[id*="datepicker"] [role="gridcell"]',
+      '[class*="calendar"] [class*="day"]',
+      '[class*="calendar"] td',
+      '[class*="calendar"] [role="gridcell"]',
+      '[class*="picker"] [class*="day"]',
+      '[class*="picker"] td',
+      // Fallback: Container selectors (if cells use different naming)
       '[id*="datepicker"]',
       '[id*="calendar"]',
       '[class*="datepicker"]',
@@ -729,8 +740,10 @@ async function handleAutocompleteDropdown(
     console.log(`[handleAutocomplete] 📝 Clicking: ${suggestionAction.description}`);
     await stagehand.act(suggestionAction);
 
-    // Step 5: Wait for dropdown to close and verify
-    await new Promise(resolve => setTimeout(resolve, 500));
+    // Step 5: Wait for dropdown to close and page to stabilize
+    // ✅ INCREASED: 1000ms → gives website time to process selection and run validation JS
+    // Some websites clear other fields during validation - this settling time prevents that
+    await new Promise(resolve => setTimeout(resolve, 1000));
 
     // Verify selection by checking field value (no extra LLM call)
     const selectedValue = await locator.inputValue().catch(() => '');
@@ -1003,7 +1016,8 @@ async function executeExactReplay(
             console.log('[executeExactReplay] 🗓️  Date field opener clicked, waiting for calendar widget...');
 
             // Wait for calendar widget to appear (smart wait)
-            const calendarAppeared = await waitForWidgetVisible(page, 'calendar', 2000);
+            // ✅ INCREASED: 5000ms timeout for calendar (date cells load slowly via JS)
+            const calendarAppeared = await waitForWidgetVisible(page, 'calendar', 5000);
 
             if (calendarAppeared) {
               // Additional settle time for animations
@@ -1099,7 +1113,8 @@ async function executeExactReplay(
 
               if (isDateFieldOpener) {
                 console.log('[executeExactReplay] 🗓️  Date field opener clicked (fallback), waiting for calendar...');
-                const calendarAppeared = await waitForWidgetVisible(page, 'calendar', 2000);
+                // ✅ INCREASED: 5000ms timeout for calendar (date cells load slowly via JS)
+            const calendarAppeared = await waitForWidgetVisible(page, 'calendar', 5000);
                 if (calendarAppeared) {
                   await new Promise(resolve => setTimeout(resolve, 300));
                 }
@@ -1144,7 +1159,8 @@ async function executeExactReplay(
 
               if (isDateFieldOpener) {
                 console.log('[executeExactReplay] 🗓️  Date field opener clicked (NL fallback), waiting...');
-                const calendarAppeared = await waitForWidgetVisible(page, 'calendar', 2000);
+                // ✅ INCREASED: 5000ms timeout for calendar (date cells load slowly via JS)
+            const calendarAppeared = await waitForWidgetVisible(page, 'calendar', 5000);
                 if (calendarAppeared) {
                   await new Promise(resolve => setTimeout(resolve, 300));
                 }
