@@ -46,11 +46,17 @@ The system enables users to **demonstrate a task once** in a browser, then **exe
 
 ### Cloud Infrastructure
 - **Browserbase** - Managed browser sessions with Live View, recording, and CDP access
+- **Browserbase x402** - Pay-per-use browser sessions (USDC on Base) for execution
 - **Stagehand v3** - AI-powered browser automation built on Playwright
   - Natural language actions: `act("click submit button")`
   - Intelligent extraction: `extract(instruction, schema)`
   - Agent mode: autonomous multi-step execution
   - **Widget support**: Handles autocomplete, calendars, dropdowns via AI
+
+### Payment & Crypto
+- **x402 Protocol** - Pay-per-use API access using cryptocurrency
+- **USDC on Base** - Payment token for skill execution and Browserbase sessions
+- **Viem** - Ethereum library for wallet interactions and payment signing
 
 ### Framework & AI
 - **Vercel Workflow Kit** - Durable, retryable workflow execution
@@ -1029,22 +1035,127 @@ await db.collection('skills').insertOne({
 
 ---
 
-## Phase 5: Skill Execution (Triple Strategy)
+## Phase 5: Skill Execution (Triple Strategy with x402 Payment)
 
-**Flow:** User Input → Variable Extraction → 3 Fallback Strategies → Data Extraction → Validation
+**Flow:** User Input → x402 Payment → Browserbase Session → Variable Extraction → 3 Fallback Strategies → Data Extraction → Validation → Session Termination
 
 ### Entry Point
 ```
 POST /api/skills/{skillId}/execute
-Body: { variables: { origin: "Vancouver", destination: "LAX" } }
+Headers: X-PAYMENT: <x402 skill payment header>
+Body: {
+  variables: { origin: "Vancouver", destination: "LAX" },
+  browserbaseSession: {
+    connectUrl: "wss://connect.browserbase.com/...",
+    sessionId: "session_abc123"
+  }
+}
 ```
 
 ### Key Files
-- `/app/api/skills/[skillId]/execute/route.ts` - API endpoint
+- `/app/api/skills/[skillId]/execute/route.ts` - API endpoint with x402 verification
+- `/app/api/browserbase/create-session/route.ts` - Browserbase x402 proxy (CORS)
+- `/lib/payment-verification.ts` - Dual payment requirements
+- `/lib/browserbase/x402-client.ts` - Browserbase x402 client
+- `/lib/browserbase/pricing.ts` - Session pricing calculations
 - `/workflows/execute-skill.ts` - Workflow orchestrator
-- `/workflows/steps/execute-skill-step.ts` - **Execution logic (942 lines!)**
+- `/workflows/steps/execute-skill-step.ts` - **Execution logic (1,800+ lines!)**
 - `/lib/ai/variable-extractor.ts` - NLU variable extraction
 - `/lib/execution/result-tracker.ts` - Comprehensive logging
+
+### x402 Payment Verification
+
+**Files:** `/lib/payment-verification.ts`, `/lib/browserbase/x402-client.ts`
+
+**Dual Payment Flow:**
+
+```typescript
+// Step 1: Client requests execution → Get dual payment requirements
+const dualPaymentRequirements = createDualPaymentRequirements(
+  skillPrice,              // e.g., $0.01
+  DEFAULT_SESSION_MINUTES, // 5 minutes
+  network,                 // "base"
+  requestUrl,              // Skill endpoint
+  payToAddress             // Creator's wallet
+);
+
+// Returns 2 payment requirements:
+[
+  { /* Skill payment to creator */ },
+  { /* Browserbase session payment to x402.browserbase.com */ }
+]
+
+// Step 2: Client creates skill payment using x402 SDK
+
+// Step 3: Client calls Browserbase x402 proxy (no payment) → Get Browserbase requirements
+const browserbaseReq = await fetch('/api/browserbase/create-session', {
+  method: 'POST',
+  body: JSON.stringify({ estimatedMinutes: 5 })
+});
+// Returns 402 with Browserbase's actual payment requirements
+
+// Step 4: Client creates Browserbase payment using actual requirements
+
+// Step 5: Client calls Browserbase proxy (with payment) → Get session
+const session = await fetch('/api/browserbase/create-session', {
+  method: 'POST',
+  headers: { 'x-402-payment': browserbasePaymentHeader },
+  body: JSON.stringify({ estimatedMinutes: 5 })
+});
+// Returns: { sessionId, connectUrl, paidMinutes, expiresAt }
+
+// Step 6: Client calls skill endpoint with both
+await fetch(`/api/skills/${skillId}/execute`, {
+  headers: { 'X-PAYMENT': skillPaymentHeader },
+  body: JSON.stringify({
+    variables,
+    browserbaseSession: {
+      connectUrl: session.connectUrl,
+      sessionId: session.sessionId
+    }
+  })
+});
+```
+
+**Server-Side Verification:**
+
+```typescript
+// Verify skill payment
+const verificationResult = await verifyPayment(paymentHeader, skillPaymentRequirements);
+
+if (!verificationResult.isValid) {
+  return Response.json(create402Response(...), { status: 402 });
+}
+
+// Settle skill payment
+await settlePaymentWithRetry(paymentHeader, skillPaymentRequirements);
+
+// Validate Browserbase session from client
+if (!browserbaseSession?.connectUrl || !browserbaseSession?.sessionId) {
+  return Response.json({
+    error: 'Browserbase session required',
+    message: 'You must pre-pay for a Browserbase session...'
+  }, { status: 400 });
+}
+```
+
+**Session Termination (Refunds):**
+
+```typescript
+// After execution completes, terminate session for refund
+if (usingClientSession && input.browserbaseSessionId) {
+  try {
+    const termination = await terminateSession(input.browserbaseSessionId);
+    console.log('[Browserbase x402] Session terminated:', {
+      minutesUsed: termination.usage.minutesUsed,
+      refundAmount: termination.refund?.amount || 0
+    });
+  } catch (error) {
+    // 404 = endpoint not yet deployed, handle gracefully
+    console.warn('[Browserbase x402] Termination endpoint not available');
+  }
+}
+```
 
 ### Variable Extraction (AI)
 
@@ -1206,14 +1317,36 @@ const extracted = await generateObject({
    }
    ```
 
-3. **Extract data**
+3. **Auto-scroll and targeted extraction**
    ```typescript
+   // Auto-scroll to load lazy content (unless page is extremely long)
+   await autoScrollForExtraction(page);
+
+   // Get optimal extraction selector (Wikipedia uses .mw-parser-output)
+   const extractionSelector = getExtractionSelector(currentUrl);
+
+   // Extract with targeted selector to avoid context window overflow
    const zodSchema = buildZodSchemaFromFields(skill.extractionSchema.fields);
-   const extraction = await stagehand.extract(
-     skill.extractionSchema.instruction,
-     zodSchema
-   );
+   if (extractionSelector) {
+     // Targeted extraction (e.g., Wikipedia main content only)
+     extraction = await stagehand.extract(
+       skill.extractionSchema.instruction,
+       zodSchema,
+       { selector: extractionSelector }
+     );
+   } else {
+     // Full page extraction
+     extraction = await stagehand.extract(
+       skill.extractionSchema.instruction,
+       zodSchema
+     );
+   }
    ```
+
+   **Extraction Optimizations:**
+   - **Wikipedia**: Uses `.mw-parser-output` selector to extract only article content (not navigation, sidebar, footer)
+   - **Why**: Bob Dylan's Wikipedia page is 64k pixels tall - full page extraction exceeds OpenAI's context window
+   - **Result**: 60-80% token reduction for Wikipedia extractions
 
 4. **Validate**
    ```typescript
@@ -2019,14 +2152,21 @@ This system transforms browser demonstrations into intelligent, reusable APIs th
 
 **The Result:** Record once, execute infinitely with different inputs, on pages that may have changed since recording.
 
-**Technology:** Browserbase + Stagehand v3 + GPT-4o + Vercel Workflow Kit + MongoDB
+**Technology:** Browserbase + Browserbase x402 + Stagehand v3 + GPT-4o + Vercel Workflow Kit + MongoDB + x402 Protocol
 
 **Performance:**
-- Recording: 10-30 seconds (AI processing + validation)
-- Execution (Strategy 1): 5-20 seconds (varies with widget complexity)
+- Recording: 10-30 seconds (AI processing + validation) - Uses platform Browserbase API key
+- Execution (Strategy 1): 5-20 seconds (varies with widget complexity) - Uses user's pre-paid x402 session
 - Execution (Strategy 2): 15-35 seconds (AI-powered)
 - Execution (Strategy 3): 30-120 seconds (full re-learn)
-- Token usage: 0 tokens (Strategy 1 exact replay) to 50K tokens (Strategy 3)
+- Token usage: ~500 tokens (Strategy 1 autocomplete) to 50K tokens (Strategy 3)
+- Payment overhead: ~2-3 seconds (dual payment flow)
+
+**Cost Structure:**
+- Skill price: Set by creator (e.g., $0.001-$1.00)
+- Browserbase session: $1/hour = $0.016/min (e.g., $0.08 for 5 min)
+- Refunds: Unused session time refunded via `/terminate` endpoint (when available)
+- Total user pays: Skill price + Browserbase session cost
 
 **Reliability:**
 - Overall: ~97% success rate across all strategies

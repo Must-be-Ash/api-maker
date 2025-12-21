@@ -36,8 +36,9 @@ And 100+ more examples in [`skill-examples.md`](./skill-examples.md)
 
 - Node.js 18+ and pnpm
 - MongoDB (local or cloud)
-- [Browserbase](https://browserbase.com) API key
+- [Browserbase](https://browserbase.com) API key (for recording)
 - OpenAI API key
+- **For execution**: USDC on Base network (for x402 payment protocol)
 
 ### Installation
 
@@ -61,13 +62,18 @@ Add to `.env.local`:
 # MongoDB
 MONGODB_URI=mongodb://localhost:27017/skills-system
 
-# Browserbase (for browser sessions)
+# Browserbase (for recording sessions)
 BROWSERBASE_API_KEY=your_browserbase_api_key
 BROWSERBASE_PROJECT_ID=your_browserbase_project_id
+
+# Browserbase x402 (for execution - pay-per-use)
+BROWSERBASE_X402_ENDPOINT=https://x402.browserbase.com
 
 # OpenAI (for AI features)
 OPENAI_API_KEY=your_openai_api_key
 ```
+
+**Note:** Recording uses your Browserbase API key. Execution uses Browserbase x402 where users pay for their own browser sessions with USDC on Base.
 
 ### Start Development Server
 
@@ -121,15 +127,39 @@ The system will:
 
 ### 2. Execute the Skill
 
-Call your API with different variables:
+Call your API with different variables. **Requires x402 payment** (dual payment: skill + Browserbase session):
 
 ```bash
+# Step 1: Request execution → Get 402 with payment requirements
 POST /api/skills/{skillId}/execute
 {
   "variables": {
     "origin": "Toronto",
     "destination": "New York",
     "date": "2026-01-15"
+  }
+}
+
+# Response: 402 Payment Required with dual requirements
+# - Skill payment ($0.01 to creator)
+# - Browserbase session ($0.08 for 5 min)
+
+# Step 2: Client creates skill payment (x402 SDK)
+
+# Step 3: Client gets Browserbase session (x402 endpoint)
+
+# Step 4: Execute with payments
+POST /api/skills/{skillId}/execute
+Headers: X-PAYMENT: <skill_payment_header>
+{
+  "variables": {
+    "origin": "Toronto",
+    "destination": "New York",
+    "date": "2026-01-15"
+  },
+  "browserbaseSession": {
+    "connectUrl": "wss://connect.browserbase.com/...",
+    "sessionId": "session_abc123"
   }
 }
 ```
@@ -156,6 +186,12 @@ POST /api/skills/{skillId}/execute
 }
 ```
 
+**Payment Details:**
+- **Skill price**: Set by creator (e.g., $0.001-$1.00)
+- **Browserbase session**: $1/hour = ~$0.08 for 5 minutes
+- **Refunds**: Unused session time refunded automatically (when `/terminate` endpoint is available)
+- **Total cost**: Skill price + Browserbase session
+
 ---
 
 ## Architecture
@@ -163,8 +199,14 @@ POST /api/skills/{skillId}/execute
 ### Technology Stack
 
 **Cloud Infrastructure**:
-- [Browserbase](https://browserbase.com) - Managed browser sessions with Live View and session recording
+- [Browserbase](https://browserbase.com) - Managed browser sessions with Live View (for recording)
+- [Browserbase x402](https://x402.browserbase.com) - Pay-per-use browser sessions (for execution)
 - [Stagehand v3](https://github.com/browserbase/stagehand) - AI-powered browser automation with widget support (built on Playwright)
+
+**Payment & Crypto**:
+- [x402 Protocol](https://x402.org) - Pay-per-use API access using cryptocurrency
+- USDC on Base - Payment token for skill execution and Browserbase sessions
+- [Viem](https://viem.sh) - Ethereum library for wallet interactions
 
 **Framework & AI**:
 - [Vercel Workflow Kit](https://workflow.is) - Durable, retryable workflow execution
@@ -643,8 +685,10 @@ See [`API_REFERENCE.md`](./API_REFERENCE.md) for complete API documentation incl
 
 **Recording**:
 - 10-30 seconds (includes AI processing + validation)
+- Uses platform Browserbase API key (no user payment)
 
 **Execution**:
+- Payment flow: ~2-3 seconds (dual payment setup)
 - Strategy 1: 5-20 seconds (varies with widget complexity)
 - Strategy 2: 15-35 seconds
 - Strategy 3: 30-120 seconds
@@ -654,6 +698,14 @@ See [`API_REFERENCE.md`](./API_REFERENCE.md) for complete API documentation incl
 - Execution Strategy 1: ~500 tokens (autocomplete dropdown selection only)
 - Execution Strategy 2: 500-2K tokens
 - Execution Strategy 3: 2K-50K tokens
+
+**Cost Structure**:
+- **Recording**: Free (platform-funded)
+- **Execution**:
+  - Skill price: Set by creator (e.g., $0.001-$1.00)
+  - Browserbase session: $1/hour = ~$0.016/min (e.g., $0.08 for 5 min)
+  - Refunds: Unused time refunded via session termination
+  - **Total per execution**: Skill price + Browserbase session cost
 
 **Reliability**: ~97% success rate across all strategies (85% Strategy 1, 10% Strategy 2, 5% Strategy 3)
 
@@ -669,9 +721,12 @@ See [`API_REFERENCE.md`](./API_REFERENCE.md) for complete API documentation incl
 - Form submissions with redundant submit detection
 - Navigation with multi-step form support
 - Data extraction with structured schemas
+- **Optimized extraction** - Wikipedia uses targeted selectors (60-80% token reduction)
 - Variable detection for typed values
 - Multi-variable skills (4+ variables)
 - **Field restoration** - Handles website bugs that clear form fields
+- **x402 payment protocol** - Dual payment system (skill + Browserbase session)
+- **Session termination** - Automatic refunds for unused time (when endpoint available)
 
 ### ⚠️ Known Limitations
 - **Dropdown selections**: 65% coverage (simple dropdowns work, complex custom dropdowns may fail)

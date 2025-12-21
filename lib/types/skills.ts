@@ -308,6 +308,8 @@ export interface ExecuteSkillInput {
   skillId: string;
   variables?: Record<string, any>;
   executorAddress?: string | null; // Wallet address of executor (optional, for analytics)
+  browserbaseConnectUrl?: string; // WebSocket URL from Browserbase x402 session (client pre-paid)
+  browserbaseSessionId?: string; // Session ID from Browserbase x402 (for termination)
 }
 
 /**

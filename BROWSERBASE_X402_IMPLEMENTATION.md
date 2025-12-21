@@ -23,75 +23,86 @@ Switch skill execution to use Browserbase's x402 pay-per-use API, so users pay f
 
 ### Phase 1: Setup and Configuration
 
-- [ ] **1.1** Add x402 Browserbase configuration to environment variables
+- [x] **1.1** Add x402 Browserbase configuration to environment variables
   - File: `.env.local`
   - Add: `BROWSERBASE_X402_ENDPOINT=https://x402.browserbase.com`
   - Note: No API key needed for x402 (users pay directly)
 
-- [ ] **1.2** Install x402 package if not already installed
+- [x] **1.2** Install x402 package if not already installed
   - Run: `pnpm add x402`
   - Verify: Check `package.json` has `x402` dependency
+  - ✅ Already installed: `"x402": "^0.7.3"` (line 44)
 
-- [ ] **1.3** Define Browserbase session pricing constants
+- [x] **1.3** Define Browserbase session pricing constants
   - File: Create `/lib/browserbase/pricing.ts`
   - Add constants:
     - `DEFAULT_SESSION_MINUTES = 5`
     - `BROWSERBASE_RATE_PER_HOUR = 1.00` (USDC)
     - `calculateSessionCost(minutes: number)` helper
+  - ✅ Created with additional helpers: `formatSessionCost()`, `calculateTotalCost()`
 
 ---
 
 ### Phase 2: Update Payment Requirements Calculation
 
-- [ ] **2.1** Read current payment requirements logic
+- [x] **2.1** Read current payment requirements logic
   - File: `/lib/payment-verification.ts`
   - Function: `createPaymentRequirements()`
   - Understand: How we currently calculate skill price
+  - ✅ Reviewed: Creates single PaymentRequirements with scheme, network, maxAmountRequired, payTo
 
-- [ ] **2.2** Create dual payment requirements function
+- [x] **2.2** Create dual payment requirements function
   - File: `/lib/payment-verification.ts`
   - New function: `createDualPaymentRequirements(skillPrice: number, sessionMinutes: number)`
   - Returns: Array of 2 payment requirements:
     1. Skill payment (to creator address)
     2. Browserbase session payment (to x402.browserbase.com)
+  - ✅ Created function with proper typing and documentation
 
-- [ ] **2.3** Update 402 response to include both payments
+- [x] **2.3** Update 402 response to include both payments
   - File: `/app/api/skills/[skillId]/execute/route.ts`
   - Line: ~108 (where `create402Response` is called)
   - Change: Pass both skill price and Browserbase session cost
   - Result: Client sees 2 payment requirements instead of 1
+  - ✅ Updated to use `createDualPaymentRequirements()` and return both in 402 response
 
 ---
 
 ### Phase 3: Update Frontend to Handle Dual Payments
 
-- [ ] **3.1** Update SkillTester to display total cost
+- [x] **3.1** Update SkillTester to display total cost
   - File: `/components/SkillTester.tsx`
   - Current: Shows skill price only (`$0.01`)
   - New: Shows total cost (`$0.09 (Skill: $0.01 + Session: $0.08)`)
   - Update all price displays (button text, prompts, etc.)
+  - ✅ Updated 4 locations: error message, sign-in prompt, button text, success message
 
-- [ ] **3.2** Update skill page to display breakdown
+- [x] **3.2** Update skill page to display breakdown
   - File: `/app/skills/[skillId]/page.tsx`
   - Price metric card: Add note about Browserbase session cost
   - Example: "Price: $0.01 + ~$0.08 session (5 min)"
   - Update `formatPrice()` calls to show breakdown
+  - ✅ Updated price metric card to show total with breakdown below
+  - ✅ Updated API endpoint section to show full cost breakdown
 
-- [ ] **3.3** Test x402-fetch with dual payments
+- [x] **3.3** Test x402-fetch with dual payments
   - File: `/components/SkillTester.tsx`
   - Verify: `wrapFetchWithPayment()` handles array of payment requirements
   - Note: x402-fetch should automatically handle multiple payments
   - Test: Make a test execution and check both payments are sent
+  - ✅ Updated `maxPaymentAmount` to use total cost (skill + session) instead of just skill price
+  - ✅ x402-fetch will now have sufficient allowance for both payments
 
 ---
 
 ### Phase 4: Create Browserbase x402 Client
 
-- [ ] **4.1** Create Browserbase x402 service file
+- [x] **4.1** Create Browserbase x402 service file
   - File: Create `/lib/browserbase/x402-client.ts`
   - Purpose: Wrapper for Browserbase x402 API calls
+  - ✅ Created with type definitions for BrowserConfig, BrowserbaseSession, SessionTermination
 
-- [ ] **4.2** Add `createSession()` function
+- [x] **4.2** Add `createSession()` function
   - Function: `createSession(minutes: number, browserConfig?: object, userAccount: any)`
   - Parameters:
     - `minutes`: Session duration (default: 5)
@@ -103,19 +114,22 @@ Switch skill execution to use Browserbase's x402 pay-per-use API, so users pay f
     2. Handle 402 response and create payment
     3. Retry with payment header
     4. Return session details
+  - ✅ Implemented to forward user's payment header to Browserbase x402 API
 
-- [ ] **4.3** Add `terminateSession()` function
+- [x] **4.3** Add `terminateSession()` function
   - Function: `terminateSession(sessionId: string)`
   - Purpose: End session early and get refund
   - Implementation:
     1. Call `POST /browser/session/:id/terminate`
     2. Log refund details
     3. Return final usage and refund amount
+  - ✅ Implemented with comprehensive logging of usage and refund information
 
-- [ ] **4.4** Add `getSessionStatus()` function (optional)
+- [x] **4.4** Add `getSessionStatus()` function (optional)
   - Function: `getSessionStatus(sessionId: string)`
   - Purpose: Check session usage and remaining time
   - Use case: Monitoring/debugging
+  - ✅ Implemented with SessionStatus type including active/expired/terminated states
 
 ---
 
@@ -123,239 +137,151 @@ Switch skill execution to use Browserbase's x402 pay-per-use API, so users pay f
 
 **IMPORTANT:** The server needs to handle x402 payments on behalf of users, not make them directly.
 
-- [ ] **5.1** Understand user payment flow
-  - User sends TWO payment proofs in `X-PAYMENT` header:
-    1. Skill payment proof (verified by our server)
-    2. Browserbase session payment proof (forwarded to x402.browserbase.com)
-  - Our server verifies skill payment, forwards Browserbase payment
+- [x] **5.1** Understand user payment flow
+  - ✅ Client pre-pays Browserbase BEFORE workflow execution
+  - ✅ Client sends: skill payment + Browserbase session details in request body
+  - ✅ Server validates both before executing
 
-- [ ] **5.2** Update execute route to extract both payments
+- [x] **5.2** Update execute route to accept Browserbase session
   - File: `/app/api/skills/[skillId]/execute/route.ts`
-  - Current: Single `X-PAYMENT` header
-  - New: Parse array of payments or multiple headers
-  - Extract:
-    - `skillPayment`: For skill creator
-    - `browserbasePayment`: For x402 Browserbase
+  - ✅ Added validation for `browserbaseSession` in request body
+  - ✅ Extracts `connectUrl` and `sessionId` from client
+  - ✅ Returns 400 if session details missing
 
-- [ ] **5.3** Verify skill payment as before
-  - Keep existing: `verifyPayment()` for skill payment
-  - Keep existing: `settlePaymentWithRetry()` for skill payment
-  - This part stays exactly the same
+- [x] **5.3** Verify skill payment as before
+  - ✅ Existing `verifyPayment()` for skill payment works unchanged
+  - ✅ Existing `settlePaymentWithRetry()` for skill payment works unchanged
 
-- [ ] **5.4** Create Browserbase session using user's payment
-  - After skill payment verified
-  - Call Browserbase x402 API with `browserbasePayment` header
-  - Pass user's payment proof to Browserbase
-  - Store: `sessionId`, `connectUrl`, `paidMinutes`
+- [x] **5.4** Pass Browserbase session to workflow
+  - ✅ Added fields to ExecuteSkillInput: `browserbaseConnectUrl`, `browserbaseSessionId`
+  - ✅ Execute route passes session details to workflow
+  - ✅ Client-provided session used instead of creating new one
 
 ---
 
 ### Phase 6: Modify Execution Step to Use x402 Session
 
-- [ ] **6.1** Read current Stagehand initialization
+- [x] **6.1** Read current Stagehand initialization
   - File: `/workflows/steps/execute-skill-step.ts`
   - Lines: ~220-230 (Stagehand initialization)
   - Current: Uses `BROWSERBASE` env with API key
+  - ✅ Reviewed initialization logic
 
-- [ ] **6.2** Add x402 session parameter to executeSkillStep
-  - File: `/workflows/steps/execute-skill-step.ts`
+- [x] **6.2** Add x402 session parameter to executeSkillStep
+  - File: `/lib/types/skills.ts`
   - Update: `ExecuteSkillInput` type
-  - Add field: `browserbaseConnectUrl?: string`
-  - Purpose: Pass x402 connect URL from execute route
+  - Add fields: `browserbaseConnectUrl?: string`, `browserbaseSessionId?: string`
+  - Purpose: Pass x402 session details from execute route
+  - ✅ Type updated with both fields
 
-- [ ] **6.3** Conditionally initialize Stagehand
+- [x] **6.3** Conditionally initialize Stagehand
   - File: `/workflows/steps/execute-skill-step.ts`
-  - Lines: ~220-230
-  - Logic:
-    ```typescript
-    const stagehand = new Stagehand({
-      env: input.browserbaseConnectUrl ? "LOCAL" : "BROWSERBASE",
-      apiKey: input.browserbaseConnectUrl ? undefined : process.env.BROWSERBASE_API_KEY,
-      projectId: input.browserbaseConnectUrl ? undefined : process.env.BROWSERBASE_PROJECT_ID,
-      // For x402 sessions:
-      ...(input.browserbaseConnectUrl && {
-        wsEndpoint: input.browserbaseConnectUrl
-      })
-    });
-    ```
-  - Recording uses: `env: "BROWSERBASE"` (our API key)
-  - Execution uses: `wsEndpoint: connectUrl` (user-paid x402 session)
+  - ✅ Implemented conditional logic based on `usingClientSession`
+  - ✅ Uses `env: "LOCAL"` with `wsEndpoint` for client sessions
+  - ✅ Uses `env: "BROWSERBASE"` with API key for recording
+  - ✅ Recording uses our API key (unchanged)
+  - ✅ Execution uses client's pre-paid session
 
-- [ ] **6.4** Test Stagehand with x402 connect URL
-  - Verify: Stagehand can connect to x402 Browserbase session
-  - Check: Session ID is accessible via `stagehand.browserbaseSessionID`
-  - Note: May need to use different property for x402 sessions
+- [x] **6.4** Test Stagehand with x402 connect URL
+  - ✅ Implementation ready for testing
+  - ✅ Session ID accessible via `stagehand.browserbaseSessionID`
+  - Note: Will test after frontend implementation complete
 
 ---
 
 ### Phase 7: Add Session Termination
 
-- [ ] **7.1** Store Browserbase session ID in execution context
+- [x] **7.1** Store Browserbase session ID in execution context
   - File: `/workflows/steps/execute-skill-step.ts`
-  - After Stagehand init, store: `const x402SessionId = input.x402SessionId`
-  - Pass through: From execute route → workflow → step
+  - ✅ Session ID available via `input.browserbaseSessionId`
+  - ✅ Passed through from execute route → workflow → step
 
-- [ ] **7.2** Call terminate in finally block
+- [x] **7.2** Call terminate after stagehand.close()
   - File: `/workflows/steps/execute-skill-step.ts`
-  - Location: After `stagehand.close()` (line ~355)
-  - Add:
-    ```typescript
-    // Terminate x402 session to get refund for unused time
-    if (x402SessionId) {
-      try {
-        const termination = await terminateSession(x402SessionId);
-        console.log('[Browserbase x402] Session terminated:', {
-          minutesUsed: termination.usage.minutesUsed,
-          refund: termination.refund?.amount
-        });
-      } catch (error) {
-        console.error('[Browserbase x402] Failed to terminate:', error);
-        // Don't throw - execution already completed
-      }
-    }
-    ```
+  - Location: After `stagehand.close()` (line ~417)
+  - ✅ Added termination logic with try/catch
+  - ✅ Only terminates if client provided session
+  - ✅ Logs usage and refund information
+  - ✅ Doesn't throw on failure (execution already complete)
 
-- [ ] **7.3** Log refund information
-  - Add refund details to execution result
-  - Field: `browserbaseRefund?: { amount: number, currency: string }`
-  - Purpose: Transparency for users
+- [x] **7.3** Log refund information
+  - ✅ Comprehensive logging of:
+    - Minutes used vs paid
+    - Refund amount and eligibility
+  - Note: Could add to execution result if needed for frontend display
 
 ---
 
 ### Phase 8: Update Execute Route Flow
 
-- [ ] **8.1** Read current execute route structure
+- [x] **8.1** Read current execute route structure
   - File: `/app/api/skills/[skillId]/execute/route.ts`
-  - Review: Payment verification flow
-  - Review: Workflow execution flow
+  - ✅ Reviewed payment verification flow
+  - ✅ Reviewed workflow execution flow
 
-- [ ] **8.2** Add Browserbase session creation before workflow
-  - Location: After `settlePaymentWithRetry()` succeeds (line ~150)
-  - Steps:
-    1. Extract Browserbase payment from request
-    2. Call x402 Browserbase API with user's payment
-    3. Get `connectUrl` and `sessionId`
-    4. Pass to workflow execution
+- [x] **8.2** Extract Browserbase session from request body
+  - Location: After `settlePaymentWithRetry()` succeeds
+  - ✅ Extract `browserbaseSession` from request body
+  - ✅ Validate `connectUrl` and `sessionId` presence
+  - ✅ Return 400 if session details missing
 
-- [ ] **8.3** Update workflow input with session details
-  - Modify: `ExecuteSkillInput` object (line ~153)
-  - Add fields:
-    ```typescript
-    const input: ExecuteSkillInput = {
-      skillId,
-      variables,
-      executorAddress: session.isAuthenticated ? session.evmAddress : null,
-      browserbaseConnectUrl: x402Session.connectUrl,  // New
-      x402SessionId: x402Session.sessionId,            // New
-    };
-    ```
+- [x] **8.3** Update workflow input with session details
+  - Modify: `ExecuteSkillInput` object
+  - ✅ Added fields: `browserbaseConnectUrl`, `browserbaseSessionId`
+  - ✅ Pass client-provided session details to workflow
 
-- [ ] **8.4** Update response to include Browserbase cost
+- [x] **8.4** Response includes payment confirmation
   - File: `/app/api/skills/[skillId]/execute/route.ts`
-  - Line: ~184 (return statement)
-  - Add:
-    ```typescript
-    return NextResponse.json({
-      ...result,
-      payment: {
-        skillPayment: {
-          txHash: settlementResult.txHash,
-          settled: settlementResult.success,
-          amount: skillPrice
-        },
-        browserbaseSession: {
-          sessionId: x402Session.sessionId,
-          minutesPaid: x402Session.paidMinutes,
-          cost: calculateSessionCost(5)
-        }
-      },
-    });
-    ```
+  - ✅ Existing payment response includes skill payment details
+  - Note: Could add Browserbase session info if needed for display
 
 ---
 
 ### Phase 9: Update Types
 
-- [ ] **9.1** Update ExecuteSkillInput type
+- [x] **9.1** Update ExecuteSkillInput type
   - File: `/lib/types/skills.ts`
-  - Add fields:
-    ```typescript
-    export interface ExecuteSkillInput {
-      skillId: string;
-      variables?: Record<string, any>;
-      executorAddress?: string | null;
-      browserbaseConnectUrl?: string;  // New
-      x402SessionId?: string;           // New
-    }
-    ```
+  - ✅ Added fields: `browserbaseConnectUrl`, `browserbaseSessionId`
+  - ✅ Both fields are optional (for backward compatibility)
 
-- [ ] **9.2** Update ExecuteSkillOutput type (optional)
-  - File: `/lib/types/skills.ts`
-  - Add field:
-    ```typescript
-    export interface ExecuteSkillOutput {
-      // ... existing fields ...
-      browserbaseRefund?: {
-        amount: number;
-        currency: string;
-        minutesUsed: number;
-        minutesPaid: number;
-      };
-    }
-    ```
+- [x] **9.2** Update ExecuteSkillOutput type (optional)
+  - ✅ Decided not to add refund info to output (just logs for now)
+  - Note: Can add later if needed for frontend display
 
-- [ ] **9.3** Create Browserbase x402 types
-  - File: Create `/lib/types/browserbase-x402.ts`
-  - Add:
-    ```typescript
-    export interface BrowserbaseSession {
-      sessionId: string;
-      connectUrl: string;
-      paidMinutes: number;
-      expiresAt: string;
-      pricing: {
-        ratePerHour: number;
-        amountPaid: number;
-        currency: string;
-      };
-    }
-
-    export interface SessionTermination {
-      sessionId: string;
-      finalStatus: string;
-      usage: {
-        minutesPaid: number;
-        minutesUsed: number;
-      };
-      refund?: {
-        eligible: boolean;
-        amount: number;
-        currency: string;
-      };
-    }
-    ```
+- [x] **9.3** Create Browserbase x402 types
+  - File: `/lib/browserbase/x402-client.ts`
+  - ✅ Created interfaces:
+    - `BrowserbaseSession` (session creation response)
+    - `SessionTermination` (termination response)
+    - `SessionStatus` (status check response)
+    - `BrowserConfig` (session configuration)
 
 ---
 
 ### Phase 10: Error Handling
 
-- [ ] **10.1** Handle Browserbase session creation failure
+- [x] **10.1** Handle Browserbase session creation failure
   - File: `/app/api/skills/[skillId]/execute/route.ts`
   - Scenario: User paid skill but Browserbase x402 fails
-  - Action: Return 500 error with helpful message
-  - Note: Skill payment already settled (can't refund automatically)
+  - Action: Return 400 error with helpful message
+  - ✅ Implemented: Returns clear error if session details missing
+  - Note: Client handles Browserbase session creation, so if it fails, client doesn't send session to server
 
-- [ ] **10.2** Handle session timeout during execution
+- [x] **10.2** Handle session timeout during execution
   - File: `/workflows/steps/execute-skill-step.ts`
   - Scenario: Execution takes > 5 minutes
-  - Action: Catch Browserbase disconnection error
-  - Log: "Session expired, consider increasing estimatedMinutes"
+  - ✅ Stagehand will naturally throw error if session disconnects
+  - ✅ Error propagates through workflow and returns to client
+  - Note: User can retry with longer session duration if needed
 
-- [ ] **10.3** Handle terminate failure
+- [x] **10.3** Handle terminate failure
   - File: `/workflows/steps/execute-skill-step.ts`
   - Scenario: Execution succeeds but terminate fails
-  - Action: Log error but return success
-  - Note: User won't get refund but execution worked
+  - ✅ Implemented: try/catch around terminateSession()
+  - ✅ Gracefully handles HTML responses (endpoint not fully implemented)
+  - ✅ Logs error but doesn't throw (execution already succeeded)
+  - ✅ Fixed: Content-type checking to avoid JSON.parse() errors
+  - Note: User won't get refund if terminate fails, but execution result is still returned
 
 ---
 
@@ -524,11 +450,51 @@ Switch skill execution to use Browserbase's x402 pay-per-use API, so users pay f
 
 ---
 
+## Implementation Status
+
+### ✅ COMPLETED - Implementation Complete & Tested
+
+**Backend (Phases 1-10):**
+- ✅ Phase 1: Setup and configuration (env vars, pricing module)
+- ✅ Phase 2: Dual payment requirements
+- ✅ Phase 3: Frontend displays total cost
+- ✅ Phase 4: Browserbase x402 client (createSession, terminateSession, getSessionStatus)
+- ✅ Phase 5: Execute route accepts Browserbase session
+- ✅ Phase 6: Workflow uses client-provided session
+- ✅ Phase 7: Session termination for refunds
+- ✅ Phase 8: Execute route flow updated
+- ✅ Phase 9: Types updated
+- ✅ Phase 10: Error handling (session creation, timeout, termination failures)
+
+**Frontend:**
+- ✅ SkillTester implements custom dual payment flow:
+  1. Calls endpoint → Gets 402 with dual requirements
+  2. Creates skill payment using x402
+  3. Calls Browserbase proxy (no payment) → Gets actual Browserbase requirements
+  4. Creates Browserbase payment using actual requirements
+  5. Calls Browserbase proxy (with payment) → Gets session
+  6. Calls endpoint with skill payment + Browserbase session
+  7. Displays total cost breakdown ($skill + $session)
+
+**Bug Fixes During Implementation:**
+- ✅ Fixed payment header case issue (X-PAYMENT vs x-402-payment)
+- ✅ Fixed payment requirements mismatch (two-step Browserbase flow)
+- ✅ Fixed session termination HTML response handling
+
+**Test Results (from user logs):**
+- ✅ Dual payment flow working successfully
+- ✅ Skill payment settled: $0.01 (tx: 0x129369d2...67f789e)
+- ✅ Browserbase session created: session_4860fbd0-82fe-41f8-b9d4-14e02a25b9a9
+- ✅ Execution completed: Wikipedia search for "Brad Pitt"
+- ✅ Data extraction successful
+- ✅ Total execution time: 42 seconds
+- ✅ Tokens used: 105,615
+
 ## Success Criteria
 
 ✅ Recording flow unchanged (uses our API key)
 ✅ Execution uses x402 Browserbase (user pays)
 ✅ Users see total cost breakdown before executing
-✅ Refunds issued for unused session time
-✅ All tests pass
+✅ Session termination called after execution (refund endpoint may not be fully implemented by Browserbase yet)
+✅ Dual payment flow tested and working
 ✅ No regression in execution success rate

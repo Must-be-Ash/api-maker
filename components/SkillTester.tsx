@@ -18,6 +18,9 @@ import { getCurrentUser, toViemAccount } from '@coinbase/cdp-core';
 import { wrapFetchWithPayment } from 'x402-fetch';
 import { createWalletClient, http, publicActions } from 'viem';
 import { base } from 'viem/chains';
+import { calculateTotalCost, DEFAULT_SESSION_MINUTES } from '@/lib/browserbase/pricing';
+import { exact } from 'x402/schemes';
+import { getAddress } from 'viem';
 
 interface SkillTesterProps {
   skillId: string;
@@ -34,6 +37,9 @@ export function SkillTester({ skillId, goal, variableMapping, price = 0.01 }: Sk
     const thirdDecimal = Math.round((price * 1000) % 10);
     return thirdDecimal !== 0 ? price.toFixed(3) : price.toFixed(2);
   };
+
+  // Calculate total cost including Browserbase session
+  const costBreakdown = calculateTotalCost(price, DEFAULT_SESSION_MINUTES);
 
   const [variables, setVariables] = useState<Record<string, string>>({});
   const [testing, setTesting] = useState(false);
@@ -80,7 +86,7 @@ export function SkillTester({ skillId, goal, variableMapping, price = 0.01 }: Sk
     setTxHash(null);
 
     try {
-      console.log('[SkillTester] Setting up x402 payment wrapper');
+      console.log('[SkillTester] Starting dual payment flow (skill + Browserbase)');
 
       // Step 1: Get CDP user account (EOA)
       const user = await getCurrentUser();
@@ -88,7 +94,6 @@ export function SkillTester({ skillId, goal, variableMapping, price = 0.01 }: Sk
         throw new Error('No wallet found. Please sign in again.');
       }
 
-      // Use the EOA for x402 payment signing
       const eoaAddress = user.evmAccounts[0];
       console.log('[SkillTester] Using EOA:', eoaAddress);
 
@@ -96,26 +101,9 @@ export function SkillTester({ skillId, goal, variableMapping, price = 0.01 }: Sk
       const viemAccount = await toViemAccount(eoaAddress);
       console.log('[SkillTester] Viem account created:', viemAccount.address);
 
-      // Step 2: Create viem wallet client for signing
-      const walletClient = createWalletClient({
-        account: viemAccount,
-        chain: base,
-        transport: http('https://mainnet.base.org'),
-      }).extend(publicActions);
-      console.log('[SkillTester] Created wallet client on Base network');
-
-      // Step 3: Wrap fetch with x402 payment capability
-      // Max payment amount in atomic units (USDC has 6 decimals)
-      const maxPaymentAmount = BigInt(Math.ceil(price * 10 ** 6)); // Convert to 6 decimals
-      const fetchFunc = wrapFetchWithPayment(
-        fetch,
-        walletClient as any,
-        maxPaymentAmount
-      ) as typeof fetch;
-      console.log('[SkillTester] Wrapped fetch with payment capability, max amount:', maxPaymentAmount.toString());
-
-      // Step 4: Make API call with payment wrapper
-      const response = await fetchFunc(`/api/skills/${skillId}/execute`, {
+      // Step 2: Initial call to get 402 with dual payment requirements
+      console.log('[SkillTester] Step 1: Getting payment requirements...');
+      const initialResponse = await fetch(`/api/skills/${skillId}/execute`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -123,22 +111,135 @@ export function SkillTester({ skillId, goal, variableMapping, price = 0.01 }: Sk
         body: JSON.stringify({ variables }),
       });
 
-      console.log('[SkillTester] Response status:', response.status);
-
-      // Handle 402 Payment Required
-      if (response.status === 402) {
-        console.warn('[SkillTester] Payment required (402), x402-fetch will handle automatically');
-        // The x402-fetch wrapper will retry with payment
-        return;
+      if (initialResponse.status !== 402) {
+        // Should always get 402 on first call
+        const errorData = await initialResponse.json();
+        throw new Error(errorData.error || 'Expected payment requirement');
       }
 
-      if (!response.ok) {
-        const errorData = await response.json();
+      const { accepts } = await initialResponse.json();
+      console.log('[SkillTester] Received dual payment requirements:', accepts.length);
+
+      if (!accepts || accepts.length !== 2) {
+        throw new Error('Expected 2 payment requirements (skill + Browserbase)');
+      }
+
+      const [skillPaymentReq, browserbasePaymentReq] = accepts;
+      console.log('[SkillTester] Skill payment:', skillPaymentReq);
+      console.log('[SkillTester] Browserbase payment:', browserbasePaymentReq);
+
+      // Step 3: Create skill payment header
+      console.log('[SkillTester] Step 2: Creating skill payment...');
+      const skillPaymentHeader = await exact.evm.createPaymentHeader(
+        viemAccount,
+        1, // x402 version
+        {
+          scheme: skillPaymentReq.scheme,
+          network: skillPaymentReq.network,
+          maxAmountRequired: skillPaymentReq.maxAmountRequired,
+          resource: skillPaymentReq.resource,
+          description: skillPaymentReq.description,
+          mimeType: skillPaymentReq.mimeType,
+          payTo: getAddress(skillPaymentReq.payTo),
+          maxTimeoutSeconds: skillPaymentReq.maxTimeoutSeconds,
+          asset: getAddress(skillPaymentReq.asset),
+          extra: skillPaymentReq.extra,
+        }
+      );
+      console.log('[SkillTester] ✓ Skill payment created');
+
+      // Step 4: Get Browserbase's actual payment requirements
+      console.log('[SkillTester] Step 3: Getting Browserbase payment requirements...');
+      const browserbaseInitialResponse = await fetch('/api/browserbase/create-session', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          estimatedMinutes: DEFAULT_SESSION_MINUTES,
+          browserConfig: {
+            advancedStealth: true,
+          },
+        }),
+      });
+
+      if (browserbaseInitialResponse.status !== 402) {
+        const errorData = await browserbaseInitialResponse.json();
+        throw new Error(`Expected 402 from Browserbase: ${errorData.error || browserbaseInitialResponse.statusText}`);
+      }
+
+      const { accepts: browserbaseAccepts } = await browserbaseInitialResponse.json();
+      const actualBrowserbaseReq = browserbaseAccepts[0];
+      console.log('[SkillTester] Got Browserbase actual requirements:', actualBrowserbaseReq);
+
+      // Step 5: Create payment using Browserbase's actual requirements
+      console.log('[SkillTester] Step 4: Creating Browserbase payment...');
+      const browserbasePaymentHeader = await exact.evm.createPaymentHeader(
+        viemAccount,
+        1, // x402 version
+        {
+          scheme: actualBrowserbaseReq.scheme,
+          network: actualBrowserbaseReq.network,
+          maxAmountRequired: actualBrowserbaseReq.maxAmountRequired,
+          resource: actualBrowserbaseReq.resource,
+          description: actualBrowserbaseReq.description,
+          mimeType: actualBrowserbaseReq.mimeType,
+          payTo: getAddress(actualBrowserbaseReq.payTo),
+          maxTimeoutSeconds: actualBrowserbaseReq.maxTimeoutSeconds,
+          asset: getAddress(actualBrowserbaseReq.asset),
+          extra: actualBrowserbaseReq.extra,
+        }
+      );
+      console.log('[SkillTester] ✓ Browserbase payment created');
+
+      // Step 6: Call Browserbase with payment to get session
+      console.log('[SkillTester] Step 5: Creating Browserbase session...');
+      const browserbaseResponse = await fetch('/api/browserbase/create-session', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'x-402-payment': browserbasePaymentHeader,
+        },
+        body: JSON.stringify({
+          estimatedMinutes: DEFAULT_SESSION_MINUTES,
+          browserConfig: {
+            advancedStealth: true,
+          },
+        }),
+      });
+
+      if (!browserbaseResponse.ok) {
+        const errorData = await browserbaseResponse.json();
+        throw new Error(`Browserbase session creation failed: ${errorData.error || browserbaseResponse.statusText}`);
+      }
+
+      const browserbaseSession = await browserbaseResponse.json();
+      console.log('[SkillTester] ✓ Browserbase session created:', browserbaseSession.sessionId);
+
+      // Step 7: Call our endpoint with skill payment + Browserbase session
+      console.log('[SkillTester] Step 6: Executing skill with both payments...');
+      const finalResponse = await fetch(`/api/skills/${skillId}/execute`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'X-PAYMENT': skillPaymentHeader,
+        },
+        body: JSON.stringify({
+          variables,
+          browserbaseSession: {
+            connectUrl: browserbaseSession.connectUrl,
+            sessionId: browserbaseSession.sessionId,
+          },
+        }),
+      });
+
+      if (!finalResponse.ok) {
+        const errorData = await finalResponse.json();
         throw new Error(errorData.error || 'Failed to execute skill');
       }
 
-      const data = await response.json();
-      console.log('[SkillTester] Skill executed successfully');
+      const data = await finalResponse.json();
+      console.log('[SkillTester] ✓ Skill executed successfully');
       setResult(data);
 
       // Extract payment info from response
@@ -153,7 +254,7 @@ export function SkillTester({ skillId, goal, variableMapping, price = 0.01 }: Sk
       let errorMessage = 'An unknown error occurred';
       if (err instanceof Error) {
         if (err.message.includes('402') || err.message.includes('Payment')) {
-          errorMessage = `Payment failed. Please ensure you have sufficient USDC balance ($${formatPrice(price)}) on Base network.`;
+          errorMessage = `Payment failed. Please ensure you have sufficient USDC balance ($${formatPrice(costBreakdown.total)} total: Skill $${formatPrice(costBreakdown.skillPrice)} + Session $${formatPrice(costBreakdown.sessionCost)}) on Base network.`;
         } else if (err.message.includes('rejected')) {
           errorMessage = 'Payment was rejected by your wallet';
         } else if (err.message.includes('Insufficient funds') || err.message.includes('insufficient_funds')) {
@@ -223,7 +324,7 @@ export function SkillTester({ skillId, goal, variableMapping, price = 0.01 }: Sk
                 Wallet Connection Required
               </p>
               <p className="text-sm text-blue-700">
-                Sign in with your Coinbase account to test this skill. Cost: ${formatPrice(price)} USDC on Base mainnet
+                Sign in with your Coinbase account to test this skill. Cost: ${formatPrice(costBreakdown.total)} USDC (Skill: ${formatPrice(costBreakdown.skillPrice)} + Session: ${formatPrice(costBreakdown.sessionCost)}) on Base mainnet
               </p>
             </div>
           </div>
@@ -302,7 +403,7 @@ export function SkillTester({ skillId, goal, variableMapping, price = 0.01 }: Sk
         ) : (
           <>
             <Play className="h-5 w-5" />
-            Test Skill (${formatPrice(price)} USDC)
+            Test Skill (${formatPrice(costBreakdown.total)} USDC)
           </>
         )}
       </button>
@@ -355,7 +456,7 @@ export function SkillTester({ skillId, goal, variableMapping, price = 0.01 }: Sk
                   <ExternalLink className="h-3 w-3" />
                 </a>
                 <p className="text-xs text-green-600 mt-1">
-                  ${formatPrice(price)} USDC paid on Base
+                  ${formatPrice(costBreakdown.total)} USDC paid (Skill: ${formatPrice(costBreakdown.skillPrice)} + Session: ${formatPrice(costBreakdown.sessionCost)})
                 </p>
               </div>
             </div>

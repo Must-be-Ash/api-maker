@@ -29,17 +29,32 @@ Currently, the Skills System does not require authentication. Future versions ma
 
 ### Execute Skill
 
-Execute a saved skill with optional variables.
+Execute a saved skill with optional variables. Uses x402 payment protocol for dual payments (skill price + Browserbase session).
 
 **Endpoint**: `POST /api/skills/[skillId]/execute`
 
 **Parameters**:
 - `skillId` (path parameter) - The unique identifier for the skill
 
+**Payment**: This endpoint requires x402 payment protocol (USDC on Base network)
+- **Dual Payment**: Two separate payments are required:
+  1. Skill price (e.g., $0.01) to creator's wallet
+  2. Browserbase session (e.g., $0.08 for 5 min) to Browserbase
+
+**Request Headers**:
+```
+X-PAYMENT: <x402 payment header for skill>
+Content-Type: application/json
+```
+
 **Request Body**:
 ```typescript
 {
   variables?: Record<string, any>  // Optional variables for dynamic execution
+  browserbaseSession: {             // Pre-paid Browserbase x402 session
+    connectUrl: string              // WebSocket URL from Browserbase
+    sessionId: string               // Session ID for termination/refunds
+  }
 }
 ```
 
@@ -66,7 +81,14 @@ Execute a saved skill with optional variables.
 }
 ```
 
-**Example Request**:
+**Payment Flow**:
+1. Client requests skill execution → Server returns 402 with dual payment requirements
+2. Client creates skill payment using x402 protocol
+3. Client calls Browserbase x402 API → Gets 402 with Browserbase requirements
+4. Client creates Browserbase payment → Gets pre-paid session
+5. Client calls skill endpoint with both payments → Execution begins
+
+**Example Request** (Initial - triggers 402):
 ```bash
 curl -X POST http://localhost:3000/api/skills/skill_123456/execute \
   -H "Content-Type: application/json" \
@@ -74,6 +96,50 @@ curl -X POST http://localhost:3000/api/skills/skill_123456/execute \
     "variables": {
       "origin": "Toronto",
       "destination": "New York"
+    }
+  }'
+```
+
+**Example Response** (402 Payment Required):
+```json
+{
+  "x402Version": 1,
+  "accepts": [
+    {
+      "scheme": "exact",
+      "network": "base",
+      "asset": "0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913",
+      "maxAmountRequired": "10000",
+      "resource": "http://localhost:3000/api/skills/skill_123456/execute",
+      "description": "Skill execution payment",
+      "payTo": "0x..."
+    },
+    {
+      "scheme": "exact",
+      "network": "base",
+      "asset": "0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913",
+      "maxAmountRequired": "80000",
+      "resource": "https://x402.browserbase.com/browser/session/create",
+      "description": "Browserbase session (5 min)",
+      "payTo": "0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913"
+    }
+  ]
+}
+```
+
+**Example Request** (With Payments):
+```bash
+curl -X POST http://localhost:3000/api/skills/skill_123456/execute \
+  -H "Content-Type: application/json" \
+  -H "X-PAYMENT: <x402 skill payment header>" \
+  -d '{
+    "variables": {
+      "origin": "Toronto",
+      "destination": "New York"
+    },
+    "browserbaseSession": {
+      "connectUrl": "wss://connect.browserbase.com/...",
+      "sessionId": "session_abc123"
     }
   }'
 ```
@@ -810,12 +876,15 @@ Webhook payload:
 
 ### Skill Execution
 1. **Always provide variables** when skill has `%variables%` in goal
-2. **Check validation results** to ensure extracted data matches search criteria
-3. **Monitor token usage** for cost optimization (Strategy 1 uses 0 tokens!)
-4. **Use sessionUrl** to debug failed executions via Browserbase Live View
-5. **Handle all three strategies** - don't assume Strategy 1 will always work
-6. **Validate extracted data** on your end for critical workflows
-7. **Cache skill executions** when appropriate to reduce costs
+2. **Implement x402 payment flow** - Handle dual payments (skill + Browserbase session)
+3. **Pre-pay Browserbase session** - Client must obtain session before skill execution
+4. **Check validation results** to ensure extracted data matches search criteria
+5. **Monitor token usage** for cost optimization (Strategy 1 uses minimal tokens)
+6. **Use sessionUrl** to debug failed executions via Browserbase Live View
+7. **Handle all three strategies** - don't assume Strategy 1 will always work
+8. **Validate extracted data** on your end for critical workflows
+9. **Cache skill executions** when appropriate to reduce costs
+10. **Budget for dual payments** - Skill price ($0.001-$1+) + Browserbase session (~$0.08 for 5 min)
 
 ### Widget-Heavy Skills
 8. **Autocomplete fields**: Expect 1-2 extra seconds per field (dropdown + settling time)
@@ -842,9 +911,13 @@ For issues or questions:
 
 ---
 
-**API Version**: 2.1
+**API Version**: 2.2
 **Last Updated**: December 20, 2025
 
 **Changelog**:
+- **v2.2** (Dec 20, 2025):
+  - Added x402 payment protocol (dual payment: skill + Browserbase session)
+  - Optimized Wikipedia extraction (targeted selector to avoid context window overflow)
+  - Client pre-pays Browserbase sessions for execution (recording unchanged)
 - **v2.1** (Dec 20, 2025): Added widget handling (autocomplete, calendar, field restoration, redundant submit detection)
 - **v2.0** (Dec 10, 2025): Initial release with triple strategy execution and variable support

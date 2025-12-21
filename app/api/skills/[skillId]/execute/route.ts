@@ -7,11 +7,13 @@ import { validateSession } from '@/lib/auth/validate-session';
 import type { Resource } from 'x402/types';
 import {
   createPaymentRequirements,
+  createDualPaymentRequirements,
   verifyPayment,
   settlePaymentWithRetry,
   create402Response,
   createPaymentResponseHeader,
 } from '@/lib/payment-verification';
+import { DEFAULT_SESSION_MINUTES } from '@/lib/browserbase/pricing';
 
 /**
  * POST /api/skills/[skillId]/execute
@@ -99,34 +101,38 @@ export async function POST(
       );
     }
 
-    // ========== STEP 5: CREATE PAYMENT REQUIREMENTS ==========
+    // ========== STEP 5: CREATE DUAL PAYMENT REQUIREMENTS ==========
     const paymentHeader = request.headers.get('X-PAYMENT');
     const requestUrl = `${new URL(request.url).origin}${new URL(request.url).pathname}` as Resource;
     const network = 'base' as const; // Base mainnet only
 
-    const paymentRequirements = createPaymentRequirements(
-      `$${skillPrice}`, // Dynamic price from skill
+    // Create dual payment requirements: skill + Browserbase session
+    const dualPaymentRequirements = createDualPaymentRequirements(
+      skillPrice, // Skill price (e.g., 0.01)
+      DEFAULT_SESSION_MINUTES, // Browserbase session duration (5 min)
       network,
       requestUrl,
-      `Execute skill: ${skill.name}`,
-      payToAddress as `0x${string}` // Dynamic payout address
+      payToAddress as `0x${string}` // Skill creator's wallet
     );
 
-    // ========== STEP 6: VERIFY PAYMENT ==========
-    const verificationResult = await verifyPayment(paymentHeader, paymentRequirements);
+    // For backward compatibility and verification, use skill payment requirements
+    const [skillPaymentRequirements, browserbasePaymentRequirements] = dualPaymentRequirements;
+
+    // ========== STEP 6: VERIFY SKILL PAYMENT ==========
+    const verificationResult = await verifyPayment(paymentHeader, skillPaymentRequirements);
 
     if (!verificationResult.isValid) {
-      console.log('[x402] Payment required - returning 402');
+      console.log('[x402] Payment required - returning 402 with dual payments');
       return NextResponse.json(
-        create402Response(paymentRequirements, verificationResult.error, verificationResult.payer),
+        create402Response(dualPaymentRequirements, verificationResult.error, verificationResult.payer),
         { status: 402 }
       );
     }
 
-    console.log('[x402] ✓ Payment verified from:', verificationResult.payer);
+    console.log('[x402] ✓ Skill payment verified from:', verificationResult.payer);
 
-    // ========== STEP 7: SETTLE PAYMENT WITH RETRY ==========
-    const settlementResult = await settlePaymentWithRetry(paymentHeader!, paymentRequirements);
+    // ========== STEP 7: SETTLE SKILL PAYMENT WITH RETRY ==========
+    const settlementResult = await settlePaymentWithRetry(paymentHeader!, skillPaymentRequirements);
 
     if (!settlementResult.success) {
       console.error(`[x402] ✗ Settlement failed after ${settlementResult.attempts} attempts:`, settlementResult.error);
@@ -145,7 +151,24 @@ export async function POST(
 
     // ========== STEP 8: EXECUTE WORKFLOW ==========
     const body = await request.json();
-    const { variables } = body;
+    const { variables, browserbaseSession } = body;
+
+    // Validate that client provided Browserbase session (they pre-paid)
+    if (!browserbaseSession?.connectUrl || !browserbaseSession?.sessionId) {
+      return NextResponse.json(
+        {
+          error: 'Browserbase session required',
+          message: 'You must pre-pay for a Browserbase session. Please use the Browserbase x402 endpoint to create a session first.',
+          browserbaseEndpoint: `${process.env.BROWSERBASE_X402_ENDPOINT}/browser/session/create`,
+        },
+        { status: 400 }
+      );
+    }
+
+    console.log('[Browserbase x402] Using client-provided session:', {
+      sessionId: browserbaseSession.sessionId,
+      hasConnectUrl: !!browserbaseSession.connectUrl,
+    });
 
     // OPTIONAL AUTH: Check if user is authenticated (for analytics)
     const session = await validateSession(request);
@@ -154,6 +177,8 @@ export async function POST(
       skillId,
       variables,
       executorAddress: session.isAuthenticated ? session.evmAddress : null,
+      browserbaseConnectUrl: browserbaseSession.connectUrl,
+      browserbaseSessionId: browserbaseSession.sessionId,
     };
 
     console.log('[POST /api/skills/[skillId]/execute] Executing skill', input);

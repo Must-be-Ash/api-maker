@@ -75,12 +75,12 @@ function getExtractionSelector(url: string): string | undefined {
     const urlObj = new URL(url);
     const hostname = urlObj.hostname.toLowerCase();
 
-    // ✅ FIX: Wikipedia pages are too large for scoped extraction
-    // The `.mw-parser-output` selector creates a11y snapshots that exceed server limits
-    // Using full-page extraction instead (Stagehand optimizes this better)
+    // ✅ FIX: Wikipedia pages can be extremely long (e.g., Bob Dylan page is 64k pixels)
+    // Full page extraction exceeds context window for long articles
+    // Use targeted selector to extract only the main article content
     if (hostname.includes('wikipedia.org')) {
-      console.log('[getExtractionSelector] Wikipedia detected - using full page extraction to avoid a11y snapshot size issues');
-      return undefined; // Full page extraction works better for large pages
+      console.log('[getExtractionSelector] Wikipedia detected - using targeted selector to avoid context window overflow');
+      return '.mw-parser-output'; // Main article content only (excludes navigation, sidebar, footer)
     }
 
     // Add more site-specific selectors here as needed
@@ -222,11 +222,25 @@ export async function executeSkillStep(input: ExecuteSkillInput): Promise<Execut
   // Dynamically import Stagehand
   const { Stagehand } = await import("@browserbasehq/stagehand");
 
-  // Initialize Stagehand
+  // Initialize Stagehand with client-provided Browserbase x402 session or our API key
+  const usingClientSession = !!input.browserbaseConnectUrl;
+
+  if (usingClientSession) {
+    console.log('[executeSkillStep] Using client-provided Browserbase x402 session:', {
+      sessionId: input.browserbaseSessionId,
+      hasConnectUrl: !!input.browserbaseConnectUrl,
+    });
+  } else {
+    console.log('[executeSkillStep] Using platform Browserbase API key (recording mode)');
+  }
+
   const stagehand = new Stagehand({
-    env: "BROWSERBASE",
-    apiKey: process.env.BROWSERBASE_API_KEY,
-    projectId: process.env.BROWSERBASE_PROJECT_ID,
+    env: usingClientSession ? "LOCAL" : "BROWSERBASE",
+    apiKey: usingClientSession ? undefined : process.env.BROWSERBASE_API_KEY,
+    projectId: usingClientSession ? undefined : process.env.BROWSERBASE_PROJECT_ID,
+    ...(usingClientSession && {
+      wsEndpoint: input.browserbaseConnectUrl, // Use client's pre-paid session
+    }),
     verbose: 1, // Show warnings and errors
     disablePino: true, // Disable pino logger (prevents pino-pretty error in Vercel)
     model: "openai/gpt-4o", // Using GPT-4o for everything (was working before)
@@ -401,6 +415,26 @@ export async function executeSkillStep(input: ExecuteSkillInput): Promise<Execut
   await tracker.save();
 
   await stagehand.close();
+
+  // Terminate Browserbase x402 session to get refund for unused time
+  if (usingClientSession && input.browserbaseSessionId) {
+    try {
+      const { terminateSession } = await import('@/lib/browserbase/x402-client');
+      console.log('[Browserbase x402] Terminating session:', input.browserbaseSessionId);
+
+      const termination = await terminateSession(input.browserbaseSessionId);
+
+      console.log('[Browserbase x402] Session terminated:', {
+        minutesUsed: termination.usage.minutesUsed,
+        minutesPaid: termination.usage.minutesPaid,
+        refundAmount: termination.refund?.amount || 0,
+        refundEligible: termination.refund?.eligible || false,
+      });
+    } catch (error) {
+      console.error('[Browserbase x402] Failed to terminate session:', error);
+      // Don't throw - execution already completed successfully
+    }
+  }
 
   // Also save to legacy skill_executions collection (for backward compatibility)
   await db.collection('skill_executions').insertOne({

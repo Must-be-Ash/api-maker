@@ -15,10 +15,10 @@ export function Header() {
   const isChatPage = pathname === '/chat';
 
   return (
-    <header className="relative py-4 px-6 border-b border-slate-200 bg-white">
+    <header className="relative py-3 sm:py-4 px-4 sm:px-6 border-b border-slate-200 bg-white">
       <div className="max-w-7xl mx-auto flex items-center justify-between">
         {/* Logo */}
-        <Link href="/" className="inline-flex items-center gap-3 group">
+        <Link href="/" className="inline-flex items-center gap-2 sm:gap-3 group">
           <Image
             src="/logo.png"
             alt="Dittod"
@@ -35,23 +35,23 @@ export function Header() {
         </Link>
 
         {/* Navigation */}
-        <nav className="flex items-center gap-3">
+        <nav className="flex items-center gap-2 sm:gap-3">
           {!isSkillsPage && (
             <Link
               href="/skills"
-              className="inline-flex items-center gap-2 px-4 py-2 text-sm text-slate-600 hover:text-slate-900 hover:bg-white rounded-xl transition-all"
+              className="inline-flex items-center gap-2 px-4 py-2 h-9 bg-white text-slate-900 text-sm font-medium rounded-xl hover:bg-slate-50 transition-all shadow-sm shadow-black/5 border border-slate-200"
             >
               <Search className="h-4 w-4" />
-              Skills
+              <span>Skills</span>
             </Link>
           )}
           {!isChatPage && (
             <Link
               href="/chat"
-              className="inline-flex items-center gap-2 px-4 py-2 text-sm text-slate-600 hover:text-slate-900 hover:bg-white rounded-xl transition-all"
+              className="inline-flex items-center gap-2 px-4 py-2 h-9 bg-white text-slate-900 text-sm font-medium rounded-xl hover:bg-slate-50 transition-all shadow-sm shadow-black/5 border border-slate-200"
             >
               <MessageCircle className="h-4 w-4" />
-              Chat
+              <span>Chat</span>
             </Link>
           )}
 

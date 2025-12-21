@@ -8,6 +8,7 @@ import {
 } from 'x402/types';
 import { processPriceToAtomicAmount } from 'x402/shared';
 import { facilitator } from '@coinbase/x402';
+import { calculateSessionCost } from './browserbase/pricing';
 
 // CDP Facilitator - Required for Base mainnet
 const { verify, settle } = useFacilitator(facilitator);
@@ -47,6 +48,51 @@ export function createPaymentRequirements(
     outputSchema: undefined,
     extra,
   };
+}
+
+/**
+ * Create dual payment requirements for skill execution + Browserbase session
+ *
+ * Returns TWO payment requirements:
+ * 1. Skill payment → Sent to skill creator's wallet
+ * 2. Browserbase session payment → Sent to x402.browserbase.com
+ *
+ * @param skillPrice - Price in USDC set by skill creator (e.g., 0.01)
+ * @param sessionMinutes - Browserbase session duration in minutes (default: 5)
+ * @param network - Payment network (base)
+ * @param skillResource - Resource URL for skill execution
+ * @param skillCreatorAddress - Wallet address of skill creator
+ * @returns Array of 2 PaymentRequirements [skillPayment, browserbasePayment]
+ */
+export function createDualPaymentRequirements(
+  skillPrice: number,
+  sessionMinutes: number,
+  network: Network,
+  skillResource: Resource,
+  skillCreatorAddress: `0x${string}`
+): PaymentRequirements[] {
+  // 1. Skill payment (to creator)
+  const skillPaymentRequirements = createPaymentRequirements(
+    `$${skillPrice.toFixed(2)}`,
+    network,
+    skillResource,
+    `Skill execution payment`,
+    skillCreatorAddress
+  );
+
+  // 2. Browserbase session payment (to x402.browserbase.com)
+  const sessionCost = calculateSessionCost(sessionMinutes);
+  const browserbaseEndpoint = process.env.BROWSERBASE_X402_ENDPOINT || 'https://x402.browserbase.com';
+
+  const browserbasePaymentRequirements = createPaymentRequirements(
+    `$${sessionCost.toFixed(2)}`,
+    network,
+    `${browserbaseEndpoint}/browser/session/create` as Resource,
+    `Browserbase session (${sessionMinutes} min)`,
+    '0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913' as `0x${string}` // Browserbase payment address (USDC on Base)
+  );
+
+  return [skillPaymentRequirements, browserbasePaymentRequirements];
 }
 
 export async function verifyPayment(
@@ -201,14 +247,14 @@ export async function settlePaymentWithRetry(
 }
 
 export function create402Response(
-  paymentRequirements: PaymentRequirements,
+  paymentRequirements: PaymentRequirements | PaymentRequirements[],
   error?: string,
   payer?: string
 ) {
   return {
     x402Version,
     error: error || 'Payment required',
-    accepts: [paymentRequirements],
+    accepts: Array.isArray(paymentRequirements) ? paymentRequirements : [paymentRequirements],
     ...(payer && { payer }),
   };
 }

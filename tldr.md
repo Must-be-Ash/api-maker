@@ -50,37 +50,51 @@ A **browser automation API generation system** where users demonstrate a web tas
   API Call: POST /api/skills/{skillId}/execute
   Body: { "variables": { "origin": "NYC", "destination": "LAX" }}
            ↓
+  Server Returns 402 with Dual Payment Requirements
+  1. Skill payment ($0.01 to creator)
+  2. Browserbase session ($0.08 for 5 min)
+           ↓
+  Client Creates Skill Payment (x402 protocol)
+           ↓
+  Client Gets Browserbase x402 Session (pre-paid)
+           ↓
+  Client Calls API with Both Payments
+           ↓
   Load Skill from MongoDB
            ↓
-  Initialize Browserbase Session
+  Use Client's Pre-Paid Browserbase Session
            ↓
   ┌───────────────────────────────────────────────────────┐
   │ STRATEGY 1: Exact Selector Replay (Fast)              │
-  │ - Use recorded selectors                              │
+  │ - Use recorded selectors + widget handling            │
   │ - Substitute variables (%origin% → "NYC")             │
-  │ - minimal LLM cost                                    │
-  │ - Works 90% of the time                               │
+  │ - Minimal LLM cost (~500 tokens)                      │
+  │ - Works 85% of the time                               │
   └───────────────────────────────────────────────────────┘
            ↓ (if fails)
   ┌───────────────────────────────────────────────────────┐
   │ STRATEGY 2: Natural Language (AI-Resilient)           │
-  │ - Use Stagehand natural language instructions         │
+  │ - Use Stagehand natural language + widget handling    │
   │ - AI re-infers selectors if UI changed                │
-  │ - Slower (5-10s) but handles UI changes               │
-  │ - Works 8% of the time                                │
+  │ - Slower (15-35s) but handles UI changes              │
+  │ - Works 10% of the time                               │
   └───────────────────────────────────────────────────────┘
            ↓ (if fails)
   ┌───────────────────────────────────────────────────────┐
   │ STRATEGY 3: AI Re-learn (Ultimate Fallback)           │
   │ - Ignore recording, navigate from scratch             │
   │ - Stagehand Agent mode with goal text                 │
-  │ - Slowest (10-30s) but most reliable                  │
-  │ - Works 2% of the time                                │
+  │ - Slowest (30-120s) but most reliable                 │
+  │ - Works 5% of the time                                │
   └───────────────────────────────────────────────────────┘
            ↓
-  Extract Data (Stagehand extract() with Zod schema)
+  Extract Data with Optimized Selectors
+  - Wikipedia: .mw-parser-output (60-80% token reduction)
+  - Other sites: Full page or intelligent targeting
            ↓
   Validate Extraction
+           ↓
+  Terminate Browserbase Session (refund unused time)
            ↓
   Return Result + Metadata + Session Replay URL
 ```
@@ -203,7 +217,11 @@ A **browser automation API generation system** where users demonstrate a web tas
 **12. Execute Skill API**
 - **File**: `/app/api/skills/[skillId]/execute/route.ts`
 - **Endpoint**: `POST /api/skills/{skillId}/execute`
-- **What it does**: Triggers execute-skill-step workflow with variables
+- **What it does**:
+  - Verifies x402 skill payment
+  - Validates client-provided Browserbase session
+  - Triggers execute-skill-step workflow with variables
+- **Payment**: Requires dual x402 payments (skill + Browserbase session)
 
 ### UI Components
 
@@ -281,26 +299,28 @@ A **browser automation API generation system** where users demonstrate a web tas
 
 ## Triple Strategy Execution Pattern
 
-### Strategy 1: Exact Selector Replay (90% success rate)
-- **Speed**: 1-3 seconds
-- **Cost**: $0 (no LLM calls)
-- **Method**: Direct Playwright commands with recorded selectors
+### Strategy 1: Exact Selector Replay (85% success rate)
+- **Speed**: 5-20 seconds (varies with widget complexity)
+- **Cost**: ~$0.08 Browserbase + minimal tokens (~500 for autocomplete)
+- **Method**: Direct Playwright commands with widget-aware handling
 - **When it works**: When website UI hasn't changed
 - **When it fails**: Selector no longer exists, dynamic IDs, UI redesign
 
-### Strategy 2: Natural Language (8% success rate)
-- **Speed**: 5-10 seconds
-- **Cost**: ~$0.01-0.05 per execution (LLM inference)
-- **Method**: Stagehand `act()` with natural language instructions
+### Strategy 2: Natural Language (10% success rate)
+- **Speed**: 15-35 seconds
+- **Cost**: ~$0.08 Browserbase + ~$0.01-0.05 LLM
+- **Method**: Stagehand `act()` with natural language + widgets
 - **When it works**: UI changed but semantic meaning preserved
 - **When it fails**: Major website redesign, functionality moved
 
-### Strategy 3: AI Re-learn (2% success rate)
-- **Speed**: 10-30 seconds
-- **Cost**: ~$0.10-0.50 per execution (multiple LLM calls)
+### Strategy 3: AI Re-learn (5% success rate)
+- **Speed**: 30-120 seconds
+- **Cost**: ~$0.08 Browserbase + ~$0.10-0.50 LLM
 - **Method**: Stagehand Agent mode - AI navigates from scratch
 - **When it works**: Always (if task is possible on the website)
 - **When it fails**: Website functionality completely removed
+
+**Note**: Skill creators set additional skill price (e.g., $0.001-$1.00)
 
 ---
 
@@ -391,10 +411,13 @@ Stores execution analytics:
 
 - **Next.js 16** (App Router) - Web framework
 - **Vercel Workflow** - Durable workflow execution (handles retries, state persistence)
-- **Browserbase** - Managed browser sessions with Live View
+- **Browserbase** - Managed browser sessions with Live View (recording)
+- **Browserbase x402** - Pay-per-use browser sessions (execution)
+- **x402 Protocol** - Pay-per-use API access using USDC on Base
 - **Stagehand v3** - AI-powered browser automation (act, extract, agent)
 - **Playwright** - Browser control and CDP event capture
 - **OpenAI GPT-4o** - Variable detection, schema generation, AI navigation
+- **Viem** - Ethereum library for payment signing
 - **Zod** - Runtime type validation for extracted data
 - **MongoDB** - Persistent storage for skills and executions
 - **React 19** - UI components
@@ -406,15 +429,17 @@ Stores execution analytics:
 
 ### ✅ What Works Well
 - **Text inputs**: Origin, destination, search queries with smart variable substitution
-- **Autocomplete fields**: Type + dropdown suggestion selection with proper settling time
-- **Calendar/date picker widgets**: Full support with cell-level wait logic (5000ms timeout)
+- **Autocomplete fields**: Type + dropdown suggestion selection with proper settling time (95% success)
+- **Calendar/date picker widgets**: Full support with cell-level wait logic (90% success)
 - **Click actions**: Buttons, links, form elements
 - **Form submissions**: With redundant submit detection to prevent duplicate submissions
 - **Navigation**: Multi-page workflows with intelligent URL parameter handling
 - **Data extraction**: Structured schemas with Zod validation
+- **Optimized extraction**: Wikipedia uses `.mw-parser-output` (60-80% token reduction)
 - **Variable detection**: AI-powered mapping of typed values to placeholders
 - **Multi-variable skills**: Up to 4+ variables (e.g., origin, destination, departure date, return date)
 - **Website bug resilience**: Field restoration when buggy JavaScript clears form fields
+- **x402 payment system**: Dual payment (skill + Browserbase session) with automatic refunds
 
 ### ⚠️ Known Edge Cases & Limitations
 - **Calendar widget timing**: Some calendar widgets load slowly - we wait up to 5 seconds for date cells
@@ -573,13 +598,23 @@ if (hasResultsParams) {
 
 **Execution:**
 ```bash
+# Step 1: Request execution → Get 402 with dual payment requirements
 POST /api/skills/skill_1765431559260_nkfco0l2o/execute
+{ "variables": { "origin": "Seattle", "destination": "New York" }}
+
+# Response: 402 Payment Required
+# - Skill payment: $0.01 to creator
+# - Browserbase session: $0.08 for 5 min
+
+# Step 2: Client creates payments and gets Browserbase session
+# Step 3: Execute with payments
+POST /api/skills/skill_1765431559260_nkfco0l2o/execute
+Headers: X-PAYMENT: <skill_payment_header>
 {
-  "variables": {
-    "origin": "Seattle",
-    "destination": "New York",
-    "departureDate": "2025-12-25",
-    "returnDate": "2026-01-02"
+  "variables": { "origin": "Seattle", "destination": "New York" },
+  "browserbaseSession": {
+    "connectUrl": "wss://connect.browserbase.com/...",
+    "sessionId": "session_abc123"
   }
 }
 
@@ -594,7 +629,7 @@ POST /api/skills/skill_1765431559260_nkfco0l2o/execute
     "airline": "Alaska Airlines"
   },
   "executionTime": 18765,
-  "tokensUsed": 15234,
+  "tokensUsed": 534,
   "sessionUrl": "https://browserbase.com/sessions/abc123",
   "widgetHandling": {
     "autocompleteFields": 2,

@@ -1,7 +1,7 @@
 import { connectDB } from '@/lib/mongodb';
 import Link from 'next/link';
 import { Header } from '@/components/Header';
-import { Clock, Layers, CheckCircle2, AlertCircle, ArrowRight } from 'lucide-react';
+import { Clock, Layers, CheckCircle2, AlertCircle, ArrowRight, Plus } from 'lucide-react';
 
 export const dynamic = 'force-dynamic';
 
@@ -18,26 +18,27 @@ export default async function SkillsGalleryPage() {
     <div className="min-h-screen bg-gradient-to-br from-slate-50 to-slate-100">
       <Header />
 
-      <main className="max-w-7xl mx-auto px-6 py-12">
+      <main className="max-w-7xl mx-auto px-4 sm:px-6 py-6 sm:py-12">
         {/* Header */}
-        <div className="flex justify-between items-center mb-12">
+        <div className="flex flex-col sm:flex-row sm:justify-between sm:items-center gap-4 sm:gap-0 mb-8 sm:mb-12">
           <div className="space-y-2">
-            <h1 className="text-4xl font-bold text-slate-900">Gallery</h1>
-            <p className="text-lg text-slate-600">
+            <h1 className="text-3xl sm:text-4xl font-bold text-slate-900">Gallery</h1>
+            <p className="text-base sm:text-lg text-slate-600">
               Browse automation workflows created by the community
             </p>
           </div>
           <Link
             href="/skills/record"
-            className="inline-flex items-center gap-2 bg-blue-600 text-white px-6 py-3 rounded-xl font-semibold hover:bg-blue-700 transition-all shadow-lg hover:shadow-xl"
+            className="inline-flex items-center justify-center gap-2 bg-blue-600 text-white px-6 py-3.5 sm:py-3 rounded-xl font-semibold hover:bg-blue-700 transition-all shadow-lg hover:shadow-xl active:scale-[0.98] w-full sm:w-auto"
           >
-            + Create New Skill
+            <Plus className="h-5 w-5" />
+            <span>Create New Skill</span>
           </Link>
         </div>
 
         {/* Skills Grid */}
         {skills.length > 0 ? (
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 sm:gap-6">
             {skills.map((skill: any) => (
               <Link
                 key={skill.skillId}
@@ -101,19 +102,20 @@ export default async function SkillsGalleryPage() {
           </div>
         ) : (
           /* Empty State */
-          <div className="text-center py-20 space-y-6">
-            <div className="text-7xl">🤖</div>
+          <div className="text-center py-12 sm:py-20 space-y-6 px-4">
+            <div className="text-6xl sm:text-7xl">🤖</div>
             <div className="space-y-3">
-              <h2 className="text-3xl font-bold text-slate-900">No skills yet</h2>
-              <p className="text-lg text-slate-600 max-w-md mx-auto">
+              <h2 className="text-2xl sm:text-3xl font-bold text-slate-900">No skills yet</h2>
+              <p className="text-base sm:text-lg text-slate-600 max-w-md mx-auto">
                 Be the first to create an automation workflow!
               </p>
             </div>
             <Link
               href="/skills/record"
-              className="inline-flex items-center gap-2 bg-blue-600 text-white px-8 py-4 rounded-xl font-semibold hover:bg-blue-700 transition-all shadow-lg hover:shadow-xl"
+              className="inline-flex items-center justify-center gap-2 bg-blue-600 text-white px-6 sm:px-8 py-3.5 sm:py-4 rounded-xl font-semibold hover:bg-blue-700 transition-all shadow-lg hover:shadow-xl active:scale-[0.98] w-full sm:w-auto max-w-xs mx-auto"
             >
-              Create Your First Skill
+              <Plus className="h-5 w-5" />
+              <span>Create Your First Skill</span>
             </Link>
           </div>
         )}
