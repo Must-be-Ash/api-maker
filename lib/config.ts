@@ -1,7 +1,7 @@
 // x402 Network Configuration
 export const X402_CONFIG = {
   facilitatorUrl: process.env.FACILITATOR_URL ?? 'https://x402.org/facilitator',
-  network: process.env.NEXT_PUBLIC_NETWORK ?? 'base',
+  network: process.env.NEXT_PUBLIC_NETWORK ?? 'eip155:8453', // CAIP-2 (x402 v2)
   usdcContractAddress: process.env.USDC_CONTRACT_ADDRESS ?? '0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913',
 };
 
@@ -9,14 +9,14 @@ export const X402_CONFIG = {
 export const COST_CONFIG = {
   skillCreation: 1.99,         // $1.99 per skill creation
   skillExecution: 0.01,        // $0.01 per skill execution
-  maxPaymentAmount: 2.5,       // Max for x402-fetch wrapper (safety buffer)
+  maxPaymentAmount: 2.5,       // Max for @x402/fetch spend policy (safety buffer)
 };
 
 // Payment Configuration (for backend x402 protection)
 export const PAYMENT_CONFIG = {
   skillCreationPrice: '$1.99',
   skillExecutionPrice: '$0.01',
-  network: (process.env.NEXT_PUBLIC_NETWORK || 'base') as 'base' | 'base-sepolia',
+  network: (process.env.NEXT_PUBLIC_NETWORK || 'eip155:8453') as 'eip155:8453' | 'eip155:84532', // CAIP-2 (x402 v2)
   receivingAddress: process.env.NEXT_PUBLIC_RECEIVING_WALLET_ADDRESS as `0x${string}`,
   usdcContract: process.env.USDC_CONTRACT_ADDRESS || '0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913',
   facilitatorUrl: process.env.FACILITATOR_URL || 'https://x402.org/facilitator',
@@ -30,7 +30,7 @@ if (!PAYMENT_CONFIG.receivingAddress) {
 
 // Environment Variables Required:
 // - NEXT_PUBLIC_CDP_PROJECT_ID
-// - NEXT_PUBLIC_NETWORK=base
+// - NEXT_PUBLIC_NETWORK=eip155:8453
 // - USDC_CONTRACT_ADDRESS=0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913
 // - FACILITATOR_URL=https://api.x402.org/facilitator
 // - NEXT_PUBLIC_RECEIVING_WALLET_ADDRESS=0xYourWalletAddress (REQUIRED for backend payment protection)

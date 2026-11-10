@@ -15,12 +15,12 @@ import {
 import { useCurrentUser, useIsSignedIn } from '@coinbase/cdp-hooks';
 import { AuthButton } from '@coinbase/cdp-react';
 import { getCurrentUser, toViemAccount } from '@coinbase/cdp-core';
-import { wrapFetchWithPayment } from 'x402-fetch';
-import { createWalletClient, http, publicActions } from 'viem';
+import { x402Client, x402HTTPClient } from '@x402/fetch';
+import { toClientEvmSigner } from '@x402/evm';
+import { registerExactEvmScheme } from '@x402/evm/exact/client';
+import { createPublicClient, http } from 'viem';
 import { base } from 'viem/chains';
 import { calculateTotalCost, DEFAULT_SESSION_MINUTES } from '@/lib/browserbase/pricing';
-import { exact } from 'x402/schemes';
-import { getAddress } from 'viem';
 
 interface SkillTesterProps {
   skillId: string;
@@ -101,6 +101,14 @@ export function SkillTester({ skillId, goal, variableMapping, price = 0.01 }: Sk
       const viemAccount = await toViemAccount(eoaAddress);
       console.log('[SkillTester] Viem account created:', viemAccount.address);
 
+      // x402 client: v2 for our skill endpoint, v1 for Browserbase (registerExactEvmScheme registers both)
+      const publicClient = createPublicClient({ chain: base, transport: http('https://mainnet.base.org') });
+      const paymentClient = new x402HTTPClient(
+        registerExactEvmScheme(new x402Client(), {
+          signer: toClientEvmSigner(viemAccount as any, publicClient),
+        })
+      );
+
       // Step 2: Initial call to get 402 with dual payment requirements
       console.log('[SkillTester] Step 1: Getting payment requirements...');
       const initialResponse = await fetch(`/api/skills/${skillId}/execute`, {
@@ -117,7 +125,11 @@ export function SkillTester({ skillId, goal, variableMapping, price = 0.01 }: Sk
         throw new Error(errorData.error || 'Expected payment requirement');
       }
 
-      const { accepts } = await initialResponse.json();
+      const skillPaymentRequired = paymentClient.getPaymentRequiredResponse(
+        (name) => initialResponse.headers.get(name),
+        await initialResponse.json()
+      );
+      const { accepts } = skillPaymentRequired;
       console.log('[SkillTester] Received dual payment requirements:', accepts.length);
 
       if (!accepts || accepts.length !== 2) {
@@ -130,22 +142,11 @@ export function SkillTester({ skillId, goal, variableMapping, price = 0.01 }: Sk
 
       // Step 3: Create skill payment header
       console.log('[SkillTester] Step 2: Creating skill payment...');
-      const skillPaymentHeader = await exact.evm.createPaymentHeader(
-        viemAccount,
-        1, // x402 version
-        {
-          scheme: skillPaymentReq.scheme,
-          network: skillPaymentReq.network,
-          maxAmountRequired: skillPaymentReq.maxAmountRequired,
-          resource: skillPaymentReq.resource,
-          description: skillPaymentReq.description,
-          mimeType: skillPaymentReq.mimeType,
-          payTo: getAddress(skillPaymentReq.payTo),
-          maxTimeoutSeconds: skillPaymentReq.maxTimeoutSeconds,
-          asset: getAddress(skillPaymentReq.asset),
-          extra: skillPaymentReq.extra,
-        }
-      );
+      const skillPaymentPayload = await paymentClient.createPaymentPayload({
+        ...skillPaymentRequired,
+        accepts: [skillPaymentReq],
+      });
+      const skillPaymentHeaders = paymentClient.encodePaymentSignatureHeader(skillPaymentPayload);
       console.log('[SkillTester] ✓ Skill payment created');
 
       // Step 4: Get Browserbase's actual payment requirements
@@ -168,27 +169,22 @@ export function SkillTester({ skillId, goal, variableMapping, price = 0.01 }: Sk
         throw new Error(`Expected 402 from Browserbase: ${errorData.error || browserbaseInitialResponse.statusText}`);
       }
 
-      const { accepts: browserbaseAccepts } = await browserbaseInitialResponse.json();
-      const actualBrowserbaseReq = browserbaseAccepts[0];
+      const browserbasePaymentRequired = paymentClient.getPaymentRequiredResponse(
+        (name) => browserbaseInitialResponse.headers.get(name),
+        await browserbaseInitialResponse.json()
+      );
+      const actualBrowserbaseReq = browserbasePaymentRequired.accepts[0];
       console.log('[SkillTester] Got Browserbase actual requirements:', actualBrowserbaseReq);
 
       // Step 5: Create payment using Browserbase's actual requirements
       console.log('[SkillTester] Step 4: Creating Browserbase payment...');
-      const browserbasePaymentHeader = await exact.evm.createPaymentHeader(
-        viemAccount,
-        1, // x402 version
-        {
-          scheme: actualBrowserbaseReq.scheme,
-          network: actualBrowserbaseReq.network,
-          maxAmountRequired: actualBrowserbaseReq.maxAmountRequired,
-          resource: actualBrowserbaseReq.resource,
-          description: actualBrowserbaseReq.description,
-          mimeType: actualBrowserbaseReq.mimeType,
-          payTo: getAddress(actualBrowserbaseReq.payTo),
-          maxTimeoutSeconds: actualBrowserbaseReq.maxTimeoutSeconds,
-          asset: getAddress(actualBrowserbaseReq.asset),
-          extra: actualBrowserbaseReq.extra,
-        }
+      const browserbasePaymentPayload = await paymentClient.createPaymentPayload({
+        ...browserbasePaymentRequired,
+        accepts: [actualBrowserbaseReq],
+      });
+      // Browserbase is still on x402 v1, so this is a single X-PAYMENT value
+      const [browserbasePaymentHeader] = Object.values(
+        paymentClient.encodePaymentSignatureHeader(browserbasePaymentPayload)
       );
       console.log('[SkillTester] ✓ Browserbase payment created');
 
@@ -222,7 +218,7 @@ export function SkillTester({ skillId, goal, variableMapping, price = 0.01 }: Sk
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
-          'X-PAYMENT': skillPaymentHeader,
+          ...skillPaymentHeaders, // PAYMENT-SIGNATURE (x402 v2)
         },
         body: JSON.stringify({
           variables,

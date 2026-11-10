@@ -150,7 +150,7 @@ POST /api/skills/{skillId}/execute
 
 # Step 4: Execute with payments
 POST /api/skills/{skillId}/execute
-Headers: X-PAYMENT: <skill_payment_header>
+Headers: PAYMENT-SIGNATURE: <skill_payment_header>
 {
   "variables": {
     "origin": "Toronto",

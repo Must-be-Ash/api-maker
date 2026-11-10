@@ -1,5 +1,7 @@
 # Browserbase x402 Integration Plan
 
+> **Update (x402 v2 migration):** The skill payment now uses x402 v2 (`@x402/core`, `@x402/evm`, `@x402/fetch`; `PAYMENT-SIGNATURE` header, `amount` field, CAIP-2 network `eip155:8453`). Browserbase itself is still x402 v1, so the session payment is signed with a v1 payload (via `registerExactEvmScheme`) and forwarded as `X-PAYMENT`. References to `x402-fetch` and `maxAmountRequired` below are historical.
+
 ## Overview
 
 Switch skill execution to use Browserbase's x402 pay-per-use API, so users pay for their own Browserbase sessions when calling skill endpoints.

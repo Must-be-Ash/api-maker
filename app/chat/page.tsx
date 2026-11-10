@@ -7,8 +7,9 @@ import { Bot, User, Send, CheckCircle2, XCircle, ExternalLink, Loader2, Wallet }
 import { useCurrentUser, useIsSignedIn } from '@coinbase/cdp-hooks';
 import { AuthButton } from '@coinbase/cdp-react';
 import { getCurrentUser, toViemAccount } from '@coinbase/cdp-core';
-import { wrapFetchWithPayment } from 'x402-fetch';
-import { createWalletClient, http, publicActions } from 'viem';
+import { wrapFetchWithPayment, x402Client } from '@x402/fetch';
+import { ExactEvmScheme, toClientEvmSigner } from '@x402/evm';
+import { createPublicClient, http } from 'viem';
 import { base } from 'viem/chains';
 import { useState } from 'react';
 import ReactMarkdown from 'react-markdown';
@@ -73,21 +74,20 @@ export default function ChatPage() {
 
           const viemAccount = await toViemAccount(eoaAddress);
 
-          const walletClient = createWalletClient({
-            account: viemAccount,
+          const publicClient = createPublicClient({
             chain: base,
             transport: http('https://mainnet.base.org'),
-          }).extend(publicActions);
+          });
 
           // Calculate max payment amount in atomic units (6 decimals for USDC)
           const maxPaymentAmount = BigInt(Math.ceil(skill.price * 10 ** 6));
           console.log('[executeSkill] Max payment amount:', maxPaymentAmount.toString());
 
-          const fetchFunc = wrapFetchWithPayment(
-            fetch,
-            walletClient as any,
-            maxPaymentAmount
-          ) as typeof fetch;
+          // x402 v2 client; policy rejects requirements above the skill price
+          const client = new x402Client()
+            .register('eip155:8453', new ExactEvmScheme(toClientEvmSigner(viemAccount as any, publicClient)))
+            .registerPolicy((_version, reqs) => reqs.filter((r) => BigInt(r.amount) <= maxPaymentAmount));
+          const fetchFunc = wrapFetchWithPayment(fetch, client) as typeof fetch;
 
           // Execute skill with payment
           console.log('[executeSkill] Calling execute endpoint...');

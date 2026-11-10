@@ -609,7 +609,7 @@ POST /api/skills/skill_1765431559260_nkfco0l2o/execute
 # Step 2: Client creates payments and gets Browserbase session
 # Step 3: Execute with payments
 POST /api/skills/skill_1765431559260_nkfco0l2o/execute
-Headers: X-PAYMENT: <skill_payment_header>
+Headers: PAYMENT-SIGNATURE: <skill_payment_header>
 {
   "variables": { "origin": "Seattle", "destination": "New York" },
   "browserbaseSession": {

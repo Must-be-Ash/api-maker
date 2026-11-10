@@ -4,14 +4,13 @@ import { connectDB } from '@/lib/mongodb';
 import type { ExecuteSkillInput } from '@/lib/types/skills';
 import { NextRequest, NextResponse } from 'next/server';
 import { validateSession } from '@/lib/auth/validate-session';
-import type { Resource } from 'x402/types';
 import {
-  createPaymentRequirements,
   createDualPaymentRequirements,
   verifyPayment,
   settlePaymentWithRetry,
   create402Response,
   createPaymentResponseHeader,
+  getPaymentHeader,
 } from '@/lib/payment-verification';
 import { DEFAULT_SESSION_MINUTES } from '@/lib/browserbase/pricing';
 
@@ -31,7 +30,7 @@ import { DEFAULT_SESSION_MINUTES } from '@/lib/browserbase/pricing';
  * - If not authenticated, executor is logged as 'anonymous'
  *
  * Request Headers:
- * - X-PAYMENT: string (REQUIRED) - x402 payment proof
+ * - PAYMENT-SIGNATURE: string (REQUIRED) - x402 v2 payment proof (legacy X-PAYMENT also accepted)
  * - Authorization: Bearer <CDP_ACCESS_TOKEN> (optional) - For tracking who executed
  *
  * Request Body:
@@ -102,30 +101,31 @@ export async function POST(
     }
 
     // ========== STEP 5: CREATE DUAL PAYMENT REQUIREMENTS ==========
-    const paymentHeader = request.headers.get('X-PAYMENT');
-    const requestUrl = `${new URL(request.url).origin}${new URL(request.url).pathname}` as Resource;
-    const network = 'base' as const; // Base mainnet only
+    const paymentHeader = getPaymentHeader(request);
+    const requestUrl = `${new URL(request.url).origin}${new URL(request.url).pathname}`;
+    const network = 'eip155:8453' as const; // Base mainnet only (CAIP-2)
 
     // Create dual payment requirements: skill + Browserbase session
-    const dualPaymentRequirements = createDualPaymentRequirements(
+    const dualPaymentRequirements = await createDualPaymentRequirements(
       skillPrice, // Skill price (e.g., 0.01)
       DEFAULT_SESSION_MINUTES, // Browserbase session duration (5 min)
       network,
-      requestUrl,
       payToAddress as `0x${string}` // Skill creator's wallet
     );
 
     // For backward compatibility and verification, use skill payment requirements
-    const [skillPaymentRequirements, browserbasePaymentRequirements] = dualPaymentRequirements;
+    const [skillPaymentRequirements] = dualPaymentRequirements;
 
     // ========== STEP 6: VERIFY SKILL PAYMENT ==========
     const verificationResult = await verifyPayment(paymentHeader, skillPaymentRequirements);
 
     if (!verificationResult.isValid) {
       console.log('[x402] Payment required - returning 402 with dual payments');
-      return NextResponse.json(
-        create402Response(dualPaymentRequirements, verificationResult.error, verificationResult.payer),
-        { status: 402 }
+      return create402Response(
+        dualPaymentRequirements,
+        { url: requestUrl, description: 'Skill execution payment' },
+        verificationResult.error,
+        verificationResult.payer
       );
     }
 
@@ -206,13 +206,21 @@ export async function POST(
     });
 
     // ========== STEP 10: RETURN RESULT WITH PAYMENT INFO ==========
-    return NextResponse.json({
-      ...result,
-      payment: {
-        txHash: settlementResult.txHash,
-        settled: settlementResult.success,
+    return NextResponse.json(
+      {
+        ...result,
+        payment: {
+          txHash: settlementResult.txHash,
+          settled: settlementResult.success,
+        },
       },
-    });
+      {
+        headers: {
+          'PAYMENT-RESPONSE': createPaymentResponseHeader(settlementResult.settleResponse!),
+          'Access-Control-Expose-Headers': 'PAYMENT-RESPONSE',
+        },
+      }
+    );
 
   } catch (error) {
     console.error('[POST /api/skills/[skillId]/execute] Error:', error);

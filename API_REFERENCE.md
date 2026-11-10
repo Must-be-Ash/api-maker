@@ -43,7 +43,7 @@ Execute a saved skill with optional variables. Uses x402 payment protocol for du
 
 **Request Headers**:
 ```
-X-PAYMENT: <x402 payment header for skill>
+PAYMENT-SIGNATURE: <x402 v2 payment header for skill>
 Content-Type: application/json
 ```
 
@@ -103,35 +103,42 @@ curl -X POST http://localhost:3000/api/skills/skill_123456/execute \
 **Example Response** (402 Payment Required):
 ```json
 {
-  "x402Version": 1,
+  "x402Version": 2,
+  "error": "PAYMENT-SIGNATURE header is required",
+  "resource": {
+    "url": "http://localhost:3000/api/skills/skill_123456/execute",
+    "description": "Skill execution payment"
+  },
   "accepts": [
     {
       "scheme": "exact",
-      "network": "base",
+      "network": "eip155:8453",
       "asset": "0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913",
-      "maxAmountRequired": "10000",
-      "resource": "http://localhost:3000/api/skills/skill_123456/execute",
-      "description": "Skill execution payment",
-      "payTo": "0x..."
+      "amount": "10000",
+      "payTo": "0x...",
+      "maxTimeoutSeconds": 120,
+      "extra": { "name": "USD Coin", "version": "2" }
     },
     {
       "scheme": "exact",
-      "network": "base",
+      "network": "eip155:8453",
       "asset": "0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913",
-      "maxAmountRequired": "80000",
-      "resource": "https://x402.browserbase.com/browser/session/create",
-      "description": "Browserbase session (5 min)",
-      "payTo": "0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913"
+      "amount": "80000",
+      "payTo": "0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913",
+      "maxTimeoutSeconds": 120,
+      "extra": { "name": "USD Coin", "version": "2" }
     }
   ]
 }
 ```
 
+The same payload is also returned base64-encoded in the `PAYMENT-REQUIRED` response header.
+
 **Example Request** (With Payments):
 ```bash
 curl -X POST http://localhost:3000/api/skills/skill_123456/execute \
   -H "Content-Type: application/json" \
-  -H "X-PAYMENT: <x402 skill payment header>" \
+  -H "PAYMENT-SIGNATURE: <x402 v2 skill payment header>" \
   -d '{
     "variables": {
       "origin": "Toronto",

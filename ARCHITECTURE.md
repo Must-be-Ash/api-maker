@@ -1042,7 +1042,7 @@ await db.collection('skills').insertOne({
 ### Entry Point
 ```
 POST /api/skills/{skillId}/execute
-Headers: X-PAYMENT: <x402 skill payment header>
+Headers: PAYMENT-SIGNATURE: <x402 v2 skill payment header>
 Body: {
   variables: { origin: "Vancouver", destination: "LAX" },
   browserbaseSession: {
@@ -1106,7 +1106,7 @@ const session = await fetch('/api/browserbase/create-session', {
 
 // Step 6: Client calls skill endpoint with both
 await fetch(`/api/skills/${skillId}/execute`, {
-  headers: { 'X-PAYMENT': skillPaymentHeader },
+  headers: { 'PAYMENT-SIGNATURE': skillPaymentHeader },
   body: JSON.stringify({
     variables,
     browserbaseSession: {
